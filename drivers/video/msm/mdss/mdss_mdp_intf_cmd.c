@@ -668,6 +668,7 @@ static int mdss_mdp_cmd_wait4pingpong(struct mdss_mdp_ctl *ctl, void *arg)
 	struct mdss_panel_data *pdata;
 	unsigned long flags;
 	int rc = 0;
+	int i; /* workaround to support display on command mode */ 
 
 	ctx = (struct mdss_mdp_cmd_ctx *) ctl->intf_ctx[MASTER_CTX];
 	if (!ctx) {
@@ -684,9 +685,17 @@ static int mdss_mdp_cmd_wait4pingpong(struct mdss_mdp_ctl *ctl, void *arg)
 	pr_debug("%s: intf_num=%d ctx=%p koff_cnt=%d\n", __func__,
 			ctl->intf_num, ctx, atomic_read(&ctx->koff_cnt));
 
-	rc = wait_event_timeout(ctx->pp_waitq,
+	/* workaround to support display on command mode */ 
+	/* rc = wait_event_timeout(ctx->pp_waitq,
 			atomic_read(&ctx->koff_cnt) == 0,
 			KOFF_TIMEOUT);
+	*/
+	for (i = 0; i < 50; i++) {
+		rc = wait_event_timeout(ctx->pp_waitq,
+			atomic_read(&ctx->koff_cnt) == 0,
+			KOFF_TIMEOUT);
+		if (rc > 0) break;
+	}
 
 	trace_mdp_cmd_wait_pingpong(ctl->num,
 				atomic_read(&ctx->koff_cnt));
@@ -1086,6 +1095,8 @@ int mdss_mdp_cmd_ctx_stop(struct mdss_mdp_ctl *ctl,
 	unsigned long sflags;
 	int need_wait = 0;
 	int hz;
+	int rc = 0; /* workaround to support display on command mode */ 
+	int i; /* workaround to support display on command mode */ 
 
 	sctl = mdss_mdp_get_split_ctl(ctl);
 	if (sctl)
@@ -1113,14 +1124,30 @@ int mdss_mdp_cmd_ctx_stop(struct mdss_mdp_ctl *ctl,
 
 	if (need_wait) {
 		hz = mdss_panel_get_framerate(&ctl->panel_data->panel_info);
-		if (wait_for_completion_timeout(&ctx->stop_comp,
+		
+		/* workaround to support display on command mode */ 
+		/*if (wait_for_completion_timeout(&ctx->stop_comp,
 			STOP_TIMEOUT(hz)) <= 0) {
 			WARN(1, "stop cmd time out\n");
 			mdss_mdp_irq_disable(MDSS_MDP_IRQ_PING_PONG_RD_PTR,
 				ctx->pp_num);
 			ctx->rdptr_enabled = 0;
 			atomic_set(&ctx->koff_cnt, 0);
+		} */
+		for (i = 0; i <50; i++) {
+			rc = wait_for_completion_timeout(&ctx->stop_comp,
+									STOP_TIMEOUT(hz));
+			if (rc > 0) break;
 		}
+		if (rc <= 0) {
+		
+			WARN(1, "stop cmd time out\n");
+			mdss_mdp_irq_disable(MDSS_MDP_IRQ_PING_PONG_RD_PTR,
+					ctx->pp_num);
+			ctx->rdptr_enabled = 0;
+			atomic_set(&ctx->koff_cnt, 0);
+		}
+		
 	}
 
 	if (cancel_work_sync(&ctx->clk_work))
