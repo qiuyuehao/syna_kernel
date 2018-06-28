@@ -1740,6 +1740,234 @@ static int testing_get_raw_data(void)
 	return retval;
 }
 
+int syna_tcm_test_noise_data(void)
+{
+	int retval;
+	short data;
+	unsigned char *buf;
+	unsigned int idx;
+	unsigned int row;
+	unsigned int col;
+	unsigned int rows;
+	unsigned int cols;
+	unsigned int limits_rows;
+	unsigned int limits_cols;
+	unsigned int frame_size_words;
+	struct syna_tcm_app_info *app_info;
+	struct syna_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+
+	if (tcm_hcd->id_info.mode != MODE_APPLICATION ||
+			tcm_hcd->app_status != APP_STATUS_OK) {
+		return -ENODEV;
+	}
+
+	app_info = &tcm_hcd->app_info;
+
+	rows = le2_to_uint(app_info->num_of_image_rows);
+	cols = le2_to_uint(app_info->num_of_image_cols);
+
+	LOCK_BUFFER(testing_hcd->out);
+
+	retval = syna_tcm_alloc_mem(tcm_hcd,
+			&testing_hcd->out,
+			1);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to allocate memory for testing_hcd->out.buf\n");
+		UNLOCK_BUFFER(testing_hcd->out);
+		return retval;
+	}
+
+	testing_hcd->out.buf[0] = TEST_NOISE;
+
+	LOCK_BUFFER(testing_hcd->resp);
+
+	tcm_hcd->do_polling = true;
+	
+	retval = tcm_hcd->write_message(tcm_hcd,
+			CMD_PRODUCTION_TEST,
+			testing_hcd->out.buf,
+			1,
+			&testing_hcd->resp.buf,
+			&testing_hcd->resp.buf_size,
+			&testing_hcd->resp.data_length,
+			NULL,
+			0);
+
+	cancel_delayed_work_sync(&tcm_hcd->polling_work);
+	flush_workqueue(tcm_hcd->polling_workqueue);	
+	tcm_hcd->do_polling = false;
+
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write command %s\n",
+				STR(CMD_PRODUCTION_TEST));
+		UNLOCK_BUFFER(testing_hcd->resp);
+		UNLOCK_BUFFER(testing_hcd->out);
+		return retval;
+	}
+
+	UNLOCK_BUFFER(testing_hcd->out);
+
+	testing_get_frame_size_words(&frame_size_words, true);
+
+	TS_LOG_ERR("noise frame size:%d,  resp.data_length:%d\n", frame_size_words, testing_hcd->resp.data_length);
+	if (frame_size_words != testing_hcd->resp.data_length / 2) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Frame size mismatch\n");
+		UNLOCK_BUFFER(testing_hcd->resp);
+		return -EINVAL;
+	}
+
+	limits_rows = sizeof(noise_limits) / sizeof(noise_limits[0]);
+	limits_cols = sizeof(noise_limits[0]) / sizeof(noise_limits[0][0]);
+
+	if (rows > limits_rows || cols > limits_cols) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Mismatching limits data\n");
+		UNLOCK_BUFFER(testing_hcd->resp);
+		return -EINVAL;
+	}
+
+	idx = 0;
+	buf = testing_hcd->resp.buf;
+	testing_hcd->result = true;
+
+	for (row = 0; row < rows; row++) {
+		for (col = 0; col < cols; col++) {
+			data = (short)le2_to_uint(&buf[idx * 2]);
+			if (data > noise_limits[row][col]) {
+				testing_hcd->result = false;
+				break;
+			}
+			idx++;
+		}
+	}
+
+	UNLOCK_BUFFER(testing_hcd->resp);
+
+	return 0;	
+}
+
+int syna_tcm_test_pt11(void)
+{
+	int retval;
+	short data;
+	unsigned char *buf;
+	unsigned int idx;
+	unsigned int row;
+	unsigned int col;
+	unsigned int rows;
+	unsigned int cols;
+	unsigned int limits_rows;
+	unsigned int limits_cols;
+	unsigned int image_size_words;
+	struct syna_tcm_app_info *app_info;
+	struct syna_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+
+	if (tcm_hcd->id_info.mode != MODE_APPLICATION ||
+			tcm_hcd->app_status != APP_STATUS_OK) {
+		return -ENODEV;
+	}
+
+	app_info = &tcm_hcd->app_info;
+
+	rows = le2_to_uint(app_info->num_of_image_rows);
+	cols = le2_to_uint(app_info->num_of_image_cols);
+
+	LOCK_BUFFER(testing_hcd->out);
+
+	retval = syna_tcm_alloc_mem(tcm_hcd,
+			&testing_hcd->out,
+			1);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to allocate memory for testing_hcd->out.buf\n");
+		UNLOCK_BUFFER(testing_hcd->out);
+		return retval;
+	}
+
+	testing_hcd->out.buf[0] = TEST_PT11;
+
+	LOCK_BUFFER(testing_hcd->resp);
+
+	tcm_hcd->do_polling = true;
+
+	retval = tcm_hcd->write_message(tcm_hcd,
+			CMD_PRODUCTION_TEST,
+			testing_hcd->out.buf,
+			1,
+			&testing_hcd->resp.buf,
+			&testing_hcd->resp.buf_size,
+			&testing_hcd->resp.data_length,
+			NULL,
+			0);
+
+	cancel_delayed_work_sync(&tcm_hcd->polling_work);
+	flush_workqueue(tcm_hcd->polling_workqueue);	
+	tcm_hcd->do_polling = false;
+
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write command %s\n",
+				STR(CMD_PRODUCTION_TEST));
+		UNLOCK_BUFFER(testing_hcd->resp);
+		UNLOCK_BUFFER(testing_hcd->out);
+		return retval;
+	}
+
+	UNLOCK_BUFFER(testing_hcd->out);
+
+	testing_get_frame_size_words(&image_size_words, true);
+	TS_LOG_ERR("pt11 image_size_words size:%d,  resp.data_length:%d\n", image_size_words, testing_hcd->resp.data_length);
+
+	if (image_size_words != testing_hcd->resp.data_length / 2) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Image size mismatch\n");
+		UNLOCK_BUFFER(testing_hcd->resp);
+		return -EINVAL;
+	}
+
+	limits_rows = sizeof(pt11_hi_limits) / sizeof(pt11_hi_limits[0]);
+	limits_cols = sizeof(pt11_hi_limits[0]) / sizeof(pt11_hi_limits[0][0]);
+
+	if (rows > limits_rows || cols > limits_cols) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Mismatching limits data\n");
+		UNLOCK_BUFFER(testing_hcd->resp);
+		return -EINVAL;
+	}
+
+	limits_rows = sizeof(pt11_lo_limits) / sizeof(pt11_lo_limits[0]);
+	limits_cols = sizeof(pt11_lo_limits[0]) / sizeof(pt11_lo_limits[0][0]);
+
+	if (rows > limits_rows || cols > limits_cols) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Mismatching limits data\n");
+		UNLOCK_BUFFER(testing_hcd->resp);
+		return -EINVAL;
+	}
+
+	idx = 0;
+	buf = testing_hcd->resp.buf;
+	testing_hcd->result = true;
+
+	for (row = 0; row < rows; row++) {
+		for (col = 0; col < cols; col++) {
+			data = (short)le2_to_uint(&buf[idx * 2]);
+			if (data > pt11_hi_limits[row][col] ||
+					data < pt11_lo_limits[row][col]) {
+				testing_hcd->result = false;
+				break;
+			}
+			idx++;
+		}
+	}
+
+	UNLOCK_BUFFER(testing_hcd->resp);
+	return 0;	
+}
+
 int syna_tcm_get_raw_data(struct ts_rawdata_info *info,
 				 struct ts_cmd_node *out_cmd)
 {
@@ -1764,6 +1992,8 @@ int syna_tcm_get_raw_data(struct ts_rawdata_info *info,
 		TS_LOG_ERR("read raw data success\n");
 		buf = testing_hcd->report.buf;
 		
+		TS_LOG_ERR("rows:%d, cols:%d,  report.data_length:%d\n", rows, cols, testing_hcd->report.data_length);
+
 		info->used_size = rows * cols + 2; 
 		info->buff[0] = cols;
 		info->buff[1] = rows;
@@ -1781,6 +2011,18 @@ int syna_tcm_get_raw_data(struct ts_rawdata_info *info,
 	flush_workqueue(tcm_hcd->polling_workqueue);	
 	tcm_hcd->do_polling = false;
 
+//test noise data
+	if (0 == syna_tcm_test_noise_data()) {
+		TS_LOG_ERR("test noise data success\n");
+	} else {
+		TS_LOG_ERR("test noise data fail\n");
+	}
+
+	if (0 == syna_tcm_test_pt11()) {
+		TS_LOG_ERR("test pt11 data success\n");
+	} else {
+		TS_LOG_ERR("test pt11 data fail\n");
+	}
 	return retval;
 }
 static int testing_remove(struct syna_tcm_hcd *tcm_hcd)

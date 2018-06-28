@@ -36,7 +36,7 @@
 
 //#define STARTUP_REFLASH
 
-#define FORCE_REFLASH true
+#define FORCE_REFLASH false
 
 #define DISPLAY_REFLASH false
 
