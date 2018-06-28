@@ -1417,6 +1417,15 @@ struct synaptics_rmi4_f21_handle {
 	unsigned short command_base_addr;
 };
 
+// a global buffer to record the raw rt92 image data
+// size = tx_num * rx_num * 2 * sizeof(char)
+static unsigned char *g_tddi_full_raw_data_output;
+
+// a global flag to indicate the failure of report image reading
+// true : fail to read image
+static bool g_flag_readrt_err;
+
+
 show_prototype(num_of_mapped_tx)
 show_prototype(num_of_mapped_rx)
 show_prototype(tx_mapping)
@@ -1436,6 +1445,9 @@ show_store_prototype(report_type)
 show_store_prototype(fifoindex)
 show_store_prototype(no_auto_cal)
 show_store_prototype(read_report)
+
+
+show_store_prototype(tddi_full_raw)
 
 static struct attribute *attrs[] = {
 	attrify(num_of_mapped_tx),
@@ -1457,6 +1469,8 @@ static struct attribute *attrs[] = {
 	attrify(fifoindex),
 	attrify(no_auto_cal),
 	attrify(read_report),
+
+	attrify(tddi_full_raw),
 	NULL,
 };
 
@@ -3325,6 +3339,148 @@ exit:
 	rmi4_data->reset_device(rmi4_data, false);
 
 	return retval;
+}
+
+static ssize_t test_sysfs_tddi_full_raw_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int retval = 0;
+	int tx_num = f54->tx_assigned;
+	int rx_num = f54->rx_assigned;
+	unsigned int full_raw_report_size;
+	unsigned long setting;
+	struct synaptics_rmi4_data *rmi4_data = f54->rmi4_data;
+
+	retval = sstrtoul(buf, 10, &setting);
+	if (retval)
+		return retval;
+
+	if (setting != 1)
+		return -EINVAL;
+
+	// increase the tx number, if the button existed
+	if (f55->extended_amp) {
+		tx_num += 1;
+	}
+	full_raw_report_size = tx_num * rx_num * 2;
+
+	g_flag_readrt_err = false;
+
+	/* allocate the g_tddi_full_raw_data_output */
+	if (g_tddi_full_raw_data_output)
+		kfree(g_tddi_full_raw_data_output);
+
+	g_tddi_full_raw_data_output = kzalloc(full_raw_report_size, GFP_KERNEL);
+	if (!g_tddi_full_raw_data_output) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to alloc mem for g_tddi_full_raw_data_output\n",
+				__func__);
+		return -ENOMEM;
+	}
+
+	/* get the report image 92 */
+	retval = test_sysfs_read_report(dev, attr, "92", count,
+				false, false);
+	if (retval < 0) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to read report 92. exit\n", __func__);
+		g_flag_readrt_err = true ;
+		return -EIO;
+	}
+
+	secure_memcpy(g_tddi_full_raw_data_output, full_raw_report_size,
+		f54->report_data, f54->report_size, f54->report_size);
+
+	retval = count;
+
+	return retval;
+}
+
+
+
+static ssize_t test_sysfs_tddi_full_raw_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+#define NUM_BUTTON 3
+	unsigned int i;
+	unsigned int j;
+	int cnt;
+	int count = 0;
+	int tx_num = f54->tx_assigned;
+	int rx_num = f54->rx_assigned;
+	unsigned short *report_data_16;
+
+	unsigned short min = 0, max = 0;
+
+	if (!g_tddi_full_raw_data_output)
+		return snprintf(buf, PAGE_SIZE, "\nERROR: no g_tddi_full_raw_data_output\n");
+
+	// check the special code if failed to get report image
+	// output the error message
+	if (g_flag_readrt_err) {
+
+		kfree(g_tddi_full_raw_data_output);
+		g_tddi_full_raw_data_output = NULL;
+
+		return snprintf(buf, PAGE_SIZE, "\nERROR: fail to read report image\n");
+	}
+
+	cnt = snprintf(buf, PAGE_SIZE - count, "tx = %d\nrx = %d\n",
+			f54->tx_assigned, f54->rx_assigned);
+	buf += cnt;
+	count += cnt;
+
+	report_data_16 = (unsigned short *)g_tddi_full_raw_data_output;
+
+	min = max = *report_data_16;
+
+	for (i = 0; i < tx_num; i++) {
+		for (j = 0; j < rx_num; j++) {
+ 			cnt = snprintf(buf, PAGE_SIZE - count, "%-5d ", *report_data_16);
+
+			min = (min < *report_data_16)? min : *report_data_16;
+			max = (max > *report_data_16)? max : *report_data_16;
+
+			report_data_16++;
+			buf += cnt;
+			count += cnt;
+		}
+		cnt = snprintf(buf, PAGE_SIZE - count, "\n");
+		buf += cnt;
+		count += cnt;
+	}
+
+	cnt = snprintf(buf, PAGE_SIZE - count, "\ndata range (max, min) = (%-4d, %-4d)\n", max, min);
+	buf += cnt;
+	count += cnt;
+
+
+	// if the button existed, output the data of 0D button
+	if (f55->extended_amp) {
+		cnt = snprintf(buf, PAGE_SIZE - count, "\namp button count = %d.\n", NUM_BUTTON);
+		buf += cnt;
+		count += cnt;
+
+		for (i = 0; i < NUM_BUTTON; i++) {
+			cnt = snprintf(buf, PAGE_SIZE - count, "%-5d ", *report_data_16);
+
+			report_data_16++;
+			buf += cnt;
+			count += cnt;
+		}
+		cnt = snprintf(buf, PAGE_SIZE - count, "\n");
+		buf += cnt;
+		count += cnt;
+	}
+
+
+	snprintf(buf, PAGE_SIZE - count, "\n");
+	count++;
+
+	kfree(g_tddi_full_raw_data_output);
+	g_tddi_full_raw_data_output = NULL;
+
+	return count;
 }
 
 static ssize_t test_sysfs_data_read(struct file *data_file,
