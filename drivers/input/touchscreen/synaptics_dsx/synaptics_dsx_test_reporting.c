@@ -989,6 +989,19 @@ struct f54_control_88 {
 		} __packed;
 	};
 };
+struct f54_control_99 {
+	union {
+		struct {
+			unsigned char integration_duration_lsb;
+			unsigned char integration_duration_msb;
+			unsigned char reset_duration;
+		} __packed;
+		struct {
+			unsigned char data[3];
+			unsigned short address;
+		} __packed;
+	};
+};
 
 struct f54_control_96 {
 	unsigned short address;
@@ -1055,6 +1068,7 @@ struct f54_control {
 	struct f54_control_86 *reg_86;
 	struct f54_control_88 *reg_88;
 	struct f54_control_96 *reg_96;
+	struct f54_control_99 *reg_99;
 	struct f54_control_110 *reg_110;
 	struct f54_control_149 *reg_149;
 	struct f54_control_188 *reg_188;
@@ -1445,6 +1459,16 @@ static signed short *g_tddi_noise_data_output;
 // size = tx_num * rx_num * sizeof(char)
 static unsigned char *g_tddi_ee_short_data_output;
 
+
+
+#define ELEC_OPEN_DETECTOR_MOD_RST_DUR 0
+#define ELEC_OPEN_DETECTOR_RST_DUR 9
+#define ELEC_OPEN_DETECTOR_LIMIT_LOWER 70
+#define ELEC_OPEN_DETECTOR_LIMIT_UPPER 130
+// a global buffer to record the testing result of amp open test
+// size = tx_num * rx_num * sizeof(char)
+static unsigned char *g_tddi_amp_open_data_output;
+
 // a global flag to indicate the failure of report image reading
 // true : fail to read image
 static bool g_flag_readrt_err;
@@ -1474,6 +1498,7 @@ show_store_prototype(read_report)
 show_store_prototype(tddi_full_raw)
 show_store_prototype(tddi_noise)
 show_store_prototype(tddi_ee_short)
+show_store_prototype(tddi_elec_open_detector)
 show_prototype(ito_test)
 
 static struct attribute *attrs[] = {
@@ -1500,6 +1525,7 @@ static struct attribute *attrs[] = {
 	attrify(tddi_full_raw),
 	attrify(tddi_noise),
 	attrify(tddi_ee_short),
+	attrify(tddi_elec_open_detector),
 	attrify(ito_test),
 	NULL,
 };
@@ -4170,6 +4196,233 @@ exit:
 	return retval;
 }
 
+
+static ssize_t test_sysfs_tddi_elec_open_detector_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int retval = 0;
+	int i, j, k;
+	int tx_num = f54->tx_assigned;
+	int rx_num = f54->rx_assigned;
+	struct synaptics_rmi4_data *rmi4_data = f54->rmi4_data;
+	struct f54_control control = f54->control;
+	unsigned long setting;
+
+	struct f54_control_99  original_f54_ctrl99;
+
+	short temp_data;
+	signed short  *p_rt139_image = NULL;
+	signed short  *p_median_image = NULL;
+	signed short  *p_buf_col = NULL;
+
+	retval = sstrtoul(buf, 10, &setting);
+	if (retval)
+		return retval;
+
+	if (setting != 1)
+		return -EINVAL;
+
+	// allocate the g_tddi_amp_open_data_output
+	if (g_tddi_amp_open_data_output)
+		kfree(g_tddi_amp_open_data_output);
+	g_tddi_amp_open_data_output = kzalloc(tx_num * rx_num, GFP_KERNEL);
+	if (!g_tddi_amp_open_data_output) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to alloc mem for g_tddi_amp_open_data_output\n",
+				__func__);
+		return -ENOMEM;
+	}
+
+	g_flag_readrt_err = false;
+
+	// allocate the internal buffer
+	p_rt139_image = kzalloc(tx_num * rx_num * sizeof(signed short), GFP_KERNEL);
+	if (!p_rt139_image) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to alloc mem for p_rt139_image\n",
+				__func__);
+		retval = -ENOMEM;
+		goto exit;
+	}
+	p_median_image = kzalloc(tx_num * rx_num * sizeof(signed short), GFP_KERNEL);
+	if (!p_median_image) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to alloc mem for p_median_image\n",
+				__func__);
+		retval = -ENOMEM;
+		goto exit;
+	}
+	p_buf_col = kzalloc(tx_num * sizeof(signed short), GFP_KERNEL);
+	if (!p_buf_col) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to alloc mem for p_buf_col\n",
+				__func__);
+		retval = -ENOMEM;
+		goto exit;
+	}
+
+	/* keep the original reset duration */
+	retval = synaptics_rmi4_reg_read(rmi4_data,
+			control.reg_99->address,
+			original_f54_ctrl99.data,
+			sizeof(original_f54_ctrl99.data));
+	if (retval < 0) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to read original data from f54_ctrl99\n",
+				__func__);
+		retval = -EIO;
+		goto exit;
+	}
+	/* change the reset duration if the ELEC_OPEN_DETECTOR_MOD_RST_DUR is enabled */
+	if (ELEC_OPEN_DETECTOR_MOD_RST_DUR) {
+		/* change RST_DUR at F54_ANALOG_CTRL99 */
+		control.reg_99->integration_duration_lsb = original_f54_ctrl99.integration_duration_lsb;
+		control.reg_99->integration_duration_msb = original_f54_ctrl99.integration_duration_msb;
+		control.reg_99->reset_duration = ELEC_OPEN_DETECTOR_RST_DUR;
+		retval = synaptics_rmi4_reg_write(rmi4_data,
+				control.reg_99->address,
+				control.reg_99->data,
+				sizeof(control.reg_99->data));
+		if (retval < 0) {
+			dev_err(rmi4_data->pdev->dev.parent,
+					"%s: Failed to set reset duration to f54_ctrl99\n",
+					__func__);
+			retval = -EIO;
+			goto exit;
+		}
+
+		retval = test_do_command(COMMAND_FORCE_UPDATE);
+		if (retval < 0) {
+			dev_err(rmi4_data->pdev->dev.parent,
+					"%s: Failed to do force update when changing the reset duration\n",
+					__func__);
+			retval = -EIO;
+			goto exit;
+		}
+	}
+
+	/* read rt139 image */
+	retval = test_sysfs_read_report(dev, attr, "139", 3,
+				false, false);
+	if (retval < 0) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to read report 139. exit\n",
+				__func__);
+		retval = -EIO;
+		g_flag_readrt_err = false;
+		goto exit;
+	}
+
+	for (i = 0, k = 0; i < tx_num; i++) {
+		for (j = 0; j < rx_num; j++) {
+			p_rt139_image[i * rx_num + j] =
+				(signed short)(f54->report_data[k] & 0xff ) | (signed short)(f54->report_data[k + 1] << 8);
+
+			k += 2;
+		}
+	}
+
+	/* recover the original reset duration if the ELEC_OPEN_DETECTOR_MOD_RST_DUR is enabled */
+	if (ELEC_OPEN_DETECTOR_MOD_RST_DUR) {
+		retval = synaptics_rmi4_reg_write(rmi4_data,
+				control.reg_99->address,
+				original_f54_ctrl99.data,
+				sizeof(original_f54_ctrl99.data));
+		if (retval < 0) {
+			dev_err(rmi4_data->pdev->dev.parent,
+					"%s: Failed to restore f54_ctrl99 data\n",
+					__func__);
+			retval = -EIO;
+			goto exit;
+		}
+
+		retval = test_do_command(COMMAND_FORCE_UPDATE);
+		if (retval < 0) {
+			dev_err(rmi4_data->pdev->dev.parent,
+					"%s: Failed to do force update when restoring the reset duration\n",
+					__func__);
+			retval = -EIO;
+			goto exit;
+		}
+	}
+
+	/* calculate the median value */
+	for (i = 0; i < rx_num; i++) {
+		for (j = 0; j < tx_num; j++) {
+			p_buf_col[j] = p_rt139_image[j * rx_num + i];
+		}
+
+		temp_data = find_median(p_buf_col, tx_num);
+		for (j = 0; j < tx_num; j++) {
+			p_median_image[j * rx_num + i] = temp_data;
+		}
+	}
+
+	/* calculate the ratio */
+	for (i = 0; i < tx_num; i++) {
+		for (j = 0; j < rx_num; j++) {
+			temp_data = (short)((p_rt139_image[i * rx_num + j] * 100)/p_median_image[i * rx_num + j]);
+			if ((temp_data < ELEC_OPEN_DETECTOR_LIMIT_LOWER) || (temp_data > ELEC_OPEN_DETECTOR_LIMIT_UPPER)) {
+
+				dev_err(rmi4_data->pdev->dev.parent,
+						"%s: fail at (tx%-2d, rx%-2d) = %-4d (limit = %d - %d)\n",
+						__func__, i, j, temp_data, ELEC_OPEN_DETECTOR_LIMIT_LOWER, ELEC_OPEN_DETECTOR_LIMIT_UPPER);
+
+				g_tddi_amp_open_data_output[i*rx_num + j] = _TEST_FAIL; // 1: fail
+			}
+			else {
+				g_tddi_amp_open_data_output[i*rx_num + j] = _TEST_PASS; // 0: pass
+			}
+
+			p_rt139_image[i * rx_num + j] = temp_data;
+		}
+	}
+
+exit:
+	// release resource
+	kfree(p_rt139_image);
+	kfree(p_median_image);
+	kfree(p_buf_col);
+
+	return count;
+}
+
+static ssize_t test_sysfs_tddi_elec_open_detector_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int i, j;
+	int tx_num = f54->tx_assigned;
+	int rx_num = f54->rx_assigned;
+	int fail_count = 0;
+
+	if (!g_tddi_amp_open_data_output)
+		return snprintf(buf, PAGE_SIZE, "\nERROR: no g_tddi_amp_open_data_output\n");
+
+	// check the special code if failed to get report image
+	// output the error message
+	if (g_flag_readrt_err) {
+
+		kfree(g_tddi_amp_open_data_output);
+		g_tddi_amp_open_data_output = NULL;
+
+		return snprintf(buf, PAGE_SIZE, "\nERROR: fail to read report image\n");
+	}
+
+	for (i = 0; i < tx_num; i++) {
+		for (j = 0; j < rx_num; j++) {
+			if (g_tddi_amp_open_data_output[i * rx_num + j] != _TEST_PASS) {
+
+				fail_count += 1;
+			}
+		}
+	}
+
+	kfree(g_tddi_amp_open_data_output);
+	g_tddi_amp_open_data_output = NULL;
+
+	return snprintf(buf, PAGE_SIZE, "%s\n", (fail_count == 0) ? "PASS" : "FAIL");
+}
+
 static ssize_t test_sysfs_ito_test_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -4246,7 +4499,38 @@ static ssize_t test_sysfs_ito_test_show(struct device *dev,
 	kfree(g_tddi_noise_data_output);
 	g_tddi_noise_data_output = NULL;
 
-	return snprintf(buf, PAGE_SIZE, "tddi noise test %s\n", (fail_count == 0) ? "PASS" : "FAIL");	
+	return snprintf(buf, PAGE_SIZE, "tddi noise test %s\n", (fail_count == 0) ? "PASS" : "FAIL");
+
+	retval = test_sysfs_tddi_elec_open_detector_store(dev, attr, "1", 1);
+	if (retval < 0)
+	  return snprintf(buf, PAGE_SIZE, "\nERROR: test_sysfs_tddi_elec_open_detector_store\n");
+	
+	if (!g_tddi_amp_open_data_output)
+		return snprintf(buf, PAGE_SIZE, "\nERROR: no g_tddi_amp_open_data_output\n");
+
+	// check the special code if failed to get report image
+	// output the error message
+	if (g_flag_readrt_err) {
+
+		kfree(g_tddi_amp_open_data_output);
+		g_tddi_amp_open_data_output = NULL;
+
+		return snprintf(buf, PAGE_SIZE, "\nERROR: fail to read report image\n");
+	}
+
+	for (i = 0; i < tx_num; i++) {
+		for (j = 0; j < rx_num; j++) {
+			if (g_tddi_amp_open_data_output[i * rx_num + j] != _TEST_PASS) {
+
+				fail_count += 1;
+			}
+		}
+	}
+
+	kfree(g_tddi_amp_open_data_output);
+	g_tddi_amp_open_data_output = NULL;
+
+	return snprintf(buf, PAGE_SIZE, "ALL TEST ITEM %s\n", (fail_count == 0) ? "PASS" : "FAIL");
 }
 
 
