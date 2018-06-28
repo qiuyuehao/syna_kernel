@@ -310,6 +310,8 @@ enum f54_report_types {
 	F54_AMP_FULL_RAW_CAP = 78,
 	F54_AMP_RAW_ADC = 83,
 	F54_FULL_RAW_CAP_TDDI = 92,
+	F54_TEST_100_TYPE = 100,
+	F54_EXTEND_TRX_SHORT_INCELL = 26100,	/* RT26 + RT100 */
 	INVALID_REPORT_TYPE = -1,
 };
 
@@ -988,6 +990,10 @@ struct f54_control_88 {
 	};
 };
 
+struct f54_control_96 {
+	unsigned short address;
+};
+
 struct f54_control_110 {
 	union {
 		struct {
@@ -1048,6 +1054,7 @@ struct f54_control {
 	struct f54_control_57 *reg_57;
 	struct f54_control_86 *reg_86;
 	struct f54_control_88 *reg_88;
+	struct f54_control_96 *reg_96;
 	struct f54_control_110 *reg_110;
 	struct f54_control_149 *reg_149;
 	struct f54_control_188 *reg_188;
@@ -1293,6 +1300,7 @@ struct synaptics_rmi4_f55_handle {
 	unsigned char force_rx_offset;
 	unsigned char *tx_assignment;
 	unsigned char *rx_assignment;
+	unsigned char *rx_physical;
 	unsigned char *force_tx_assignment;
 	unsigned char *force_rx_assignment;
 	unsigned short query_base_addr;
@@ -1473,6 +1481,9 @@ static struct synaptics_rmi4_f54_handle *f54;
 static struct synaptics_rmi4_f55_handle *f55;
 static struct synaptics_rmi4_f21_handle *f21;
 
+static bool is_present_26100;
+static unsigned char result_26100;
+
 DECLARE_COMPLETION(test_remove_complete);
 
 static bool test_report_type_valid(enum f54_report_types report_type)
@@ -1505,6 +1516,8 @@ static bool test_report_type_valid(enum f54_report_types report_type)
 	case F54_AMP_FULL_RAW_CAP:
 	case F54_AMP_RAW_ADC:
 	case F54_FULL_RAW_CAP_TDDI:
+	case F54_TEST_100_TYPE:
+	case F54_EXTEND_TRX_SHORT_INCELL:   //F54_EXTEND_TRX_SHORT_INCELL
 		return true;
 		break;
 	default:
@@ -1534,6 +1547,7 @@ static void test_set_report_size(void)
 	case F54_AMP_FULL_RAW_CAP:
 	case F54_AMP_RAW_ADC:
 	case F54_FULL_RAW_CAP_TDDI:
+	case F54_TEST_100_TYPE:
 		f54->report_size = 2 * tx * rx;
 		break;
 	case F54_HIGH_RESISTANCE:
@@ -2742,6 +2756,12 @@ static ssize_t test_sysfs_read_report_show(struct device *dev,
 	unsigned short *report_data_u16;
 	unsigned int *report_data_u32;
 
+	if (is_present_26100) {
+		printk("%s: report type 26100 result:%s\n",
+				__func__, (result_26100 == 0) ? "PASS" : "FAIL");
+		return snprintf(buf, PAGE_SIZE, "%s\n", (result_26100 == 0) ? "PASS" : "FAIL");
+	}
+
 	switch (f54->report_type) {
 	case F54_8BIT_IMAGE:
 		report_data_8 = (char *)f54->report_data;
@@ -2944,10 +2964,12 @@ static ssize_t test_sysfs_read_report_show(struct device *dev,
 	return count;
 }
 
-static ssize_t test_sysfs_read_report_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
+
+static ssize_t test_sysfs_read_report(struct device *dev,
+			struct device_attribute *attr, const char *buf, size_t count,
+			bool do_preparation, bool do_reset)
 {
-	int retval;
+	int retval = count;
 	unsigned char timeout = GET_REPORT_TIMEOUT_S * 10;
 	unsigned char timeout_count;
 	const char cmd[] = {'1', 0};
@@ -2955,32 +2977,344 @@ static ssize_t test_sysfs_read_report_store(struct device *dev,
 
 	retval = test_sysfs_report_type_store(dev, attr, buf, count);
 	if (retval < 0)
-		goto exit;
+	  goto exit;
 
-	retval = test_sysfs_do_preparation_store(dev, attr, cmd, 1);
-	if (retval < 0)
-		goto exit;
-
+	if(do_preparation){
+		retval = test_sysfs_do_preparation_store(dev, attr, cmd, 1);
+		if (retval < 0)
+		  goto exit;
+	}
 	retval = test_sysfs_get_report_store(dev, attr, cmd, 1);
 	if (retval < 0)
-		goto exit;
+	  goto exit;
 
 	timeout_count = 0;
 	do {
 		if (f54->status != STATUS_BUSY)
-			break;
+		  break;
 		msleep(100);
 		timeout_count++;
 	} while (timeout_count < timeout);
 
 	if ((f54->status != STATUS_IDLE) || (f54->report_size == 0)) {
+
 		dev_err(rmi4_data->pdev->dev.parent,
-				"%s: Failed to read report\n",
-				__func__);
+					"%s: Failed to read report\n",
+					__func__);
 		retval = -EINVAL;
 		goto exit;
 	}
 
+exit:
+	if (do_reset)
+	  rmi4_data->reset_device(rmi4_data, false);
+
+	return retval;
+}
+
+static unsigned char temp_data[64] = {0};
+static unsigned char ExtendRT26_pin[4] = {0, 1, 32, 33};
+static short maxRX[34] = {0};
+static short minRX[34] = {0};
+static const short limit_1 = 600;
+static const short limit_2 = 550;
+#define ABS(a,b) ((a - b > 0) ? a - b : b - a)
+#define CHECK_BIT(var,pos) ((var) & (1<<(pos)))
+static unsigned char rt26_limit[7] = {0xc8, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00};
+
+unsigned char GetLogicalPin(unsigned char p_pin)
+{
+	unsigned char i = 0;
+	for(i = 0; i < f54->rx_assigned; i++)
+	{
+		if (f55->rx_physical[i] == p_pin)
+		  return i;
+	}
+	return 0xff;
+}
+
+static ssize_t test_sysfs_read_report_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int retval, i, j, k, ii, jj, rxIndex;
+	unsigned char timeout = GET_REPORT_TIMEOUT_S * 10;
+	unsigned char timeout_count;
+	const char cmd[] = {'1', 0};
+	struct synaptics_rmi4_data *rmi4_data = f54->rmi4_data;
+	unsigned long setting;
+	unsigned char logical_pin = 0xff;
+	unsigned char *p_data_rt26 = NULL;
+	short *p_data_baseline1 = NULL;
+	short *p_data_baseline2 = NULL;
+	short *p_data_delta = NULL;
+	unsigned short numberOfRows = f54->tx_assigned;
+	unsigned short numberOfColums = f54->rx_assigned;
+	unsigned short temp;
+	retval = sstrtoul(buf, 10, &setting);
+	if (retval)
+	  return retval;
+
+	is_present_26100 = false;
+	
+	dev_err(rmi4_data->pdev->dev.parent,
+					"%s: setting value:%d\n",
+					__func__, (int)setting);
+	if (F54_EXTEND_TRX_SHORT_INCELL == setting) {
+		unsigned char data;
+		dev_err(rmi4_data->pdev->dev.parent,"26100 setting enter numberofRows:%d numberofColums:%d\n", numberOfRows, numberOfColums);
+
+		result_26100 = 0;
+		is_present_26100 = true;
+		
+		retval = test_sysfs_read_report(dev, attr, "26", count, true, true);
+		if (retval < 0) {
+			dev_err(rmi4_data->pdev->dev.parent,"26100 do 26 type fail\n");
+			goto exit_26100_type;
+		}
+		p_data_rt26 = kzalloc(f54->report_size,  GFP_KERNEL);
+		if (!p_data_rt26) {
+			dev_err(rmi4_data->pdev->dev.parent,"error: fail to allocate p_data_rt26\n");
+			goto exit_26100_type;
+		}
+		secure_memcpy(p_data_rt26, f54->report_size, f54->report_data, f54->report_size, f54->report_size);
+		for (i=0; i<f54->report_size; i++) {
+
+			dev_err(rmi4_data->pdev->dev.parent,"RT26 data byte %d - data 0x%x\n", i, p_data_rt26[i]);
+			if (p_data_rt26[i] != 0) {
+				if ((i==0) && (p_data_rt26[i] & 0x01)) {
+					//pin - 0
+				} else if ((i==0) && (p_data_rt26[i] & 0x02)) {
+					//pin - 1
+				} else if ((i==4) && (p_data_rt26[i] & 0x01)) {
+					//pin -32
+				} else if ((i==4) && (p_data_rt26[i] & 0x02)) {
+					//pin -33
+				} else {
+					if (CHECK_BIT(p_data_rt26[i], j) != CHECK_BIT(rt26_limit[i], j)) {
+						dev_err(rmi4_data->pdev->dev.parent,"RT26 test fail!!!  data byte %d - data 0x%x\n", i, p_data_rt26[i]);
+						result_26100 = 1;
+					}
+				} 
+			}
+		}
+
+		//set no scan bit
+		retval = synaptics_rmi4_reg_read(rmi4_data,
+					f54->control_base_addr,
+					&data,
+					sizeof(data));
+		if (retval < 0) {
+			dev_err(rmi4_data->pdev->dev.parent,
+						"%s: Failed to set no scan bit\n",
+						__func__);
+			goto exit_26100_type;
+		}
+
+		data |= 0x02;
+
+		retval = synaptics_rmi4_reg_write(rmi4_data,
+					f54->control_base_addr,
+					&data,
+					sizeof(data));
+		if (retval < 0) {
+			dev_err(rmi4_data->pdev->dev.parent,
+						"%s: Failed to set no scan bit\n",
+						__func__);
+			goto exit_26100_type;
+		}
+		//set all local cbc to 0
+		retval = synaptics_rmi4_reg_write(rmi4_data,f54->control.reg_96->address, &temp_data[0], f54->rx_assigned);
+		if (retval < 0) {
+			dev_err(rmi4_data->pdev->dev.parent,"error: %s fail to set all F54 control_96 registers to 0\n", __func__);
+			goto exit_26100_type;
+		}
+		//do force update
+		retval = test_do_command(COMMAND_FORCE_UPDATE);
+		if (retval < 0) {
+			dev_err(rmi4_data->pdev->dev.parent,
+						"%s: Failed to do force update\n",
+						__func__);
+			goto exit_26100_type;
+		}
+
+		// 13. read baseline raw image, report type 100
+		p_data_baseline1 = kzalloc(2*numberOfRows*numberOfColums, GFP_KERNEL);
+		if (!p_data_baseline1) {
+			dev_err(rmi4_data->pdev->dev.parent,
+						"%s: Failed to do alloc baseline1 buf\n",
+						__func__);
+			goto exit_26100_type;
+		}
+		p_data_baseline2 = kzalloc(2*numberOfRows*numberOfColums, GFP_KERNEL);
+		if (!p_data_baseline2) {
+			dev_err(rmi4_data->pdev->dev.parent,
+						"%s: Failed to do alloc baseline1 buf\n",
+						__func__);
+			goto exit_26100_type;
+		}
+		p_data_delta = kzalloc(2*numberOfRows*numberOfColums, GFP_KERNEL);
+		if (!p_data_delta) {
+			dev_err(rmi4_data->pdev->dev.parent,
+						"%s: Failed to do alloc delta buf\n",
+						__func__);
+			goto exit_26100_type;
+		}
+
+		retval = test_sysfs_read_report(dev, attr, "100", count, false, false);
+		if (retval < 0) {
+			//save result to p_data_rt100
+			dev_err(rmi4_data->pdev->dev.parent,"ERROR: fail to read f54_read_report_image 100\n");
+			goto exit_26100_type;
+		}
+		for (i = 0, k = 0; i < numberOfRows; i++) {
+			for (j = 0; j < numberOfColums; j++) {
+				temp = f54->report_data[k] | (f54->report_data[k+1] << 8);
+				p_data_baseline1[i*numberOfColums+j] = temp;
+				k = k + 2;
+			}
+		}
+
+		for (i = 0; i< 4; i++) {
+
+			for (ii=0; ii<34; ii++) {
+				minRX[ii] = 5000;
+				maxRX[ii] = 0;
+			}  
+
+			logical_pin = GetLogicalPin( ExtendRT26_pin[i] );
+
+			if ( logical_pin == 0xFF )
+			  continue;
+
+			dev_err(rmi4_data->pdev->dev.parent,"\ninfo: RT26 pin %d, logical pin %d \n", ExtendRT26_pin[i], logical_pin);
+
+
+			// 14. set local CBC to 8pf(2D) 3.5pf(0D)
+			temp_data[logical_pin] = 0x0f; //EXTENDED_TRX_SHORT_CBC;
+
+			retval = synaptics_rmi4_reg_write(rmi4_data,f54->control.reg_96->address, &temp_data[0], f54->rx_assigned);
+			if (retval < 0) {
+				dev_err(rmi4_data->pdev->dev.parent,"error: %s fail to set all F54 control_96 register after changing the cbc\n", __func__);
+				goto exit_26100_type;
+			}
+			temp_data[logical_pin] = 0;
+
+			// 15. force update
+			//do force update
+			retval = test_do_command(COMMAND_FORCE_UPDATE);
+			if (retval < 0) {
+				dev_err(rmi4_data->pdev->dev.parent,
+							"%s: Failed to do force update\n",
+							__func__);
+				goto exit_26100_type;
+			}
+
+
+			// 16. read report type 100
+			retval = test_sysfs_read_report(dev, attr, "100", count, false, false);
+			if (retval < 0) {
+				//save result to p_data_rt100
+				dev_err(rmi4_data->pdev->dev.parent,"ERROR: fail to read f54_read_report_image 100\n");
+				goto exit_26100_type;
+			}
+
+			for (ii = 0, k = 0; ii < numberOfRows; ii++) {
+				for (j = 0; j < numberOfColums; j++) {
+					temp = f54->report_data[k] | (f54->report_data[k+1] << 8);
+					p_data_baseline2[ii*numberOfColums+j] = temp;
+					k = k + 2;
+				}
+			}
+
+			// 17. get delta image between baseline image 1 and baseline image 2 
+			for ( ii = 0; ii < f54->tx_assigned; ii++ ) {
+				for ( jj = 0; jj < f54->rx_assigned; jj++ ) {
+					p_data_delta[ii*f54->rx_assigned + jj] = 
+						ABS( p_data_baseline1[ii*f54->rx_assigned + jj], p_data_baseline2[ii*f54->rx_assigned + jj] );
+
+					if ( maxRX[jj] < p_data_delta[ii*f54->rx_assigned + jj] )
+					  maxRX[jj] = p_data_delta[ii*f54->rx_assigned + jj];
+
+					if ( minRX[jj] > p_data_delta[ii*f54->rx_assigned + jj] )
+					  minRX[jj] = p_data_delta[ii*f54->rx_assigned + jj];           	
+				}
+			}
+
+			dev_err(rmi4_data->pdev->dev.parent,"\n");
+			for ( jj = 0; jj < f54->rx_assigned; jj++ ) {
+				dev_err(rmi4_data->pdev->dev.parent,"Rx%-2d(max, min) = (%4d, %4d)\n", jj, maxRX[jj], minRX[jj]);
+
+			}
+			dev_err(rmi4_data->pdev->dev.parent,"\n");
+			dev_err(rmi4_data->pdev->dev.parent,
+					"%s: reach 1 now\n",
+					__func__);
+			// 18. Check data: TREX w/o CBC raised changes >= 200 or TREXn* (TREX with CBC raised) changes < 2000
+			// Flag TRX0* as 1 as well if any other RX changes are >=200
+			for ( rxIndex = 0; rxIndex < f54->rx_assigned; rxIndex++ )
+			{
+				if ( rxIndex == logical_pin )
+				{
+					if ( minRX[rxIndex] < limit_1 )
+					{
+						dev_err(rmi4_data->pdev->dev.parent,"%s test failed: minRX[%-2d] = %4d when test pin %d (RX Logical pin [%d])\n", 
+									__func__, rxIndex, minRX[rxIndex], ExtendRT26_pin[i], logical_pin );
+						result_26100 = 1;
+					}
+				}
+				else
+				{
+					if ( maxRX[rxIndex] >= limit_2 )
+					{
+						dev_err(rmi4_data->pdev->dev.parent,"%s test failed: maxRX[%-2d] = %4d when test pin %d (RX Logical pin [%d])\n", 
+									__func__, rxIndex, maxRX[rxIndex], ExtendRT26_pin[i], logical_pin );
+						result_26100 = 1;
+					}
+				}
+			}
+		}//for i < 4
+
+		dev_err(rmi4_data->pdev->dev.parent, "%s: test type 26100 result:%s\n", __func__, (result_26100 == 0) ? "pass":"fail");
+exit_26100_type:
+		if(p_data_baseline1)
+		  kfree(p_data_baseline1);
+		if(p_data_baseline2)
+		  kfree(p_data_baseline2);
+		if(p_data_delta)
+		  kfree(p_data_delta);
+		if(p_data_rt26)
+		  kfree(p_data_rt26);
+		goto exit;
+	} else {
+
+		retval = test_sysfs_report_type_store(dev, attr, buf, count);
+		if (retval < 0)
+			goto exit;
+
+		retval = test_sysfs_do_preparation_store(dev, attr, cmd, 1);
+		if (retval < 0)
+			goto exit;
+
+		retval = test_sysfs_get_report_store(dev, attr, cmd, 1);
+		if (retval < 0)
+			goto exit;
+
+		timeout_count = 0;
+		do {
+			if (f54->status != STATUS_BUSY)
+				break;
+			msleep(100);
+			timeout_count++;
+		} while (timeout_count < timeout);
+
+		if ((f54->status != STATUS_IDLE) || (f54->report_size == 0)) {
+			dev_err(rmi4_data->pdev->dev.parent,
+					"%s: Failed to read report\n",
+					__func__);
+			retval = -EINVAL;
+			goto exit;
+		}
+	}
 	retval = test_sysfs_resume_touch_store(dev, attr, cmd, 1);
 	if (retval < 0)
 		goto exit;
@@ -3181,6 +3515,7 @@ static void test_free_control_mem(void)
 	kfree(control.reg_57);
 	kfree(control.reg_86);
 	kfree(control.reg_88);
+	kfree(control.reg_96);
 	kfree(control.reg_110);
 	kfree(control.reg_149);
 	kfree(control.reg_188);
@@ -3598,9 +3933,12 @@ static int test_set_controls(void)
 		reg_addr += CONTROL_95_SIZE;
 
 	/* control 96 */
-	if (f54->query_21.has_ctrl96)
+	if (f54->query_21.has_ctrl96) {
+		control->reg_96 = kzalloc(sizeof(*(control->reg_96)),
+					GFP_KERNEL);
+		control->reg_96->address = reg_addr;
 		reg_addr += CONTROL_96_SIZE;
-
+	}
 	/* control 97 */
 	if (f54->query_21.has_ctrl97)
 		reg_addr += CONTROL_97_SIZE;
@@ -4811,6 +5149,7 @@ static void test_f55_init(struct synaptics_rmi4_data *rmi4_data)
 
 	f55->tx_assignment = kzalloc(tx_electrodes, GFP_KERNEL);
 	f55->rx_assignment = kzalloc(rx_electrodes, GFP_KERNEL);
+	f55->rx_physical = kzalloc(rx_electrodes, GFP_KERNEL);
 
 	retval = synaptics_rmi4_reg_read(rmi4_data,
 			f55->control_base_addr + SENSOR_TX_MAPPING_OFFSET,
@@ -4844,6 +5183,7 @@ static void test_f55_init(struct synaptics_rmi4_data *rmi4_data)
 	for (ii = 0; ii < rx_electrodes; ii++) {
 		if (f55->rx_assignment[ii] != 0xff)
 			f54->rx_assigned++;
+			f55->rx_physical[ii] = f55->rx_assignment[ii];
 	}
 
 	if (f55->amp_sensor) {
