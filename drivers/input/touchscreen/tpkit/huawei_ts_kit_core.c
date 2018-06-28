@@ -598,7 +598,7 @@ static void rawdata_proc_3d_func_printf(struct seq_file *m, struct ts_rawdata_in
 	seq_printf(m, "noisedata end(3d)\n");
 	return;
 }
-static int ts_kit_update_firmware(void);
+
 /*lint -save -e* */
 static int rawdata_proc_show(struct seq_file *m, void *v)
 {
@@ -610,7 +610,6 @@ static int rawdata_proc_show(struct seq_file *m, void *v)
 	int td43xx_ee_short_test_support = g_ts_kit_platform_data.chip_data->td43xx_ee_short_test_support;
 	struct ts_cmd_node *cmd = NULL;
 	struct ts_rawdata_info *info = NULL;
-if (0) {
 
 	TS_LOG_INFO("rawdata_proc_show, buffer size = %ld\n", m->size);
 	if(m->size <= RAW_DATA_SIZE) {
@@ -733,9 +732,6 @@ if (0) {
 	if(g_ts_kit_platform_data.chip_data->support_3d_func) {
 		rawdata_proc_3d_func_printf(m, info);
 	}
-}
-	TS_LOG_ERR("try to update firmware here");
-	ts_kit_update_firmware();
 
 	error = NO_ERR;
 
