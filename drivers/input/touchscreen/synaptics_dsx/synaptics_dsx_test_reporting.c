@@ -1474,6 +1474,7 @@ show_store_prototype(read_report)
 show_store_prototype(tddi_full_raw)
 show_store_prototype(tddi_noise)
 show_store_prototype(tddi_ee_short)
+show_prototype(ito_test)
 
 static struct attribute *attrs[] = {
 	attrify(num_of_mapped_tx),
@@ -1499,6 +1500,7 @@ static struct attribute *attrs[] = {
 	attrify(tddi_full_raw),
 	attrify(tddi_noise),
 	attrify(tddi_ee_short),
+	attrify(ito_test),
 	NULL,
 };
 
@@ -4035,6 +4037,217 @@ static ssize_t test_sysfs_tddi_ee_short_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%s\n", (fail_count == 0) ? "PASS" : "FAIL");
 }
 
+static unsigned short g_full_raw_limit_lower = 300;
+static unsigned short g_full_raw_limit_upper = 3000;
+static int test_tddi_full_raw(uint16_t num_frames)
+{
+	int retval = 0;
+	struct synaptics_rmi4_data *rmi4_data = f54->rmi4_data;
+
+	int test_round;
+	int i, j, k;
+	int tx_num = f54->tx_assigned;
+	int rx_num = f54->rx_assigned;
+	int error = 0;
+
+	unsigned char *p_image_data_8 = NULL;
+	unsigned short *p_image_data_16 = NULL;
+	unsigned int *p_image_data_32 = NULL;
+
+	unsigned int min = 0, max = 0;
+
+
+	// allocate the buffer
+	// kzalloc(buffer_size, GFP_KERNEL);
+	p_image_data_8 = kzalloc(tx_num * rx_num * 2, GFP_KERNEL);
+	if(!p_image_data_8) {
+		retval = (-ENOMEM);
+		goto exit;
+	}
+	p_image_data_16 = kzalloc(tx_num * rx_num * sizeof(unsigned short), GFP_KERNEL);
+	if(!p_image_data_16) {
+		retval = (-ENOMEM);
+		goto exit;
+	}
+	p_image_data_32 = kzalloc(tx_num * rx_num * sizeof(unsigned int), GFP_KERNEL);
+	if(!p_image_data_32) {
+		retval = (-ENOMEM);
+		goto exit;
+	}
+
+	for (test_round = 0; test_round < num_frames; test_round++) {
+
+		// step 1
+		// get the report image 92	
+		retval = test_sysfs_read_report(NULL, NULL, "92", 2,
+					false, false);
+		if (retval < 0) {
+			dev_err(rmi4_data->pdev->dev.parent,
+					"%s: Failed to read report 92. exit\n", __func__);
+			g_flag_readrt_err = true;
+			return -EIO;
+		}
+
+		secure_memcpy(p_image_data_8, tx_num * rx_num * 2,
+			f54->report_data, f54->report_size, f54->report_size);
+			
+
+		for(i = 0, k = 0; i < tx_num; i++) {
+			for(j = 0; j < rx_num; j++) {
+				p_image_data_16[i * rx_num + j] =
+					(signed short)(p_image_data_8[k] & 0xff ) | (signed short)(p_image_data_8[k + 1] << 8);
+
+				k += 2;
+			}
+		}
+
+		// step 2
+		// calculate the summation
+		for (i = 0; i < tx_num; i++) {
+			for (j = 0; j < rx_num; j++) {
+				p_image_data_32[i * rx_num + j] += p_image_data_16[i * rx_num + j];
+			}
+		}
+
+		memset(p_image_data_8, 0x00, tx_num * rx_num * 2);
+	}
+
+	// step 3
+	// calculate the average and validate the result
+
+
+	min = max = p_image_data_32[0] / num_frames;
+
+	for (i = 0; i < tx_num; i++) {
+		for (j = 0; j < rx_num; j++) {
+			p_image_data_32[i * rx_num + j] = (uint32_t)p_image_data_32[i * rx_num + j] / num_frames;
+
+			min = (p_image_data_32[i * rx_num + j] < min)? p_image_data_32[i * rx_num + j] : min;
+			max = (p_image_data_32[i * rx_num + j] > max)? p_image_data_32[i * rx_num + j] : max;
+		}
+
+	}
+
+	for (i = 0; i < tx_num; i++) {
+		for (j = 0; j < rx_num; j++) {
+
+			if ((p_image_data_32[i * rx_num + j] < g_full_raw_limit_lower) ||
+				(p_image_data_32[i * rx_num + j] > g_full_raw_limit_upper)) {
+					error += 1;
+			}
+		}
+	}
+
+exit:
+	if (retval < 0) {
+		printk("\nResult: FAIL\n\n");
+	}
+	else {
+		if(error != 0) {
+			retval = -EINVAL;
+			printk("\nResult: FAIL (%d errors)\n\n", error);
+		}
+		else {
+			retval = 0;
+			printk("\nResult: PASS\n\n");
+		}
+	}
+
+
+	if(p_image_data_8) {
+		kfree(p_image_data_8);
+		p_image_data_8 = NULL;
+	}
+	if(p_image_data_16) {
+		kfree(p_image_data_16);
+		p_image_data_16 = NULL;
+	}
+	if(p_image_data_32) {
+		kfree(p_image_data_32);
+		p_image_data_32 = NULL;
+	}
+
+	return retval;
+}
+
+static ssize_t test_sysfs_ito_test_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int retval = 0;
+
+	int i, j;
+	int tx_num = f54->tx_assigned;
+	int rx_num = f54->rx_assigned;
+	int fail_count = 0;
+
+	retval = test_tddi_full_raw(10);
+	if (retval < 0)
+	  return snprintf(buf, PAGE_SIZE, "\nERROR: test_tddi_full_raw fail\n");
+
+	//test tddi ee short item
+	retval = test_sysfs_tddi_ee_short_store(dev, attr, "1", 1);
+	if (retval < 0)
+	  return snprintf(buf, PAGE_SIZE, "\nERROR: test_sysfs_tddi_ee_short_store\n");
+
+	if (!g_tddi_ee_short_data_output)
+		return snprintf(buf, PAGE_SIZE, "\nERROR: no g_tddi_ee_short_data_output\n");
+
+	// check the special code if failed to get report image
+	// output the error message
+	if (g_flag_readrt_err) {
+
+		kfree(g_tddi_ee_short_data_output);
+		g_tddi_ee_short_data_output = NULL;
+
+		return snprintf(buf, PAGE_SIZE, "\nERROR: g_tddi_ee short fail to read report image\n");
+	}
+
+	for (i = 0; i < tx_num; i++) {
+		for (j = 0; j < rx_num; j++) {
+			if (g_tddi_ee_short_data_output[i * rx_num + j] != _TEST_PASS) {
+
+				fail_count += 1;
+			}
+		}
+	}
+
+
+	kfree(g_tddi_ee_short_data_output);
+	g_tddi_ee_short_data_output = NULL;
+
+	snprintf(buf, PAGE_SIZE, "tddi ee short test %s\n", (fail_count == 0) ? "PASS" : "FAIL");
+
+	retval = test_sysfs_tddi_noise_store(dev, attr, "1", 1);
+	if (retval < 0)
+	  return snprintf(buf, PAGE_SIZE, "\nERROR: test_sysfs_tddi_noise_store\n");
+
+	if (!g_tddi_noise_data_output)
+		return snprintf(buf, PAGE_SIZE, "\nERROR: no g_tddi_noise_data_output\n");
+
+	// check the special code if failed to get report image
+	// output the error message
+	if (g_flag_readrt_err) {
+
+		kfree(g_tddi_noise_data_output);
+		g_tddi_noise_data_output = NULL;
+
+		return snprintf(buf, PAGE_SIZE, "\nERROR: tddi noise fail to read report image\n");
+	}
+
+	for (i = 0; i < tx_num; i++) {
+		for (j = 0; j < rx_num; j++) {
+			if (g_tddi_noise_data_output[i * rx_num + j] != _TEST_PASS) {
+
+				fail_count += 1;
+			}
+		}
+	}
+
+	kfree(g_tddi_noise_data_output);
+	g_tddi_noise_data_output = NULL;
+
+	return snprintf(buf, PAGE_SIZE, "tddi noise test %s\n", (fail_count == 0) ? "PASS" : "FAIL");	
+}
 
 
 static ssize_t test_sysfs_data_read(struct file *data_file,
