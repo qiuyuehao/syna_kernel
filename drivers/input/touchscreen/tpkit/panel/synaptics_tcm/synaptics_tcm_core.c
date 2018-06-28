@@ -1050,8 +1050,8 @@ int syna_tcm_raw_read(struct syna_tcm_hcd *tcm_hcd,
 					xfer_length + 2);
 			//remaiming length cust
 			TS_LOG_ERR("remaining length is  %d\n", remaining_length);
-			if (remaining_length > (tcm_hcd->temp.buf[3] << 8 | tcm_hcd->temp.buf[2]))
-				remaining_length = tcm_hcd->temp.buf[3] << 8 | tcm_hcd->temp.buf[2];
+			if ((length > ((tcm_hcd->temp.buf[3] << 8 | tcm_hcd->temp.buf[2]) + 5)) && (code != STATUS_CONTINUED_READ))
+				remaining_length = (tcm_hcd->temp.buf[3] << 8 | tcm_hcd->temp.buf[2]) + 5 - 2;
 			TS_LOG_ERR("remaining length cust to %d\n", remaining_length);
 		} else {
 			if (code != STATUS_CONTINUED_READ) {
