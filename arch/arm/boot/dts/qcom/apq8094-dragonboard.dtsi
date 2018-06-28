@@ -36,6 +36,7 @@
 	status = "ok";
 };
 
+/*
 &i2c_1 {
 	status = "ok";
 	synaptics@20 {
@@ -56,6 +57,9 @@
 		synaptics,disable-gpios;
 	};
 };
+*/
+
+#include "synaptics-dsx-i2c.dtsi"
 
 &tspp {
 	status = "disabled";
