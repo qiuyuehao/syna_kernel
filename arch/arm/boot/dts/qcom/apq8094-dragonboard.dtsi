@@ -124,7 +124,7 @@
 };
 
 #include "dsi-panel-hx8379a-truly-fwvga-video.dtsi"
-#include "dsi-panel-td4130-boe-hd-video-lhb.dtsi"
+//#include "dsi-panel-td4130-boe-hd-video-lhb.dtsi"
 #include "dsi-panel-td4320-fhdp-video.dtsi"
 
 &dsi_hx8379a_fwvga_truly_vid {

@@ -1,9 +1,9 @@
 /*
  * Synaptics TCM touchscreen driver
  *
- * Copyright (C) 2017 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
  *
- * Copyright (C) 2017 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,7 +38,6 @@
 #include <linux/module.h>
 #include <linux/input.h>
 #include <linux/delay.h>
-#include <linux/wakelock.h>
 #include <linux/platform_device.h>
 #include <linux/input/synaptics_tcm.h>
 #ifdef CONFIG_FB
@@ -47,7 +46,8 @@
 #endif
 
 #define SYNAPTICS_TCM_ID_PRODUCT (1 << 0)
-#define SYNAPTICS_TCM_ID_VERSION 0x0007
+#define SYNAPTICS_TCM_ID_VERSION 0x0100
+#define SYNAPTICS_TCM_ID_SUBVERSION 0
 
 #define PLATFORM_DRIVER_NAME "synaptics_tcm"
 
@@ -56,8 +56,8 @@
 
 #define WAKEUP_GESTURE
 
-#define RD_CHUNK_SIZE 0 /* read length limit in bytes, 0 = unlimited */
-#define WR_CHUNK_SIZE 0 /* write length limit in bytes, 0 = unlimited */
+#define RD_CHUNK_SIZE 256 /* read length limit in bytes, 0 = unlimited */
+#define WR_CHUNK_SIZE 2048 /* write length limit in bytes, 0 = unlimited */
 
 #define MESSAGE_HEADER_SIZE 4
 #define MESSAGE_MARKER 0xa5
@@ -156,6 +156,7 @@ enum boot_mode {
 	MODE_HOST_DOWNLOAD = 0x02,
 	MODE_BOOTLOADER = 0x0b,
 	MODE_TDDI_BOOTLOADER = 0x0c,
+	MODE_PRODUCTION_TEST = 0x0e,
 };
 
 enum boot_status {
@@ -177,6 +178,7 @@ enum app_status {
 enum firmware_mode {
 	FW_MODE_BOOTLOADER = 0,
 	FW_MODE_APPLICATION = 1,
+	FW_MODE_PRODUCTION_TEST = 2,
 };
 
 enum dynamic_config_id {
@@ -227,7 +229,9 @@ enum command {
 	CMD_EXIT_DEEP_SLEEP = 0x2d,
 	CMD_GET_TOUCH_INFO = 0x2e,
 	CMD_GET_DATA_LOCATION = 0x2f,
-	CMD_DOWNLOAD_CONFIG = 0xc0,
+	CMD_DOWNLOAD_CONFIG = 0x30,
+	CMD_ENTER_PRODUCTION_TEST_MODE = 0x31,
+	CMD_GET_FEATURES = 0x32,
 };
 
 enum status_code {
@@ -235,6 +239,7 @@ enum status_code {
 	STATUS_OK = 0x01,
 	STATUS_BUSY = 0x02,
 	STATUS_CONTINUED_READ = 0x03,
+	STATUS_NOT_EXECUTED_IN_DEEP_SLEEP = 0x0b,
 	STATUS_RECEIVE_BUFFER_OVERFLOW = 0x0c,
 	STATUS_PREVIOUS_COMMAND_PENDING = 0x0d,
 	STATUS_NOT_IMPLEMENTED = 0x0e,
@@ -247,8 +252,8 @@ enum report_type {
 	REPORT_TOUCH = 0x11,
 	REPORT_DELTA = 0x12,
 	REPORT_RAW = 0x13,
+	REPORT_STATUS = 0x1b,
 	REPORT_PRINTF = 0x82,
-	REPORT_STATUS = 0xc0,
 	REPORT_HDL = 0xfe,
 };
 
@@ -367,20 +372,29 @@ struct syna_tcm_message_header {
 	unsigned char length[2];
 };
 
+struct syna_tcm_features {
+	unsigned char byte_0_reserved;
+	unsigned char byte_1_reserved;
+	unsigned char dual_firmware:1;
+	unsigned char byte_2_reserved:7;
+} __packed;
+
 struct syna_tcm_hcd {
 	pid_t isr_pid;
 	atomic_t command_status;
-	wait_queue_head_t wait_queue;
+	atomic_t host_downloading;
+	wait_queue_head_t hdl_wq;
 	int irq;
 	bool init_okay;
 	bool do_polling;
 	bool in_suspend;
 	bool irq_enabled;
-	bool dispatch_report;
+	bool host_download_mode;
 	unsigned char fb_ready;
 	unsigned char command;
 	unsigned char async_report_id;
 	unsigned char status_report_code;
+	unsigned char response_code;
 	unsigned int read_length;
 	unsigned int payload_length;
 	unsigned int packrat_number;
@@ -399,7 +413,6 @@ struct syna_tcm_hcd {
 	struct mutex rw_ctrl_mutex;
 	struct mutex command_mutex;
 	struct mutex identify_mutex;
-	struct wake_lock wakelock;
 	struct delayed_work polling_work;
 	struct workqueue_struct *polling_workqueue;
 	struct task_struct *notifier_thread;
@@ -418,11 +431,12 @@ struct syna_tcm_hcd {
 	struct syna_tcm_identification id_info;
 	struct syna_tcm_helper helper;
 	struct syna_tcm_watchdog watchdog;
+	struct syna_tcm_features features;
 	const struct syna_tcm_hw_interface *hw_if;
-	int (*reset)(struct syna_tcm_hcd *tcm_hcd, bool hw);
+	int (*reset)(struct syna_tcm_hcd *tcm_hcd, bool hw, bool update_wd);
 	int (*sleep)(struct syna_tcm_hcd *tcm_hcd, bool en);
 	int (*identify)(struct syna_tcm_hcd *tcm_hcd, bool id);
-	int (*enable_irq)(struct syna_tcm_hcd *tcm_hcd, bool en);
+	int (*enable_irq)(struct syna_tcm_hcd *tcm_hcd, bool en, bool ns);
 	int (*switch_mode)(struct syna_tcm_hcd *tcm_hcd,
 			enum firmware_mode mode);
 	int (*read_message)(struct syna_tcm_hcd *tcm_hcd,
@@ -431,6 +445,7 @@ struct syna_tcm_hcd {
 			unsigned char command, unsigned char *payload,
 			unsigned int length, unsigned char **resp_buf,
 			unsigned int *resp_buf_size, unsigned int *resp_length,
+			unsigned char *response_code,
 			unsigned int polling_delay_ms);
 	int (*get_dynamic_config)(struct syna_tcm_hcd *tcm_hcd,
 			enum dynamic_config_id id, unsigned short *value);
@@ -454,6 +469,7 @@ struct syna_tcm_module_cb {
 	int (*reset)(struct syna_tcm_hcd *tcm_hcd);
 	int (*suspend)(struct syna_tcm_hcd *tcm_hcd);
 	int (*resume)(struct syna_tcm_hcd *tcm_hcd);
+	int (*early_suspend)(struct syna_tcm_hcd *tcm_hcd);
 };
 
 struct syna_tcm_module_handler {
