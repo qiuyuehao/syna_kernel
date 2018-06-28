@@ -5176,8 +5176,16 @@ static int test_set_controls(void)
 		reg_addr += CONTROL_98_SIZE;
 
 	/* control 99 */
-	if (f54->query.touch_controller_family == 2)
+	if (f54->query.touch_controller_family == 2) {
+		/* tddi f54 test reporting +  */
+		control->reg_99 = kzalloc(sizeof(*(control->reg_99)),
+				GFP_KERNEL);
+		if (!control->reg_99)
+			goto exit_no_mem;
+		control->reg_99->address = reg_addr;
+		/* tddi f54 test reporting - */
 		reg_addr += CONTROL_99_SIZE;
+	}
 
 	/* control 100 */
 	if (f54->query_16.has_ctrl100)
