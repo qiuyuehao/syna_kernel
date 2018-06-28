@@ -1160,11 +1160,11 @@ static int syna_tcm_read_message(struct syna_tcm_hcd *tcm_hcd,
 	tcm_hcd->status_report_code = header->code;
 
 	tcm_hcd->payload_length = le2_to_uint(header->length);
-
+/*
 	LOGE(tcm_hcd->pdev->dev.parent,
 			"Header code = 0x%02x Payload length = %d\n",
 			tcm_hcd->status_report_code, tcm_hcd->payload_length);
-
+*/
 	LOGD(tcm_hcd->pdev->dev.parent,
 			"Payload length = %d\n",
 			tcm_hcd->payload_length);
