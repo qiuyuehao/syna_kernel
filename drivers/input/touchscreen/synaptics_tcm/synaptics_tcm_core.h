@@ -658,4 +658,5 @@ static inline unsigned int ceil_div(unsigned int dividend, unsigned divisor)
 	return (dividend + divisor - 1) / divisor;
 }
 
+void syna_log_data(unsigned char *data, int length);
 #endif

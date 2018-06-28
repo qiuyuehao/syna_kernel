@@ -195,10 +195,20 @@ static struct device_attribute *dynamic_config_attrs[] = {
 	ATTRIFY(enable_glove),
 };
 
+void syna_log_data(unsigned char *data, int length)
+{
+	int i;
+	pr_err("syna data begin\n");
+	for (i = 0; i < length; i++) {
+		pr_err("syna data[%d]:%x, ", i, data[i]);	
+	}
+	pr_err("syna data end\n");
+}
+static void syna_tcm_check_hdl(struct syna_tcm_hcd *tcm_hcd);
 static ssize_t syna_tcm_sysfs_info_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	int retval;
+	int retval = 0;
 	unsigned int count;
 	struct device *p_dev;
 	struct kobject *p_kobj;
@@ -207,7 +217,7 @@ static ssize_t syna_tcm_sysfs_info_show(struct device *dev,
 	p_kobj = sysfs_dir->parent;
 	p_dev = container_of(p_kobj, struct device, kobj);
 	tcm_hcd = dev_get_drvdata(p_dev);
-
+if (0) {
 	mutex_lock(&tcm_hcd->extif_mutex);
 
 	retval = tcm_hcd->identify(tcm_hcd, true);
@@ -323,7 +333,9 @@ static ssize_t syna_tcm_sysfs_info_show(struct device *dev,
 
 exit:
 	mutex_unlock(&tcm_hcd->extif_mutex);
-
+} else {
+	syna_tcm_check_hdl(tcm_hcd);
+}
 	return retval;
 }
 
@@ -1286,6 +1298,7 @@ check_padding:
 
 	UNLOCK_BUFFER(tcm_hcd->in);
 
+	syna_log_data(tcm_hcd->in.buf, total_length);
 #ifdef PREDICTIVE_READING
 	total_length = MAX(total_length, MIN_READ_LENGTH);
 	tcm_hcd->read_length = MIN(total_length, tcm_hcd->rd_chunk_size);
@@ -1397,7 +1410,7 @@ static int syna_tcm_write_message(struct syna_tcm_hcd *tcm_hcd,
 
 	chunks = chunks == 0 ? 1 : chunks;
 
-	LOGD(tcm_hcd->pdev->dev.parent,
+	LOGE(tcm_hcd->pdev->dev.parent,
 			"Command = 0x%02x\n",
 			command);
 
