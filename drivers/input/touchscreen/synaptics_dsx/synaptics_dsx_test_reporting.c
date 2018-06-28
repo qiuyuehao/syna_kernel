@@ -1421,6 +1421,18 @@ struct synaptics_rmi4_f21_handle {
 // size = tx_num * rx_num * 2 * sizeof(char)
 static unsigned char *g_tddi_full_raw_data_output;
 
+
+
+#define NOISE_TEST_LIMIT  28
+#define NOISE_TEST_NUM_OF_FRAMES 50
+
+#define _TEST_FAIL 1
+#define _TEST_PASS 0
+
+// a global buffer to record the testing data of tddi_noise test
+// size = tx_num * rx_num * sizeof(short)
+static signed short *g_tddi_noise_data_output;
+
 // a global flag to indicate the failure of report image reading
 // true : fail to read image
 static bool g_flag_readrt_err;
@@ -1448,6 +1460,7 @@ show_store_prototype(read_report)
 
 
 show_store_prototype(tddi_full_raw)
+show_store_prototype(tddi_noise)
 
 static struct attribute *attrs[] = {
 	attrify(num_of_mapped_tx),
@@ -1471,6 +1484,7 @@ static struct attribute *attrs[] = {
 	attrify(read_report),
 
 	attrify(tddi_full_raw),
+	attrify(tddi_noise),
 	NULL,
 };
 
@@ -3396,8 +3410,6 @@ static ssize_t test_sysfs_tddi_full_raw_store(struct device *dev,
 	return retval;
 }
 
-
-
 static ssize_t test_sysfs_tddi_full_raw_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -3482,6 +3494,180 @@ static ssize_t test_sysfs_tddi_full_raw_show(struct device *dev,
 
 	return count;
 }
+
+static ssize_t test_sysfs_tddi_noise_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int retval = 0;
+	int i, j, offset;
+	int tx_num = f54->tx_assigned;
+	int rx_num = f54->rx_assigned;
+	int repeat;
+
+	signed short report_data_16;
+	signed short *tddi_noise_max = NULL;
+	signed short *tddi_noise_min = NULL;
+	unsigned char *tddi_noise_data = NULL;
+	unsigned int buffer_size = tx_num * rx_num * 2;
+	unsigned long setting;
+	struct synaptics_rmi4_data *rmi4_data = f54->rmi4_data;
+
+	retval = sstrtoul(buf, 10, &setting);
+	if (retval)
+		return retval;
+
+	if (setting != 1)
+		return -EINVAL;
+
+	/* allocate the g_tddi_noise_data_output */
+	if (g_tddi_noise_data_output)
+		kfree(g_tddi_noise_data_output);
+
+	g_tddi_noise_data_output = (signed short *)kzalloc(tx_num * rx_num *sizeof(short), GFP_KERNEL);
+	if (!g_tddi_noise_data_output) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to alloc mem for g_tddi_noise_data_output\n",
+				__func__);
+		return -ENOMEM;
+	}
+	// allocate the internal buffer
+	tddi_noise_data = kzalloc(buffer_size, GFP_KERNEL);
+	if (!tddi_noise_data) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to alloc mem for tddi_noise_data\n",
+				__func__);
+		retval = -ENOMEM;
+		goto exit;
+	}
+
+	tddi_noise_max = (unsigned short *)kzalloc(buffer_size, GFP_KERNEL);
+	if (!tddi_noise_max) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to alloc mem for tddi_noise_max\n",
+				__func__);
+		retval = -ENOMEM;
+		goto exit;
+	}
+
+	tddi_noise_min = (unsigned short *) kzalloc(buffer_size, GFP_KERNEL);
+	if (!tddi_noise_min) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to alloc mem for tddi_noise_min\n",
+				__func__);
+		retval = -ENOMEM;
+		goto exit;
+	}
+
+	g_flag_readrt_err = false;
+
+
+	/* get report image 94 repeatedly */
+	/* and calculate the minimum and maximun value as well */
+	for (repeat = 0 ; repeat < NOISE_TEST_NUM_OF_FRAMES; repeat++){
+
+		retval = test_sysfs_read_report(dev, attr, "94", count,
+					false, false);
+		if (retval < 0) {
+			dev_err(rmi4_data->pdev->dev.parent,
+					"%s: Failed to read report 94 at %d round. exit\n",
+					__func__, repeat);
+			retval = -EIO;
+			g_flag_readrt_err = true;
+			goto exit;
+		}
+
+		memset(tddi_noise_data, 0x00, buffer_size);
+
+		secure_memcpy(tddi_noise_data, buffer_size,
+			f54->report_data, f54->report_size, f54->report_size);
+
+		for (i = 0, offset = 0; i < tx_num; i++) {
+			for (j = 0; j < rx_num; j++) {
+
+				report_data_16 =
+					(signed short)tddi_noise_data[offset] +
+					((signed short)tddi_noise_data[offset+1] << 8);
+				offset += 2;
+
+				tddi_noise_max[i*rx_num + j] =
+					max_t(signed short, tddi_noise_max[i*rx_num + j], report_data_16);
+				tddi_noise_min[i*rx_num + j] =
+					min_t(signed short, tddi_noise_min[i*rx_num + j], report_data_16);
+			}
+		}
+
+	}
+
+	// generate the noise delta image
+	// the value should be lower than TEST_LIMIT ( fail, if > TEST_LIMIT )
+	// 1: fail / 0 : pass
+
+	for (i = 0; i < tx_num; i++) {
+		for (j = 0; j < rx_num; j++) {
+			g_tddi_noise_data_output[i*rx_num + j] =
+				tddi_noise_max[i*rx_num + j] - tddi_noise_min[i*rx_num + j];
+
+			if (g_tddi_noise_data_output[i*rx_num + j] > NOISE_TEST_LIMIT )  {
+				dev_err(rmi4_data->pdev->dev.parent,
+						"%s: fail at (tx%-2d, rx%-2d) = %-4d (limit = %d)\n",
+						__func__, i, j, g_tddi_noise_data_output[i*rx_num + j], NOISE_TEST_LIMIT);
+
+				g_tddi_noise_data_output[i*rx_num + j] = _TEST_FAIL; // 1: fail
+			}
+			else {
+				g_tddi_noise_data_output[i*rx_num + j] = _TEST_PASS;
+			}
+
+		}
+	}
+
+	retval = count;
+
+exit:
+	kfree(tddi_noise_max);
+	kfree(tddi_noise_min);
+	kfree(tddi_noise_data);
+
+	return retval;
+}
+
+
+static ssize_t test_sysfs_tddi_noise_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int i, j;
+	int tx_num = f54->tx_assigned;
+	int rx_num = f54->rx_assigned;
+	int fail_count = 0;
+
+	if (!g_tddi_noise_data_output)
+		return snprintf(buf, PAGE_SIZE, "\nERROR: no g_tddi_noise_data_output\n");
+
+	// check the special code if failed to get report image
+	// output the error message
+	if (g_flag_readrt_err) {
+
+		kfree(g_tddi_noise_data_output);
+		g_tddi_noise_data_output = NULL;
+
+		return snprintf(buf, PAGE_SIZE, "\nERROR: fail to read report image\n");
+	}
+
+	for (i = 0; i < tx_num; i++) {
+		for (j = 0; j < rx_num; j++) {
+			if (g_tddi_noise_data_output[i * rx_num + j] != _TEST_PASS) {
+
+				fail_count += 1;
+			}
+		}
+	}
+
+	kfree(g_tddi_noise_data_output);
+	g_tddi_noise_data_output = NULL;
+
+	return snprintf(buf, PAGE_SIZE, "%s\n", (fail_count == 0) ? "PASS" : "FAIL");
+}
+
 
 static ssize_t test_sysfs_data_read(struct file *data_file,
 		struct kobject *kobj, struct bin_attribute *attributes,
