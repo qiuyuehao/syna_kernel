@@ -45,6 +45,8 @@
 
 #define SYSFS_FOLDER_NAME "f54"
 
+#define F54_POLLING_GET_REPORT
+
 #define GET_REPORT_TIMEOUT_S 3
 #define CALIBRATION_TIMEOUT_S 10
 #define COMMAND_TIMEOUT_100MS 20
@@ -2299,6 +2301,84 @@ exit:
 	return retval;
 }
 
+
+#ifdef F54_POLLING_GET_REPORT
+static ssize_t test_sysfs_get_report_polling(void)
+{
+	int retval = 0;
+	unsigned char report_index[2];
+	struct synaptics_rmi4_data *rmi4_data = f54->rmi4_data;
+
+	retval = test_wait_for_command_completion();
+	if (retval < 0) {
+		retval = -EIO;
+		f54->status = STATUS_ERROR;
+		return retval;
+	}
+
+	test_set_report_size();
+	if (f54->report_size == 0) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Report data size = 0\n", __func__);
+		retval = -EIO;
+		f54->status = STATUS_ERROR;
+		return retval;
+	}
+
+	dev_info(rmi4_data->pdev->dev.parent,
+				"%s: report_size = %d\n", __func__, f54->report_size);
+
+	if (f54->data_buffer_size < f54->report_size) {
+		if (f54->data_buffer_size)
+			kfree(f54->report_data);
+		f54->report_data = kzalloc(f54->report_size, GFP_KERNEL);
+		if (!f54->report_data) {
+			dev_err(rmi4_data->pdev->dev.parent,
+					"%s: Failed to alloc mem for data buffer\n", __func__);
+			f54->data_buffer_size = 0;
+			retval = -EIO;
+			f54->status = STATUS_ERROR;
+			return retval;
+		}
+		f54->data_buffer_size = f54->report_size;
+	}
+
+	report_index[0] = 0;
+	report_index[1] = 0;
+
+	retval = synaptics_rmi4_reg_write(rmi4_data,
+			f54->data_base_addr + REPORT_INDEX_OFFSET,
+			report_index,
+			sizeof(report_index));
+	if (retval < 0) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to write report data index\n", __func__);
+		retval = -EIO;
+		f54->status = STATUS_ERROR;
+		return retval;
+	}
+ 
+	dev_info(rmi4_data->pdev->dev.parent,
+				"%s: read report data\n", __func__);
+
+	retval = synaptics_rmi4_reg_read(rmi4_data,
+			f54->data_base_addr + REPORT_DATA_OFFSET,
+			f54->report_data,
+			f54->report_size);
+	if (retval < 0) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to read report data\n",
+				__func__);
+		retval = -EIO;
+		f54->status = STATUS_ERROR;
+		return retval;
+	}
+
+	f54->status = STATUS_IDLE;
+	return retval;
+}
+#endif
+
 static ssize_t test_sysfs_get_report_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -2347,9 +2427,21 @@ static ssize_t test_sysfs_get_report_store(struct device *dev,
 	f54->report_size = 0;
 	f54->data_pos = 0;
 
+#ifdef F54_POLLING_GET_REPORT
+	retval = test_sysfs_get_report_polling();
+	if (retval < 0) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to get report image\n",
+				__func__);
+		goto exit;
+	}
+
+#else
 	hrtimer_start(&f54->watchdog,
 			ktime_set(GET_REPORT_TIMEOUT_S, 0),
 			HRTIMER_MODE_REL);
+
+#endif
 
 	retval = count;
 
@@ -5070,10 +5162,10 @@ static void synaptics_rmi4_test_attn(struct synaptics_rmi4_data *rmi4_data,
 {
 	if (!f54)
 		return;
-
+/*
 	if (f54->intr_mask & intr_mask)
 		queue_work(f54->test_report_workqueue, &f54->test_report_work);
-
+*/
 	return;
 }
 
