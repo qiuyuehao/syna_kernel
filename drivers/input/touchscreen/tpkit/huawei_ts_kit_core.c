@@ -76,7 +76,7 @@ EXPORT_SYMBOL(g_ts_kit_platform_data);
 struct ts_tui_data  tee_tui_data;
 EXPORT_SYMBOL(tee_tui_data);
 #endif
-u8 g_ts_kit_log_cfg = 1;
+u8 g_ts_kit_log_cfg = 0;
 
 static struct ts_cmd_node ping_cmd_buff;
 static struct ts_cmd_node pang_cmd_buff;
@@ -600,6 +600,8 @@ static void rawdata_proc_3d_func_printf(struct seq_file *m, struct ts_rawdata_in
 }
 
 /*lint -save -e* */
+static int ts_kit_update_firmware(void);
+extern int reflash_do_reflash(void);
 static int rawdata_proc_show(struct seq_file *m, void *v)
 {
 	short row_size = 0;
@@ -610,7 +612,7 @@ static int rawdata_proc_show(struct seq_file *m, void *v)
 	int td43xx_ee_short_test_support = g_ts_kit_platform_data.chip_data->td43xx_ee_short_test_support;
 	struct ts_cmd_node *cmd = NULL;
 	struct ts_rawdata_info *info = NULL;
-
+if (1) {
 	TS_LOG_INFO("rawdata_proc_show, buffer size = %ld\n", m->size);
 	if(m->size <= RAW_DATA_SIZE) {
 		m->count = m->size;
@@ -766,7 +768,11 @@ free_cmd:
 		kfree(cmd);
 		cmd = NULL;
 	}
+}
 
+	TS_LOG_ERR("try to update firmware\n");
+	//ts_kit_update_firmware();
+	//reflash_do_reflash();
 	return error;
 }
 /*lint -restore*/
@@ -2052,7 +2058,7 @@ static int ts_creat_i2c_client(void)
 
     memset(&board_info, 0, sizeof(struct i2c_board_info));
     strncpy(board_info.type, TS_DEV_NAME, I2C_NAME_SIZE - 1);
-    board_info.addr = I2C_DEFAULT_ADDR;
+    board_info.addr = I2C_DEFAULT_ADDR ;
     board_info.flags = true;
 
     adapter = i2c_get_adapter(g_ts_kit_platform_data.bops->bus_id);

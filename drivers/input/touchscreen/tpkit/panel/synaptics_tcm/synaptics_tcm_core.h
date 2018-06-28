@@ -38,10 +38,10 @@
 #include <linux/module.h>
 #include <linux/input.h>
 #include <linux/delay.h>
-#include <linux/wakelock.h>
 #include <linux/platform_device.h>
 #include "synaptics_tcm.h"
 #include "../../huawei_ts_kit.h"
+
 #ifdef CONFIG_FB
 #include <linux/fb.h>
 #include <linux/notifier.h>
@@ -49,32 +49,27 @@
 
 #define SYNAPTICS_TCM_ID_PRODUCT (1 << 0)
 #define SYNAPTICS_TCM_ID_VERSION 0x0009
+#define SYNAPTICS_TCM_ID_SUBVERSION 1
 
 #define PLATFORM_DRIVER_NAME "synaptics_tcm"
-
 #define TOUCH_INPUT_NAME "synaptics_tcm_touch"
 #define TOUCH_INPUT_PHYS_PATH "synaptics_tcm/touch_input"
+#define SYNA_TCM_CHIP_INFO "syna_tcm_"
 
-#define WAKEUP_GESTURE
+//#define WAKEUP_GESTURE
 
 #define RD_CHUNK_SIZE 256 /* read length limit in bytes, 0 = unlimited */
-#define WR_CHUNK_SIZE 0 /* write length limit in bytes, 0 = unlimited */
+#define WR_CHUNK_SIZE 512 /* write length limit in bytes, 0 = unlimited */
 
+#define FIXED_READ_LENGTH 120
+#define CONFIG_ID_LENGTH 16
 #define MESSAGE_HEADER_SIZE 4
 #define MESSAGE_MARKER 0xa5
 #define MESSAGE_PADDING 0x5a
 
-#define LOGx(func, dev, log, ...) \
-	func(dev, "%s: " log, __func__, ##__VA_ARGS__)
-
-#define LOGy(func, dev, log, ...) \
-	func(dev, "%s (line %d): " log, __func__, __LINE__, ##__VA_ARGS__)
-
-#define LOGD(dev, log, ...) LOGx(dev_dbg, dev, log, ##__VA_ARGS__)
-#define LOGI(dev, log, ...) LOGx(dev_info, dev, log, ##__VA_ARGS__)
-#define LOGN(dev, log, ...) LOGx(dev_notice, dev, log, ##__VA_ARGS__)
-#define LOGW(dev, log, ...) LOGy(dev_warn, dev, log, ##__VA_ARGS__)
-#define LOGE(dev, log, ...) LOGy(dev_err, dev, log, ##__VA_ARGS__)
+#define PDT_START_ADDR 0x00e9
+#define PDT_END_ADDR 0x00ee
+#define UBL_FN_NUMBER 0x35
 
 #define INIT_BUFFER(buffer, is_clone) \
 	mutex_init(&buffer.buf_mutex); \
@@ -140,6 +135,23 @@ static struct device_attribute dev_attr_##a_name = \
 		CONCAT(m_name##_sysfs, _##a_name##_store));
 
 #define ATTRIFY(a_name) (&dev_attr_##a_name)
+
+#define SYNA_TCM_DATE_CODE_SIZE 3
+#define SYNA_TCM_PRODUCT_INFO_SIZE 2
+#define SYNA_TCM_PRODUCT_ID_SIZE 10
+#define SYNA_TCM_PROJECT_ID_SIZE SYNA_TCM_PRODUCT_ID_SIZE
+#define SYNA_TCM_BUILD_ID_SIZE 3
+#define SYNA_TCM_IC_NAME_SIZE 2
+#define SYNA_TCM_CAP_DATA_SIZE 1024
+#define SYNAPTICS_BUILD_ID_NO 3
+#define SYNAPTICS_IC_NAME_NO 2
+
+struct syna_tcm_touch_settings {
+	unsigned char build_id[SYNA_TCM_BUILD_ID_SIZE];
+	unsigned char ic_name[SYNA_TCM_IC_NAME_SIZE];
+	const char *module_name;
+	unsigned int ic_type;
+};
 
 enum module_type {
 	TCM_TOUCH = 0,
@@ -284,6 +296,10 @@ enum helper_task {
 	HELP_SEND_RESET_NOTIFICATION,
 };
 
+enum syna_tcm_ic_type {
+	SYNA_TCM_TD4320 =0,
+};
+
 struct syna_tcm_helper {
 	atomic_t task;
 	struct work_struct work;
@@ -369,23 +385,57 @@ struct syna_tcm_message_header {
 	unsigned char length[2];
 };
 
+/*
+ * struct SYNA_TCM_device_info - device information
+ * @version_major: rmi protocol major version number
+ * @version_minor: rmi protocol minor version number
+ * @manufacturer_id: manufacturer id
+ * @product_props: product properties information
+ * @product_info: product info array
+ * @date_code: device manufacture date
+ * @tester_id: tester id array
+ * @serial_number: device serial number
+ * @product_id_string: device product id
+ * @support_fn_list: linked list for function handlers
+ */
+struct syna_tcm_device_info {
+	unsigned int version_major;
+	unsigned int version_minor;
+	unsigned char manufacturer_id;
+	unsigned char product_props;
+	unsigned char product_info[SYNA_TCM_PRODUCT_INFO_SIZE];
+	unsigned char date_code[SYNA_TCM_DATE_CODE_SIZE];
+	unsigned short tester_id;
+	unsigned short serial_number;
+	unsigned char product_id_string[SYNA_TCM_PRODUCT_ID_SIZE + 1];
+	unsigned char project_id_string[SYNA_TCM_PROJECT_ID_SIZE + 1];
+	unsigned char build_id[SYNA_TCM_BUILD_ID_SIZE];
+	unsigned char ic_name[SYNA_TCM_IC_NAME_SIZE];
+	unsigned char config_id[4];
+	unsigned char synaptics_build_id[SYNAPTICS_BUILD_ID_NO];
+	unsigned char synaptics_ic_name[SYNAPTICS_IC_NAME_NO];
+	unsigned char device_config_id[CHIP_INFO_LENGTH];
+	unsigned char image_config_id[CHIP_INFO_LENGTH];
+	struct list_head support_fn_list;
+};
+
 struct syna_tcm_hcd {
 	struct ts_kit_device_data *syna_tcm_chip_data;
-	struct ts_cmd_node *in_cmd;
-	struct ts_cmd_node *out_cmd;
-	pid_t isr_pid;
+	struct syna_tcm_device_info tcm_mod_info;
 	struct regulator *syna_tcm_tp_vci;
 	struct regulator *syna_tcm_tp_vddio;
+	struct pinctrl *pctrl;
+	struct pinctrl_state *pins_default;
+	struct pinctrl_state *pins_idle;
+	pid_t isr_pid;
 	atomic_t command_status;
 	atomic_t host_downloading;
-	wait_queue_head_t report_wq;
 	wait_queue_head_t hdl_wq;
 	int irq;
 	bool init_okay;
 	bool do_polling;
 	bool in_suspend;
 	bool irq_enabled;
-	bool dispatch_report;
 	bool host_download_mode;
 	unsigned char fb_ready;
 	unsigned char command;
@@ -404,13 +454,6 @@ struct syna_tcm_hcd {
 	struct kobject *sysfs_dir;
 	struct kobject *dynamnic_config_sysfs_dir;
 	struct mutex extif_mutex;
-	struct mutex reset_mutex;
-	struct mutex irq_en_mutex;
-	struct mutex io_ctrl_mutex;
-	struct mutex rw_ctrl_mutex;
-	struct mutex command_mutex;
-	struct mutex identify_mutex;
-	struct wake_lock wakelock;
 	struct delayed_work polling_work;
 	struct workqueue_struct *polling_workqueue;
 	struct task_struct *notifier_thread;
@@ -429,6 +472,7 @@ struct syna_tcm_hcd {
 	struct syna_tcm_identification id_info;
 	struct syna_tcm_helper helper;
 	struct syna_tcm_watchdog watchdog;
+	struct syna_tcm_board_data *bdata;
 	const struct syna_tcm_hw_interface *hw_if;
 	int (*reset)(struct syna_tcm_hcd *tcm_hcd, bool hw, bool update_wd);
 	int (*sleep)(struct syna_tcm_hcd *tcm_hcd, bool en);
@@ -453,20 +497,16 @@ struct syna_tcm_hcd {
 			unsigned int *length);
 	int (*read_flash_data)(enum flash_area area, bool run_app_firmware,
 			struct syna_tcm_buffer *output);
-	void (*report_touch)(void);
+	void (*report_touch)(struct ts_fingers *info);
 	void (*update_watchdog)(struct syna_tcm_hcd *tcm_hcd, bool en);
-	int (*update_firmware)(struct syna_tcm_hcd *tcm_hcd, unsigned char *fw_name);
-};
-
-struct syna_tcm_module_cb {
-	enum module_type type;
-	int (*init)(struct syna_tcm_hcd *tcm_hcd);
-	int (*remove)(struct syna_tcm_hcd *tcm_hcd);
-	int (*syncbox)(struct syna_tcm_hcd *tcm_hcd);
-	int (*asyncbox)(struct syna_tcm_hcd *tcm_hcd);
-	int (*reset)(struct syna_tcm_hcd *tcm_hcd);
-	int (*suspend)(struct syna_tcm_hcd *tcm_hcd);
-	int (*resume)(struct syna_tcm_hcd *tcm_hcd);
+	int (*rmi_read)(struct syna_tcm_hcd *tcm_hcd, unsigned short addr,
+			unsigned char *data, unsigned int length);
+	int (*rmi_write)(struct syna_tcm_hcd *tcm_hcd, unsigned short addr,
+			unsigned char *data, unsigned int length);
+	int (*read)(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
+			unsigned int length);
+	int (*write)(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
+			unsigned int length);
 };
 
 struct syna_tcm_module_handler {
@@ -486,53 +526,34 @@ struct syna_tcm_module_pool {
 	struct syna_tcm_hcd *tcm_hcd;
 };
 
-struct syna_tcm_bus_io {
-	unsigned char type;
-	int (*rmi_read)(struct syna_tcm_hcd *tcm_hcd, unsigned short addr,
-			unsigned char *data, unsigned int length);
-	int (*rmi_write)(struct syna_tcm_hcd *tcm_hcd, unsigned short addr,
-			unsigned char *data, unsigned int length);
-	int (*read)(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
-			unsigned int length);
-	int (*write)(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
-			unsigned int length);
-};
-
-struct syna_tcm_hw_interface {
-	struct syna_tcm_board_data *bdata;
-	const struct syna_tcm_bus_io *bus_io;
-};
-
 int syna_tcm_bus_init(void);
-int syna_tcm_get_raw_data(struct ts_rawdata_info *info,
-				 struct ts_cmd_node *out_cmd);
+
 void syna_tcm_bus_exit(void);
-int syna_tcm_i2c_init(struct syna_tcm_hcd *tcm_hcd, struct syna_tcm_board_data *bdata);
 
 int syna_tcm_add_module(struct syna_tcm_module_cb *mod_cb, bool insert);
 
 static inline int syna_tcm_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 		unsigned short addr, unsigned char *data, unsigned int length)
 {
-	return tcm_hcd->hw_if->bus_io->rmi_read(tcm_hcd, addr, data, length);
+	return tcm_hcd->rmi_read(tcm_hcd, addr, data, length);
 }
 
 static inline int syna_tcm_rmi_write(struct syna_tcm_hcd *tcm_hcd,
 		unsigned short addr, unsigned char *data, unsigned int length)
 {
-	return tcm_hcd->hw_if->bus_io->rmi_write(tcm_hcd, addr, data, length);
+	return tcm_hcd->rmi_write(tcm_hcd, addr, data, length);
 }
 
 static inline int syna_tcm_read(struct syna_tcm_hcd *tcm_hcd,
 		unsigned char *data, unsigned int length)
 {
-	return tcm_hcd->hw_if->bus_io->read(tcm_hcd, data, length);
+	return tcm_hcd->read(tcm_hcd, data, length);
 }
 
 static inline int syna_tcm_write(struct syna_tcm_hcd *tcm_hcd,
 		unsigned char *data, unsigned int length)
 {
-	return tcm_hcd->hw_if->bus_io->write(tcm_hcd, data, length);
+	return tcm_hcd->write(tcm_hcd, data, length);
 }
 
 static inline ssize_t syna_tcm_show_error(struct device *dev,
@@ -657,4 +678,25 @@ static inline unsigned int ceil_div(unsigned int dividend, unsigned divisor)
 	return (dividend + divisor - 1) / divisor;
 }
 
+extern int zeroflash_init(struct syna_tcm_hcd *tcm_hcd);
+extern int zeroflash_get_fw_image(void);
+extern int zeroflash_remove(struct syna_tcm_hcd *tcm_hcd);
+extern int zeroflash_download(void);
+extern int touch_init(struct syna_tcm_hcd *tcm_hcd);
+extern void touch_report(struct ts_fingers *info);
+extern int debug_device_init(struct syna_tcm_hcd *tcm_hcd);
+extern int syna_tcm_write_hdl_message(struct syna_tcm_hcd *tcm_hcd,
+		unsigned char command, unsigned char *payload,
+		unsigned int length, unsigned char **resp_buf,
+		unsigned int *resp_buf_size, unsigned int *resp_length,
+		unsigned char *response_code, unsigned int polling_delay_ms);
+int testing_init(struct syna_tcm_hcd *tcm_hcd);
+extern int syna_tcm_testing(struct ts_rawdata_info *info);
+extern int reflash_init(struct syna_tcm_hcd *tcm_hcd);
+extern int reflash_do_reflash(void);
+extern int syna_tcm_raw_read(struct syna_tcm_hcd *tcm_hcd,
+		unsigned char *in_buf, unsigned int length);
+extern int syna_tcm_raw_write(struct syna_tcm_hcd *tcm_hcd,
+		unsigned char command, unsigned char *data, unsigned int length);
+//extern int testing_remove(struct syna_tcm_hcd *tcm_hcd);
 #endif

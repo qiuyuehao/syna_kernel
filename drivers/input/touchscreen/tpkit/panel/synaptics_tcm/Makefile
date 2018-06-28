@@ -3,14 +3,10 @@
 #
 
 # Each configuration option enables a list of files.
+obj-y += synaptics_tcm_driver.o
+synaptics_tcm_driver-objs += synaptics_tcm_core.o synaptics_tcm_zeroflash.o synaptics_tcm_touch.o synaptics_tcm_device.o synaptics_tcm_testing.o synaptics_tcm_reflash.o
 
-obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_TCM_SPI) += synaptics_tcm_spi.o
-obj-y += synaptics_tcm_i2c.o
-obj-y += synaptics_tcm_core.o
-obj-y += synaptics_tcm_touch.o
-obj-y += synaptics_tcm_device.o
-obj-y += synaptics_tcm_testing.o
-obj-y += synaptics_tcm_reflash.o
-#obj-y += synaptics_tcm_recovery.o
-#obj-y += synaptics_tcm_zeroflash.o
-obj-y += synaptics_tcm_diagnostics.o
+EXTRA_CFLAGS += -Iarch/arm/mach-hisi
+EXTRA_CFLAGS += -Idrivers/hisi/tzdriver
+EXTRA_CFLAGS += -Idrivers/tzdriver
+EXTRA_CFLAGS += -Idrivers/devkit/lcdkit/core/common
