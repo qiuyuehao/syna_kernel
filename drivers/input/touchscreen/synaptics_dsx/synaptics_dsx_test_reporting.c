@@ -309,9 +309,13 @@ enum f54_report_types {
 	F54_ABS_HYBRID_RAW_CAP = 63,
 	F54_AMP_FULL_RAW_CAP = 78,
 	F54_AMP_RAW_ADC = 83,
-	F54_FULL_RAW_CAP_TDDI = 92,
 	F54_TEST_100_TYPE = 100,
 	F54_EXTEND_TRX_SHORT_INCELL = 26100,	/* RT26 + RT100 */
+
+	F54_FULL_RAW_CAP_TDDI = 92,
+	F54_NOISE_TDDI = 94,
+	F54_EE_SHORT_TDDI = 95,
+	F54_ELEC_OPEN_DETECTOR_TDDI = 139,
 	INVALID_REPORT_TYPE = -1,
 };
 
@@ -1585,9 +1589,12 @@ static bool test_report_type_valid(enum f54_report_types report_type)
 	case F54_ABS_HYBRID_RAW_CAP:
 	case F54_AMP_FULL_RAW_CAP:
 	case F54_AMP_RAW_ADC:
-	case F54_FULL_RAW_CAP_TDDI:
 	case F54_TEST_100_TYPE:
 	case F54_EXTEND_TRX_SHORT_INCELL:   //F54_EXTEND_TRX_SHORT_INCELL
+	case F54_FULL_RAW_CAP_TDDI:
+	case F54_NOISE_TDDI:
+	case F54_EE_SHORT_TDDI:
+	case F54_ELEC_OPEN_DETECTOR_TDDI:
 		return true;
 		break;
 	default:
@@ -1616,7 +1623,6 @@ static void test_set_report_size(void)
 	case F54_SENSOR_SPEED:
 	case F54_AMP_FULL_RAW_CAP:
 	case F54_AMP_RAW_ADC:
-	case F54_FULL_RAW_CAP_TDDI:
 	case F54_TEST_100_TYPE:
 		f54->report_size = 2 * tx * rx;
 		break;
@@ -1677,6 +1683,19 @@ static void test_set_report_size(void)
 		tx += f21->tx_assigned;
 		rx += f21->rx_assigned;
 		f54->report_size = 4 * (tx + rx);
+		break;
+	case F54_FULL_RAW_CAP_TDDI:
+		if (f55->extended_amp) {
+			tx += 1;
+		}
+		f54->report_size = 2 * tx * rx;
+		break;
+	case F54_ELEC_OPEN_DETECTOR_TDDI:
+	case F54_NOISE_TDDI:
+		f54->report_size = 2 * tx * rx;
+		break;
+	case F54_EE_SHORT_TDDI:
+		f54->report_size = 2 * 2 * tx * rx;
 		break;
 	default:
 		f54->report_size = 0;
@@ -1846,6 +1865,9 @@ static int test_do_preparation(void)
 	case F54_ABS_HYBRID_DELTA_CAP:
 	case F54_ABS_HYBRID_RAW_CAP:
 	case F54_FULL_RAW_CAP_TDDI:
+	case F54_NOISE_TDDI:
+	case F54_EE_SHORT_TDDI:
+	case F54_ELEC_OPEN_DETECTOR_TDDI:
 		break;
 	case F54_AMP_RAW_ADC:
 		if (f54->query_49.has_ctrl188) {
@@ -2872,7 +2894,6 @@ static ssize_t test_sysfs_read_report_show(struct device *dev,
 	case F54_FULL_RAW_CAP_NO_RX_COUPLING:
 	case F54_SENSOR_SPEED:
 	case F54_AMP_FULL_RAW_CAP:
-	case F54_FULL_RAW_CAP_TDDI:
 		report_data_16 = (short *)f54->report_data;
 		cnt = snprintf(buf, PAGE_SIZE - count, "tx = %d\nrx = %d\n",
 				tx_num, rx_num);
