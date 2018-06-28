@@ -1321,8 +1321,8 @@
 		qcom,master-id = <86>;
 		qcom,use-pinctrl;
 		pinctrl-names = "spi_default", "spi_sleep";
-		pinctrl-0 = <&spi_0_active &spi_0_cs1_active>;
-		pinctrl-1 = <&spi_0_sleep &spi_0_cs1_sleep>;
+		pinctrl-0 = <&spi_0_active &spi_0_cs0_active>;
+		pinctrl-1 = <&spi_0_sleep &spi_0_cs0_sleep>;
 
 		clock-names = "iface_clk", "core_clk";
 

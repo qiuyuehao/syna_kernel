@@ -1,9 +1,9 @@
 /*
  * Synaptics TCM touchscreen driver
  *
- * Copyright (C) 2017 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
  *
- * Copyright (C) 2017 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,6 +36,8 @@
 
 static unsigned char *buf;
 
+static unsigned int buf_size;
+
 static struct spi_transfer *xfer;
 
 static struct syna_tcm_bus_io bus_io;
@@ -52,6 +54,9 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 	struct property *prop;
 	struct device_node *np = dev->of_node;
 	const char *name;
+
+	bdata->display_reset_gpio = of_get_named_gpio_flags(np,
+			"synaptics,display-reset-gpio", 0, NULL);
 
 	prop = of_find_property(np, "synaptics,irq-gpio", NULL);
 	if (prop && prop->length) {
@@ -262,7 +267,6 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 static int syna_tcm_spi_alloc_mem(struct syna_tcm_hcd *tcm_hcd,
 		unsigned int count, unsigned int size)
 {
-	static unsigned int buf_size;
 	static unsigned int xfer_count;
 	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
 
@@ -314,9 +318,9 @@ static int syna_tcm_spi_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 	byte_count = length + 2;
 
 	if (bdata->ubl_byte_delay_us == 0)
-		retval = syna_tcm_spi_alloc_mem(tcm_hcd, 2, 2);
+		retval = syna_tcm_spi_alloc_mem(tcm_hcd, 2, byte_count);
 	else
-		retval = syna_tcm_spi_alloc_mem(tcm_hcd, byte_count, 2);
+		retval = syna_tcm_spi_alloc_mem(tcm_hcd, byte_count, 3);
 	if (retval < 0) {
 		LOGE(&spi->dev,
 				"Failed to allocate memory\n");
@@ -331,19 +335,24 @@ static int syna_tcm_spi_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 		xfer[0].tx_buf = buf;
 		xfer[0].speed_hz = bdata->ubl_max_freq;
 		spi_message_add_tail(&xfer[0], &msg);
+		memset(&buf[2], 0xff, length);
 		xfer[1].len = length;
+		xfer[1].tx_buf = &buf[2];
 		xfer[1].rx_buf = data;
 		if (bdata->block_delay_us)
 			xfer[1].delay_usecs = bdata->block_delay_us;
 		xfer[1].speed_hz = bdata->ubl_max_freq;
 		spi_message_add_tail(&xfer[1], &msg);
 	} else {
+		buf[2] = 0xff;
 		for (idx = 0; idx < byte_count; idx++) {
 			xfer[idx].len = 1;
-			if (idx < 2)
+			if (idx < 2) {
 				xfer[idx].tx_buf = &buf[idx];
-			else
+			} else {
+				xfer[idx].tx_buf = &buf[2];
 				xfer[idx].rx_buf = &data[idx - 2];
+			}
 			xfer[idx].delay_usecs = bdata->ubl_byte_delay_us;
 			if (bdata->block_delay_us && (idx == byte_count - 1))
 				xfer[idx].delay_usecs = bdata->block_delay_us;
@@ -398,7 +407,7 @@ static int syna_tcm_spi_rmi_write(struct syna_tcm_hcd *tcm_hcd,
 	buf[0] = (unsigned char)(addr >> 8) & ~0x80;
 	buf[1] = (unsigned char)addr;
 	retval = secure_memcpy(&buf[2],
-			length,
+			buf_size - 2,
 			data,
 			length,
 			length);

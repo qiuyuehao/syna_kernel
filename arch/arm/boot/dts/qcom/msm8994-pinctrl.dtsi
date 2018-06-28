@@ -184,27 +184,27 @@
 		        };
 		};
 
-		spi_cs1_active {
-			/* CS1 */
-			qcom,pins = <&gp 8>;
+		spi_cs0_active {
+			/* CS0 */
+			qcom,pins = <&gp 2>;
 			qcom,num-grp-pins = <1>;
-			qcom,pin-func = <4>;
-			label = "spi_0-cs1-active";
+			qcom,pin-func = <1>;
+			label = "spi_0-cs0-active";
 
-			spi_0_cs1_active: cs1_active {
+			spi_0_cs0_active: cs0_active {
 			       drive-strength = <2>;
 			       bias-disable = <0>;
 		        };
 		};
 
-		spi_cs1_suspend {
-			/* CS1 */
-			qcom,pins = <&gp 8>;
+		spi_cs0_suspend {
+			/* CS0 */
+			qcom,pins = <&gp 2>;
 			qcom,num-grp-pins = <1>;
-			qcom,pin-func = <4>;
-			label = "spi_0-cs1-suspend";
+			qcom,pin-func = <1>;
+			label = "spi_0-cs0-suspend";
 
-			spi_0_cs1_sleep: cs1_sleep {
+			spi_0_cs0_sleep: cs0_sleep {
 			       drive-strength = <2>;
 			       bias-disable = <0>;
 		        };

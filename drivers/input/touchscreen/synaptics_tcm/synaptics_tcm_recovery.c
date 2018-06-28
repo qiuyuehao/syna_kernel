@@ -1,9 +1,9 @@
 /*
  * Synaptics TCM touchscreen driver
  *
- * Copyright (C) 2017 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
  *
- * Copyright (C) 2017 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,7 +38,7 @@
 
 #define SYSFS_DIR_NAME "recovery"
 
-#define IHEX_BUF_SIZE (1024 * 1024)
+#define IHEX_BUF_SIZE (2048 * 1024)
 
 #define DATA_BUF_SIZE (512 * 1024)
 
@@ -52,7 +52,7 @@
 
 #define F35_CHUNK_SIZE_WORDS 8
 
-#define F35_ERASE_ALL_WAIT_MS 10000
+#define F35_ERASE_ALL_WAIT_MS 5000
 
 #define F35_ERASE_ALL_POLL_MS 100
 
@@ -594,6 +594,7 @@ static int recovery_set_up_recovery_mode(void)
 {
 	int retval;
 	struct syna_tcm_hcd *tcm_hcd = recovery_hcd->tcm_hcd;
+	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
 	retval = tcm_hcd->identify(tcm_hcd, true);
 	if (retval < 0) {
@@ -618,6 +619,7 @@ static int recovery_set_up_recovery_mode(void)
 			NULL,
 			NULL,
 			NULL,
+			NULL,
 			0);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -625,6 +627,8 @@ static int recovery_set_up_recovery_mode(void)
 				STR(CMD_REBOOT_TO_ROM_BOOTLOADER));
 		return retval;
 	}
+
+	msleep(bdata->reset_delay_ms);
 
 	return 0;
 }
@@ -712,7 +716,7 @@ static int recovery_do_recovery(void)
 
 	tcm_hcd->update_watchdog(tcm_hcd, true);
 
-	retval = tcm_hcd->enable_irq(tcm_hcd, true);
+	retval = tcm_hcd->enable_irq(tcm_hcd, true, NULL);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to enable interrupt\n");
@@ -780,6 +784,7 @@ static int recovery_init(struct syna_tcm_hcd *tcm_hcd)
 	if (!recovery_hcd->sysfs_dir) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to create sysfs directory\n");
+		retval = -EINVAL;
 		goto err_sysfs_create_dir;
 	}
 
@@ -870,6 +875,7 @@ static struct syna_tcm_module_cb recovery_module = {
 	.reset = recovery_reset,
 	.suspend = NULL,
 	.resume = NULL,
+	.early_suspend = NULL,
 };
 
 static int __init recovery_module_init(void)

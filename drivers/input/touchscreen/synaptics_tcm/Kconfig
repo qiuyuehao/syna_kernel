@@ -16,10 +16,10 @@ choice
 	default TOUCHSCREEN_SYNAPTICS_TCM_I2C
 	prompt "Synaptics TCM bus module"
 config TOUCHSCREEN_SYNAPTICS_TCM_I2C
-	tristate "I2C"
+	bool "I2C"
 	depends on I2C
 config TOUCHSCREEN_SYNAPTICS_TCM_SPI
-	tristate "SPI"
+	bool "SPI"
 	depends on SPI_MASTER
 endchoice
 
@@ -88,6 +88,17 @@ config TOUCHSCREEN_SYNAPTICS_TCM_RECOVERY
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called synaptics_tcm_recovery.
+
+config TOUCHSCREEN_SYNAPTICS_TCM_ZEROFLASH
+	tristate "Synaptics TCM zeroflash module"
+	depends on TOUCHSCREEN_SYNAPTICS_TCM_CORE
+	help
+	  Say Y here to enable support for ZeroFlash functionality.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called synaptics_tcm_zeroflash.
 
 config TOUCHSCREEN_SYNAPTICS_TCM_DIAGNOSTICS
 	tristate "Synaptics TCM diagnostics module"

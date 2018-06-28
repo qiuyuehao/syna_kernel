@@ -1,9 +1,9 @@
 /*
  * Synaptics TCM touchscreen driver
  *
- * Copyright (C) 2017 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
  *
- * Copyright (C) 2017 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -115,6 +115,7 @@ struct touch_data {
 struct touch_hcd {
 	bool irq_wake;
 	bool report_touch;
+	bool suspend_touch;
 	unsigned char *prev_status;
 	unsigned int max_x;
 	unsigned int max_y;
@@ -760,6 +761,7 @@ static int touch_get_input_params(void)
 			&tcm_hcd->config.buf,
 			&tcm_hcd->config.buf_size,
 			&tcm_hcd->config.data_length,
+			NULL,
 			0);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -900,6 +902,7 @@ static int touch_set_report_config(void)
 			&touch_hcd->resp.buf,
 			&touch_hcd->resp.buf_size,
 			&touch_hcd->resp.data_length,
+			NULL,
 			0);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -1098,7 +1101,8 @@ static int touch_syncbox(struct syna_tcm_hcd *tcm_hcd)
 		touch_free_objects();
 		break;
 	case REPORT_TOUCH:
-		touch_report();
+		if (!touch_hcd->suspend_touch)
+			touch_report();
 		break;
 	default:
 		break;
@@ -1159,6 +1163,18 @@ static int touch_reset(struct syna_tcm_hcd *tcm_hcd)
 	return 0;
 }
 
+static int touch_early_suspend(struct syna_tcm_hcd *tcm_hcd)
+{
+	if (!touch_hcd)
+		return 0;
+
+	touch_hcd->suspend_touch = true;
+
+	touch_free_objects();
+
+	return 0;
+}
+
 static int touch_suspend(struct syna_tcm_hcd *tcm_hcd)
 {
 #ifdef WAKEUP_GESTURE
@@ -1167,6 +1183,8 @@ static int touch_suspend(struct syna_tcm_hcd *tcm_hcd)
 
 	if (!touch_hcd)
 		return 0;
+
+	touch_hcd->suspend_touch = true;
 
 	touch_free_objects();
 
@@ -1198,6 +1216,8 @@ static int touch_resume(struct syna_tcm_hcd *tcm_hcd)
 	if (!touch_hcd)
 		return 0;
 
+	touch_hcd->suspend_touch = false;
+
 #ifdef WAKEUP_GESTURE
 	if (touch_hcd->irq_wake) {
 		disable_irq_wake(tcm_hcd->irq);
@@ -1226,6 +1246,7 @@ static struct syna_tcm_module_cb touch_module = {
 	.reset = touch_reset,
 	.suspend = touch_suspend,
 	.resume = touch_resume,
+	.early_suspend = touch_early_suspend,
 };
 
 static int __init touch_module_init(void)
