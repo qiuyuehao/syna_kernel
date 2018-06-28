@@ -1161,9 +1161,9 @@ static int syna_tcm_read_message(struct syna_tcm_hcd *tcm_hcd,
 
 	tcm_hcd->payload_length = le2_to_uint(header->length);
 
-	LOGD(tcm_hcd->pdev->dev.parent,
-			"Header code = 0x%02x\n",
-			tcm_hcd->status_report_code);
+	LOGE(tcm_hcd->pdev->dev.parent,
+			"Header code = 0x%02x Payload length = %d\n",
+			tcm_hcd->status_report_code, tcm_hcd->payload_length);
 
 	LOGD(tcm_hcd->pdev->dev.parent,
 			"Payload length = %d\n",
@@ -1298,7 +1298,8 @@ static int syna_tcm_write_message(struct syna_tcm_hcd *tcm_hcd,
 				"Invalid execution context\n");
 		return -EINVAL;
 	}
-
+	LOGE(tcm_hcd->pdev->dev.parent,
+				"write message: %x\n", command);
 	mutex_lock(&tcm_hcd->command_mutex);
 
 	mutex_lock(&tcm_hcd->rw_ctrl_mutex);
@@ -1743,6 +1744,18 @@ static int syna_tcm_config_gpio(struct syna_tcm_hcd *tcm_hcd)
 	int retval;
 	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
+	if (bdata->display_reset_gpio >= 0) {
+		retval = syna_tcm_set_gpio(tcm_hcd, bdata->display_reset_gpio,	true, 1, 1);
+		retval = syna_tcm_set_gpio(tcm_hcd, bdata->display_reset_gpio,	false, 0, 0);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to configure display-reset GPIO\n");
+			goto err_set_gpio_power;
+		}
+		msleep(200);
+	}
+
+
 	if (bdata->irq_gpio >= 0) {
 		retval = syna_tcm_set_gpio(tcm_hcd, bdata->irq_gpio,
 				true, 0, 0);
@@ -1762,6 +1775,7 @@ static int syna_tcm_config_gpio(struct syna_tcm_hcd *tcm_hcd)
 			goto err_set_gpio_power;
 		}
 	}
+
 
 	if (bdata->reset_gpio >= 0) {
 		retval = syna_tcm_set_gpio(tcm_hcd, bdata->reset_gpio,
