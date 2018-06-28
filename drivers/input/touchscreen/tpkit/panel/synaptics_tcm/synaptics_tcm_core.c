@@ -3950,12 +3950,10 @@ static int syna_tcm_chip_detect(struct ts_kit_platform_data* data)
 {
 	int retval = NO_ERR;
 	int idx = 0;
-	//u16 tmp_spi_mode = SPI_MODE_0;
 	
 	TS_LOG_ERR(" syna_tcm_chip_detect called !\n");
 	tcm_hcd->syna_tcm_chip_data->ts_platform_data = data;
-	tcm_hcd->pdev = data->ts_dev;
-	//tcm_hcd->pdev->dev.parent = data->client;
+	tcm_hcd->pdev = data->ts_dev;   //huawei ts platform device
 	tcm_hcd->pdev->dev.of_node = tcm_hcd->syna_tcm_chip_data->cnode;
 	tcm_hcd->reset = syna_tcm_reset;
 	tcm_hcd->sleep = syna_tcm_sleep;
@@ -4007,7 +4005,7 @@ static int syna_tcm_chip_detect(struct ts_kit_platform_data* data)
 		TS_LOG_ERR(
 				"Failed to allocate memory for tcm_hcd->in.buf\n");
 		UNLOCK_BUFFER(tcm_hcd->in);
-		//goto err_alloc_mem;
+		goto err_alloc_mem;
 	}
 
 	UNLOCK_BUFFER(tcm_hcd->in);
@@ -4036,7 +4034,7 @@ static int syna_tcm_chip_detect(struct ts_kit_platform_data* data)
 	retval = syna_tcm_get_regulator_new();
 	if (retval < 0) {
 			TS_LOG_ERR("syna_tcm_get_regulator error %d \n",retval);
-		//goto err_alloc_mem;
+		goto err_get_regulator;
 	}
 
 	retval = syna_tcm_gpio_request();
@@ -4178,7 +4176,8 @@ if (0) {
 
 gpio_err:
 	syna_tcm_regulator_put();
-
+*/
+err_get_regulator:
 err_alloc_mem:
 	RELEASE_BUFFER(tcm_hcd->report.buffer);
 	RELEASE_BUFFER(tcm_hcd->config);
@@ -4188,6 +4187,7 @@ err_alloc_mem:
 	RELEASE_BUFFER(tcm_hcd->in);
 	
 //out:
+/*
 	if(tcm_hcd->syna_tcm_chip_data) {
 		kfree(tcm_hcd->syna_tcm_chip_data);
 		tcm_hcd->syna_tcm_chip_data = NULL;
@@ -4311,87 +4311,75 @@ struct ts_device_ops ts_kit_syna_tcm_ops = {
 };
 static int __init syna_tcm_module_init(void)
 {
-	if (0) {
-		int retval = 0;
-		//retval = syna_tcm_bus_init();
-		if (retval < 0)
-			return retval;
-
-		return platform_driver_register(&syna_tcm_driver);
-	} else {
-		//struct syna_tcm_hcd *tcm_hcd;
-		int retval = NO_ERR;    
-		bool found = false;
-		struct device_node* child = NULL;
-		struct device_node* root = NULL;
-		TS_LOG_INFO(" syna_tcm_ts_module_init called here\n");
-		
-		root = of_find_compatible_node(NULL, NULL, "huawei,ts_kit");
-		if (!root) {
-			TS_LOG_ERR("huawei_ts, find_compatible_node huawei,ts_kit error\n");
-			retval = -EINVAL;
-			goto out;
-		}
-
-		for_each_child_of_node(root, child)
-		{
-			if (of_device_is_compatible(child, SYNAPTICS_VENDER_NAME)) {
-				TS_LOG_INFO("found is true\n");
-				found = true;
-				break;
-			} 
-		}
-
-		if (!found) {
-			TS_LOG_ERR(" not found chip synaptics child node  !\n");
-			retval = -EINVAL;
-			goto out;
-		}
-
-		tcm_hcd = kzalloc(sizeof(*tcm_hcd), GFP_KERNEL);
-		if (!tcm_hcd) {
-			TS_LOG_ERR("Failed to allocate memory for tcm_hcd\n");
-			return -ENOMEM;
-		}
+	int retval = NO_ERR;    
+	bool found = false;
+	struct device_node* child = NULL;
+	struct device_node* root = NULL;
+	TS_LOG_INFO(" syna_tcm_ts_module_init called here\n");
 	
-
-		tcm_hcd->syna_tcm_chip_data = kzalloc(sizeof(struct ts_kit_device_data), GFP_KERNEL);
-		if (!tcm_hcd->syna_tcm_chip_data) {
-			TS_LOG_ERR("Failed to allocate memory for tcm_hcd\n");
-			return -ENOMEM;
-		}
-
-		tcm_hcd->syna_tcm_chip_data->cnode = child;
-		tcm_hcd->syna_tcm_chip_data->ops = &ts_kit_syna_tcm_ops;
-
-		bdata = kzalloc(sizeof(*bdata), GFP_KERNEL);
-		if (!bdata) {
-			TS_LOG_ERR(
-					"Failed to allocate memory for board data\n");
-			return -ENOMEM;
-		}
-
-		syna_tcm_i2c_init(tcm_hcd, bdata);
-		//hw_if.bdata = bdata;
-		//tcm_hcd->hw_if->bdata = bdata;
-
-		retval = huawei_ts_chip_register(tcm_hcd->syna_tcm_chip_data);
-		if(retval)
-		{
-		  TS_LOG_ERR(" synaptics chip register fail !\n");
-		  goto out;
-		}
-
-		return retval;
-		
-	out:
-		if (tcm_hcd->syna_tcm_chip_data)
-			kfree(tcm_hcd->syna_tcm_chip_data);
-		if (tcm_hcd)
-			kfree(tcm_hcd);
-		tcm_hcd = NULL;	
-		return retval;
+	root = of_find_compatible_node(NULL, NULL, "huawei,ts_kit");
+	if (!root) {
+		TS_LOG_ERR("huawei_ts, find_compatible_node huawei,ts_kit error\n");
+		retval = -EINVAL;
+		goto out;
 	}
+
+	for_each_child_of_node(root, child)
+	{
+		if (of_device_is_compatible(child, SYNAPTICS_VENDER_NAME)) {
+			TS_LOG_INFO("found is true\n");
+			found = true;
+			break;
+		} 
+	}
+
+	if (!found) {
+		TS_LOG_ERR(" not found chip synaptics child node  !\n");
+		retval = -EINVAL;
+		goto out;
+	}
+
+	tcm_hcd = kzalloc(sizeof(*tcm_hcd), GFP_KERNEL);
+	if (!tcm_hcd) {
+		TS_LOG_ERR("Failed to allocate memory for tcm_hcd\n");
+		return -ENOMEM;
+	}
+
+
+	tcm_hcd->syna_tcm_chip_data = kzalloc(sizeof(struct ts_kit_device_data), GFP_KERNEL);
+	if (!tcm_hcd->syna_tcm_chip_data) {
+		TS_LOG_ERR("Failed to allocate memory for tcm_hcd\n");
+		return -ENOMEM;
+	}
+
+	tcm_hcd->syna_tcm_chip_data->cnode = child;
+	tcm_hcd->syna_tcm_chip_data->ops = &ts_kit_syna_tcm_ops;
+
+	bdata = kzalloc(sizeof(*bdata), GFP_KERNEL);
+	if (!bdata) {
+		TS_LOG_ERR(
+				"Failed to allocate memory for board data\n");
+		return -ENOMEM;
+	}
+
+	syna_tcm_i2c_init(tcm_hcd, bdata);
+
+	retval = huawei_ts_chip_register(tcm_hcd->syna_tcm_chip_data);
+	if(retval)
+	{
+	  TS_LOG_ERR(" synaptics chip register fail !\n");
+	  goto out;
+	}
+
+	return retval;
+	
+out:
+	if (tcm_hcd->syna_tcm_chip_data)
+		kfree(tcm_hcd->syna_tcm_chip_data);
+	if (tcm_hcd)
+		kfree(tcm_hcd);
+	tcm_hcd = NULL;	
+	return retval;
 }
 /*
 static int __init syna_tcm_module_init(void)
