@@ -45,12 +45,12 @@
 
 #define SYN_I2C_RETRY_TIMES 10
 
-/*
+
 #define I2C_BURST_LIMIT 255
-*/
-/*
-#define XFER_MSGS_LIMIT 8
-*/
+
+
+#define XFER_MSGS_LIMIT 1
+
 
 static unsigned char *wr_buf;
 
