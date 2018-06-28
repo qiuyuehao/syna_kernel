@@ -3456,7 +3456,7 @@ static ssize_t test_sysfs_tddi_full_raw_store(struct device *dev,
 	}
 
 	/* get the report image 92 */
-	retval = test_sysfs_read_report(dev, attr, "92", count,
+	retval = test_sysfs_read_report(dev, attr, "92", 3,
 				false, false);
 	if (retval < 0) {
 		dev_err(rmi4_data->pdev->dev.parent,
@@ -3628,7 +3628,7 @@ static ssize_t test_sysfs_tddi_noise_store(struct device *dev,
 	/* and calculate the minimum and maximun value as well */
 	for (repeat = 0 ; repeat < NOISE_TEST_NUM_OF_FRAMES; repeat++){
 
-		retval = test_sysfs_read_report(dev, attr, "94", count,
+		retval = test_sysfs_read_report(dev, attr, "94", 3,
 					false, false);
 		if (retval < 0) {
 			dev_err(rmi4_data->pdev->dev.parent,
@@ -3964,7 +3964,7 @@ static ssize_t test_sysfs_tddi_ee_short_store(struct device *dev,
 
 	/* step 1 */
 	/* get report image 95 */
-	retval = test_sysfs_read_report(dev, attr, "95", count,
+	retval = test_sysfs_read_report(dev, attr, "95", 3,
 				false, false);
 	if (retval < 0) {
 		dev_err(rmi4_data->pdev->dev.parent,
@@ -4126,7 +4126,7 @@ static int test_tddi_full_raw(uint16_t num_frames)
 
 		// step 1
 		// get the report image 92	
-		retval = test_sysfs_read_report(NULL, NULL, "92", 2,
+		retval = test_sysfs_read_report(NULL, NULL, "92", 3,
 					false, false);
 		if (retval < 0) {
 			dev_err(rmi4_data->pdev->dev.parent,
@@ -4323,7 +4323,7 @@ static ssize_t test_sysfs_tddi_elec_open_detector_store(struct device *dev,
 	}
 
 	/* read rt139 image */
-	retval = test_sysfs_read_report(dev, attr, "139", 3,
+	retval = test_sysfs_read_report(dev, attr, "139", 4,
 				false, false);
 	if (retval < 0) {
 		dev_err(rmi4_data->pdev->dev.parent,
@@ -4454,12 +4454,12 @@ static ssize_t test_sysfs_ito_test_show(struct device *dev,
 	int rx_num = f54->rx_assigned;
 	int fail_count = 0;
 
-	retval = test_tddi_full_raw(10);
+	retval = test_tddi_full_raw(1);
 	if (retval < 0)
 	  return snprintf(buf, PAGE_SIZE, "\nERROR: test_tddi_full_raw fail\n");
 
 	//test tddi ee short item
-	retval = test_sysfs_tddi_ee_short_store(dev, attr, "1", 1);
+	retval = test_sysfs_tddi_ee_short_store(dev, attr, "1", 2);
 	if (retval < 0)
 	  return snprintf(buf, PAGE_SIZE, "\nERROR: test_sysfs_tddi_ee_short_store\n");
 
@@ -4491,7 +4491,7 @@ static ssize_t test_sysfs_ito_test_show(struct device *dev,
 
 	snprintf(buf, PAGE_SIZE, "tddi ee short test %s\n", (fail_count == 0) ? "PASS" : "FAIL");
 
-	retval = test_sysfs_tddi_noise_store(dev, attr, "1", 1);
+	retval = test_sysfs_tddi_noise_store(dev, attr, "1", 2);
 	if (retval < 0)
 	  return snprintf(buf, PAGE_SIZE, "\nERROR: test_sysfs_tddi_noise_store\n");
 
@@ -4522,7 +4522,7 @@ static ssize_t test_sysfs_ito_test_show(struct device *dev,
 
 	return snprintf(buf, PAGE_SIZE, "tddi noise test %s\n", (fail_count == 0) ? "PASS" : "FAIL");
 
-	retval = test_sysfs_tddi_elec_open_detector_store(dev, attr, "1", 1);
+	retval = test_sysfs_tddi_elec_open_detector_store(dev, attr, "1", 2);
 	if (retval < 0)
 	  return snprintf(buf, PAGE_SIZE, "\nERROR: test_sysfs_tddi_elec_open_detector_store\n");
 	
