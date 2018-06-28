@@ -60,7 +60,7 @@
 #define MAX_WRITE_SIZE 4096
 */
 
-#define ENABLE_SYS_REFLASH false
+#define ENABLE_SYS_REFLASH true
 #define FORCE_UPDATE false
 #define DO_LOCKDOWN false
 
