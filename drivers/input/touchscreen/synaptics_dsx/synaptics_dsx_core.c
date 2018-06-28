@@ -55,18 +55,18 @@
 #define TYPE_B_PROTOCOL
 #endif
 
-/*
+
 #define USE_DATA_SERVER
-*/
+
 
 #define WAKEUP_GESTURE false
 
 #define NO_0D_WHILE_2D
 #define REPORT_2D_Z
 #define REPORT_2D_W
-/*
+
 #define REPORT_2D_PRESSURE
-*/
+
 
 #define F12_DATA_15_WORKAROUND
 
@@ -1407,6 +1407,9 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 					pressure = (int)f_data[f_lsb] << 0 |
 							(int)f_data[f_msb] << 8;
 				}
+				dev_err(rmi4_data->pdev->dev.parent,
+					"%s: force value is %d\n",
+					__func__, pressure);
 				pressure = pressure > 0 ? pressure : 1;
 				if (pressure > rmi4_data->force_max)
 					pressure = rmi4_data->force_max;
@@ -1661,6 +1664,9 @@ static void synaptics_rmi4_report_touch(struct synaptics_rmi4_data *rmi4_data,
 		break;
 #ifdef USE_DATA_SERVER
 	case SYNAPTICS_RMI4_F21:
+		dev_err(rmi4_data->pdev->dev.parent,
+			"%s: Function %02x reporting\n",
+			__func__, fhandler->fn_number);
 		if (synad_pid)
 			send_sig_info(SIGIO, &interrupt_signal, synad_task);
 		break;
@@ -4191,6 +4197,9 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 	rmi4_data->irq_enable = synaptics_rmi4_irq_enable;
 	rmi4_data->sleep_enable = synaptics_rmi4_sleep_enable;
 	rmi4_data->report_touch = synaptics_rmi4_report_touch;
+
+	rmi4_data->force_max = 0xfff;
+	rmi4_data->force_min = 0;
 
 	mutex_init(&(rmi4_data->rmi4_reset_mutex));
 	mutex_init(&(rmi4_data->rmi4_report_mutex));
