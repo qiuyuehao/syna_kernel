@@ -1010,6 +1010,9 @@ int syna_tcm_raw_read(struct syna_tcm_hcd *tcm_hcd,
 		else
 			xfer_length = remaining_length;
 
+		if (xfer_length == 0) {
+			break;
+		}
 		if (xfer_length == 1) {
 			in_buf[offset] = MESSAGE_PADDING;
 			offset += xfer_length;
@@ -2944,6 +2947,7 @@ static int syna_tcm_suspend(void)
 {
 	int retval = NO_ERR;
 
+	return retval;
 	TS_LOG_INFO("suspend +\n");
 	
 	if (tcm_hcd->in_suspend)
@@ -2963,6 +2967,8 @@ static int syna_tcm_suspend(void)
 static int syna_tcm_resume(void)
 {
 	int retval = NO_ERR;
+
+	return retval;
 
 	if (!tcm_hcd->in_suspend)
 			return 0;	

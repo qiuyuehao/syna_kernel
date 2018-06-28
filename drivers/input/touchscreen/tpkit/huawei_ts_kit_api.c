@@ -470,7 +470,7 @@ int ts_power_control(int irq_id,
                 if(!(g_ts_kit_platform_data.chip_data->is_parade_solution == 1
 			&& g_ts_kit_platform_data.chip_data->sleep_in_mode == 0)) {
 				ts_stop_wd_timer(&g_ts_kit_platform_data);
-				disable_irq(irq_id);
+				//disable_irq(irq_id);
                 }
                 if (dev->ops->chip_before_suspend)
                 { error = dev->ops->chip_before_suspend(); }
@@ -530,7 +530,7 @@ int ts_power_control(int irq_id,
                 atomic_set(&g_ts_kit_platform_data.state, TS_WORK);
                 if(!(g_ts_kit_platform_data.chip_data->is_parade_solution == 1
 			&& g_ts_kit_platform_data.chip_data->sleep_in_mode == 0)) {
-				enable_irq(irq_id);
+				//enable_irq(irq_id);
 				ts_start_wd_timer(&g_ts_kit_platform_data);
                 }
                 atomic_set(&g_ts_kit_platform_data.power_state, TS_WORK);

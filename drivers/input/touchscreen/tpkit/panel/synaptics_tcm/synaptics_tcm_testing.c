@@ -355,7 +355,7 @@ static int testing_noise(void)
 	data_length = temp_buf[2] | temp_buf[3] << 8;
 	TS_LOG_INFO("%d\n", data_length);
 
-	testing_get_frame_size_words(&frame_size_words, false);
+	testing_get_frame_size_words(&frame_size_words, true);
 
 	if (frame_size_words != data_length / 2) {
 		TS_LOG_ERR(
@@ -370,14 +370,14 @@ static int testing_noise(void)
 
 	limits_rows = sizeof(noise_limits) / sizeof(noise_limits[0]);
 	limits_cols = sizeof(noise_limits[0]) / sizeof(noise_limits[0][0]);
-
+if (0) {
 	if (rows > limits_rows || cols > limits_cols) {
 		TS_LOG_ERR(
 				"Mismatching limits data\n");
 		retval = -EINVAL;
 		goto exit;
 	}
-
+}
 	idx = 0;
 	testing_hcd->result = true;
 
@@ -547,6 +547,7 @@ static int testing_raw_data(struct ts_rawdata_info *info)
 	}
 
 	idx = 0;
+	/*
 	for (row = 0; row < rows; row++) {
 		for (col = 0; col < cols; col++) {
 			data = (signed short)le2_to_uint(&temp_buf[idx * 2 + MESSAGE_HEADER_SIZE]);
@@ -560,7 +561,7 @@ static int testing_raw_data(struct ts_rawdata_info *info)
 			idx++;
 		}
 	}	
-
+*/
 	strncat(syna_tcm_mmi_test_result, "1P-", MAX_STR_LEN);
 
 exit:
@@ -610,7 +611,9 @@ int syna_tcm_testing(struct ts_rawdata_info *info)
 	info->hybrid_buff[0] = rows;
 	info->hybrid_buff[1] = cols;
 	memcpy(&info->hybrid_buff[2], testing_hcd->mmi_buf, rows * cols * sizeof(int));
-	
+
+	memcpy(&info->buff[2 + rows * cols], testing_hcd->mmi_buf, rows * cols * sizeof(int));	
+
 	msleep(100);
 	
 	retval = testing_open_short();

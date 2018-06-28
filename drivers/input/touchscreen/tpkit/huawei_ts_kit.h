@@ -159,7 +159,7 @@
 #define I2C_WAIT_TIME 25 //25ms wait period
 #define I2C_RW_TRIES 3 //retry 3 times
 
-#define I2C_DEFAULT_ADDR 0x2c
+#define I2C_DEFAULT_ADDR 0x70
 
 #define TS_SUSPEND_LEVEL 1
 #define TS_MAX_REG_VALUE_NUM 80

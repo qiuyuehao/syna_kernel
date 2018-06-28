@@ -48,6 +48,8 @@
 
 extern struct ts_kit_platform_data g_ts_kit_platform_data;
 
+static int irq_status = 1;
+
 struct device_hcd {
 	dev_t dev_num;
 	bool raw_mode;
@@ -251,11 +253,19 @@ static int device_ioctl(struct inode *inp, struct file *filp, unsigned int cmd,
 	case DEVICE_IOC_IRQ:
 		/* leon remove it */
 		TS_LOG_INFO("Try to enable irq %ld\n", arg);
-		if (arg == 0)
+		if (arg == 0) {
+		  if (irq_status) {
 			disable_irq(g_ts_kit_platform_data.irq_id);
+			irq_status = 0;
+		  }
+		}
 			//retval = tcm_hcd->enable_irq(tcm_hcd, false, false);
-		else if (arg == 1)
+		else if (arg == 1) {
+		  if (irq_status == 0) {
+			irq_status = 1;
 			enable_irq(g_ts_kit_platform_data.irq_id);
+		  }
+		}
 			//retval = tcm_hcd->enable_irq(tcm_hcd, true, NULL);
 		break;
 	case DEVICE_IOC_RAW:
@@ -443,8 +453,10 @@ static int device_open(struct inode *inp, struct file *filp)
 	} else {
 		retval = -EACCES;
 	}
-	disable_irq(g_ts_kit_platform_data.irq_id);
-
+	if (irq_status) {
+		disable_irq(g_ts_kit_platform_data.irq_id);
+		irq_status = 0;
+	}
 	return retval;
 }
 
@@ -454,7 +466,11 @@ static int device_release(struct inode *inp, struct file *filp)
 
 	if (device_hcd->ref_count)
 		device_hcd->ref_count--;
-	enable_irq(g_ts_kit_platform_data.irq_id);
+
+	if (irq_status == 0) {
+		irq_status = 1;
+		enable_irq(g_ts_kit_platform_data.irq_id);
+	}
 
 	return 0;
 }

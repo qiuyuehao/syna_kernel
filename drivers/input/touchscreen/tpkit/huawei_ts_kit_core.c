@@ -770,7 +770,7 @@ free_cmd:
 	}
 }
 
-	TS_LOG_ERR("try to update firmware\n");
+	//TS_LOG_ERR("try to update firmware\n");
 	//ts_kit_update_firmware();
 	//reflash_do_reflash();
 	return error;
@@ -1728,6 +1728,7 @@ static int fb_notifier_callback(struct notifier_block* self, unsigned long event
     unsigned char ts_state = 0;
     int times = 0;
 
+	return 0;
     TS_LOG_INFO("tpkit fb_callback called,ic_type is %d,pt_flag is %d,event is %lu\n",g_tskit_ic_type,g_tskit_pt_station_flag,event);
     /* only ONCELL and AMOLED ic need use fb_notifier_callbac */
     if (!(g_tskit_ic_type == ONCELL || g_tskit_ic_type == AMOLED))
