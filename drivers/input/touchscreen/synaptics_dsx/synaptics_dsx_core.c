@@ -55,15 +55,13 @@
 #define TYPE_B_PROTOCOL
 #endif
 
-/*
+
 #define USE_DATA_SERVER
-*/
+
 
 #define WAKEUP_GESTURE false
 
-#define NO_0D_WHILE_2D
-#define REPORT_2D_Z
-#define REPORT_2D_W
+
 /*
 #define REPORT_2D_PRESSURE
 */
@@ -577,21 +575,6 @@ struct synaptics_rmi4_f12_ctrl_58 {
 	};
 };
 
-struct synaptics_rmi4_f12_finger_data {
-	unsigned char object_type_and_status;
-	unsigned char x_lsb;
-	unsigned char x_msb;
-	unsigned char y_lsb;
-	unsigned char y_msb;
-#ifdef REPORT_2D_Z
-	unsigned char z;
-#endif
-#ifdef REPORT_2D_W
-	unsigned char wx;
-	unsigned char wy;
-#endif
-};
-
 struct synaptics_rmi4_f1a_query {
 	union {
 		struct {
@@ -675,6 +658,8 @@ struct synaptics_rmi4_exp_fn_data {
 };
 
 static struct synaptics_rmi4_exp_fn_data exp_data;
+
+static struct synaptics_rmi4_data *g_rmi4_data = NULL;
 
 static struct synaptics_dsx_button_map *vir_button_map;
 
@@ -904,6 +889,7 @@ static ssize_t synaptics_rmi4_synad_pid_store(struct device *dev,
 
 	synad_pid = input;
 
+	pr_err("yuehao receive pid from user space  %d\n", synad_pid);
 	if (synad_pid) {
 		synad_task = pid_task(find_vpid(synad_pid), PIDTYPE_PID);
 		if (!synad_task)
@@ -1013,9 +999,9 @@ static void synaptics_rmi4_f12_wg(struct synaptics_rmi4_data *rmi4_data,
 	}
 
 	if (enable)
-		reporting_control[rmi4_data->set_wakeup_gesture] = F12_WAKEUP_GESTURE_MODE;
+		reporting_control[2] = F12_WAKEUP_GESTURE_MODE;
 	else
-		reporting_control[rmi4_data->set_wakeup_gesture] = F12_CONTINUOUS_MODE;
+		reporting_control[2] = F12_CONTINUOUS_MODE;
 
 	retval = synaptics_rmi4_reg_write(rmi4_data,
 			fhandler->full_addr.ctrl_base + offset,
@@ -1201,12 +1187,12 @@ exit:
 
 	return touch_count;
 }
-
+/*
 static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 		struct synaptics_rmi4_fn *fhandler)
 {
 	int retval;
-	unsigned char touch_count = 0; /* number of touch points */
+	unsigned char touch_count = 0;
 	unsigned char index;
 	unsigned char finger;
 	unsigned char fingers_to_process;
@@ -1267,7 +1253,6 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 		return 0;
 	}
 
-	/* Determine the total number of fingers to process */
 	if (extra_data->data15_size) {
 		retval = synaptics_rmi4_reg_read(rmi4_data,
 				data_addr + extra_data->data15_offset,
@@ -1276,9 +1261,8 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 		if (retval < 0)
 			return 0;
 
-		/* Start checking from the highest bit */
-		index = extra_data->data15_size - 1; /* Highest byte */
-		finger = (fingers_to_process - 1) % 8; /* Highest bit */
+		index = extra_data->data15_size - 1; 
+		finger = (fingers_to_process - 1) % 8; 
 		do {
 			if (extra_data->data15_data[index] & (1 << finger))
 				break;
@@ -1286,7 +1270,7 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 			if (finger) {
 				finger--;
 			} else if (index > 0) {
-				index--; /* Move to the next lower byte */
+				index--;
 				finger = 7;
 			}
 
@@ -1363,7 +1347,6 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 		switch (finger_status) {
 		case F12_FINGER_STATUS:
 		case F12_GLOVED_FINGER_STATUS:
-			/* Stylus has priority over fingers */
 			if (stylus_presence)
 				break;
 #ifdef TYPE_B_PROTOCOL
@@ -1451,14 +1434,13 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 		case F12_ERASER_STATUS:
 			if (!rmi4_data->stylus_enable)
 				break;
-			/* Stylus has priority over fingers */
 			if (finger_presence) {
 				mutex_unlock(&(rmi4_data->rmi4_report_mutex));
 				synaptics_rmi4_free_fingers(rmi4_data);
 				mutex_lock(&(rmi4_data->rmi4_report_mutex));
 				finger_presence = 0;
 			}
-			if (stylus_presence) {/* Allow one stylus at a timee */
+			if (stylus_presence) {
 				if (finger + 1 != stylus_presence)
 					break;
 			}
@@ -1523,7 +1505,7 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 
 	return touch_count;
 }
-
+*/
 static void synaptics_rmi4_f1a_report(struct synaptics_rmi4_data *rmi4_data,
 		struct synaptics_rmi4_fn *fhandler)
 {
@@ -1648,6 +1630,16 @@ static void synaptics_rmi4_report_touch(struct synaptics_rmi4_data *rmi4_data,
 			rmi4_data->fingers_on_2d = false;
 		break;
 	case SYNAPTICS_RMI4_F12:
+		//pr_err("yuehao F12 interrupt\n");
+#ifdef USE_DATA_SERVER
+		if (synad_pid)
+		{
+			//pr_err("yuehao send signal to user space %d\n", synad_pid);
+			send_sig_info(SIGIO, &interrupt_signal, synad_task);
+		}
+#endif
+		break;
+/*
 		touch_count_2d = synaptics_rmi4_f12_abs_report(rmi4_data,
 				fhandler);
 
@@ -1656,14 +1648,17 @@ static void synaptics_rmi4_report_touch(struct synaptics_rmi4_data *rmi4_data,
 		else
 			rmi4_data->fingers_on_2d = false;
 		break;
+*/
 	case SYNAPTICS_RMI4_F1A:
 		synaptics_rmi4_f1a_report(rmi4_data, fhandler);
 		break;
 #ifdef USE_DATA_SERVER
+		/*
 	case SYNAPTICS_RMI4_F21:
 		if (synad_pid)
 			send_sig_info(SIGIO, &interrupt_signal, synad_task);
 		break;
+		*/
 #endif
 	default:
 		break;
@@ -2478,16 +2473,6 @@ static int synaptics_rmi4_f12_init(struct synaptics_rmi4_data *rmi4_data,
 			ctrl_23->data,
 			ctrl_23_size);
 	if (retval < 0)
-		goto exit;
-
-	retval = synaptics_rmi4_f12_find_sub(rmi4_data,
-			fhandler, query_5->data, sizeof(query_5->data),
-			6, 20, 0);
-	if (retval == 1)
-		rmi4_data->set_wakeup_gesture = 2;
-	else if (retval == 0)
-		rmi4_data->set_wakeup_gesture = 0;
-	else if (retval < 0)
 		goto exit;
 
 	/* Maximum number of fingers supported */
@@ -4069,6 +4054,29 @@ static void synaptics_rmi4_sleep_enable(struct synaptics_rmi4_data *rmi4_data,
 	return;
 }
 
+int idleEnableOrDisable(int state)
+{
+	unsigned char device_ctrl = 0;
+	if (g_rmi4_data != NULL) {
+		synaptics_rmi4_reg_read(g_rmi4_data,
+				g_rmi4_data->f01_ctrl_base_addr,
+				&device_ctrl,
+				sizeof(device_ctrl));
+		if (state) {
+			device_ctrl = device_ctrl & ~NO_SLEEP_ON;
+		} else {
+			device_ctrl = device_ctrl | NO_SLEEP_ON;
+		}
+		synaptics_rmi4_reg_write(g_rmi4_data,
+				g_rmi4_data->f01_ctrl_base_addr,
+				&device_ctrl,
+				sizeof(device_ctrl));
+		return 0;
+	} else {
+		return -1;
+	}
+}
+
 static void synaptics_rmi4_exp_fn_work(struct work_struct *work)
 {
 	struct synaptics_rmi4_exp_fhandler *exp_fhandler;
@@ -4187,12 +4195,13 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 	rmi4_data->irq_enabled = false;
 	rmi4_data->fingers_on_2d = false;
 
-	rmi4_data->stay_awake = true;
-
 	rmi4_data->reset_device = synaptics_rmi4_reset_device;
 	rmi4_data->irq_enable = synaptics_rmi4_irq_enable;
 	rmi4_data->sleep_enable = synaptics_rmi4_sleep_enable;
 	rmi4_data->report_touch = synaptics_rmi4_report_touch;
+
+	g_rmi4_data = rmi4_data;
+	rmi4_data->stay_awake = true;
 
 	mutex_init(&(rmi4_data->rmi4_reset_mutex));
 	mutex_init(&(rmi4_data->rmi4_report_mutex));

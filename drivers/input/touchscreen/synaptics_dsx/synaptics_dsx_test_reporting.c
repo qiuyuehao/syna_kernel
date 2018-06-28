@@ -308,6 +308,7 @@ enum f54_report_types {
 	F54_AMP_FULL_RAW_CAP = 78,
 	F54_AMP_RAW_ADC = 83,
 	F54_FULL_RAW_CAP_TDDI = 92,
+	F54_RT150 = 150,
 	INVALID_REPORT_TYPE = -1,
 };
 
@@ -1503,6 +1504,7 @@ static bool test_report_type_valid(enum f54_report_types report_type)
 	case F54_AMP_FULL_RAW_CAP:
 	case F54_AMP_RAW_ADC:
 	case F54_FULL_RAW_CAP_TDDI:
+	case F54_RT150:
 		return true;
 		break;
 	default:
@@ -1591,6 +1593,9 @@ static void test_set_report_size(void)
 		tx += f21->tx_assigned;
 		rx += f21->rx_assigned;
 		f54->report_size = 4 * (tx + rx);
+		break;
+	case F54_RT150:
+		f54->report_size = 2 * (tx + rx);
 		break;
 	default:
 		f54->report_size = 0;
@@ -1760,6 +1765,7 @@ static int test_do_preparation(void)
 	case F54_ABS_HYBRID_DELTA_CAP:
 	case F54_ABS_HYBRID_RAW_CAP:
 	case F54_FULL_RAW_CAP_TDDI:
+	case F54_RT150:
 		break;
 	case F54_AMP_RAW_ADC:
 		if (f54->query_49.has_ctrl188) {
@@ -2414,6 +2420,7 @@ static ssize_t test_sysfs_resume_touch_store(struct device *dev,
 	case F54_ABS_HYBRID_DELTA_CAP:
 	case F54_ABS_HYBRID_RAW_CAP:
 	case F54_FULL_RAW_CAP_TDDI:
+	case F54_RT150:
 		break;
 	case F54_AMP_RAW_ADC:
 		if (f54->query_49.has_ctrl188) {
@@ -2645,7 +2652,7 @@ static ssize_t test_sysfs_read_report_show(struct device *dev,
 	int tx_num = f54->tx_assigned;
 	int rx_num = f54->rx_assigned;
 	char *report_data_8;
-	short *report_data_16;
+	unsigned short *report_data_16;
 	int *report_data_32;
 	unsigned short *report_data_u16;
 	unsigned int *report_data_u32;
@@ -2659,6 +2666,17 @@ static ssize_t test_sysfs_read_report_show(struct device *dev,
 			report_data_8++;
 			buf += cnt;
 			count += cnt;
+		}
+		break;
+	case F54_RT150:
+		report_data_16 = (unsigned short *)f54->report_data;
+		for (ii = 0; ii < tx_num + rx_num; ii++)
+		{
+				cnt = snprintf(buf, PAGE_SIZE - count, "%-4d ",
+						*report_data_16);
+				report_data_16++;
+				buf += cnt;
+				count += cnt;
 		}
 		break;
 	case F54_AMP_RAW_ADC:

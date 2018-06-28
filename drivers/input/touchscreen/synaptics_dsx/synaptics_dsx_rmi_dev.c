@@ -45,7 +45,9 @@
 #include <linux/platform_device.h>
 #include <linux/input/synaptics_dsx.h>
 #include "synaptics_dsx_core.h"
-
+#ifdef KERNEL_ABOVE_2_6_38
+#include <linux/input/mt.h>
+#endif
 #define CHAR_DEVICE_NAME "rmi"
 #define DEVICE_CLASS_NAME "rmidev"
 #define SYSFS_FOLDER_NAME "rmidev"
@@ -53,6 +55,16 @@
 #define REG_ADDR_LIMIT 0xFFFF
 
 #define RMIDEV_MAJOR_NUM 0
+
+#define DEVICE_IOC_GET_POINTS 100
+
+#define DEVICE_IOC_SET_POINTS 101
+
+#define DEVICE_IOC_TEST 102
+
+#ifdef KERNEL_ABOVE_2_6_38
+#define TYPE_B_PROTOCOL
+#endif
 
 static ssize_t rmidev_sysfs_data_show(struct file *data_file,
 		struct kobject *kobj, struct bin_attribute *attributes,
@@ -668,6 +680,177 @@ static ssize_t rmidev_write(struct file *filp, const char __user *buf,
 
 	return retval;
 }
+void report_data_points(int fingers_to_process, struct synaptics_rmi4_f12_finger_data *data)
+{
+	int finger = 0;
+	int touch_count = 0;
+	unsigned char finger_status;
+	int x;
+	int y;
+	int wx;
+	int wy;
+	int temp;
+	struct synaptics_rmi4_data *rmi4_data = rmidev->rmi4_data;
+	struct synaptics_rmi4_f12_finger_data * finger_data; 
+	for (finger = 0; finger < fingers_to_process; finger++) {
+		finger_data = data + finger;
+		finger_status = finger_data->object_type_and_status;
+
+		x = (finger_data->x_msb << 8) | (finger_data->x_lsb);
+		y = (finger_data->y_msb << 8) | (finger_data->y_lsb);
+#ifdef YUEHAO_DEBUG		
+		pr_err("yuehao x:%d, y:%d, finger_status:%d\n", x, y, finger_status);
+#endif
+#ifdef REPORT_2D_W
+		wx = finger_data->wx;
+		wy = finger_data->wy;
+#endif	
+		if (rmi4_data->hw_if->board_data->swap_axes) {
+			temp = x;
+			x = y;
+			y = temp;
+			temp = wx;
+			wx = wy;
+			wy = temp;
+		}
+
+		if (rmi4_data->hw_if->board_data->x_flip)
+			x = rmi4_data->sensor_max_x - x;
+		if (rmi4_data->hw_if->board_data->y_flip)
+			y = rmi4_data->sensor_max_y - y;
+		switch (finger_status) {
+		case F12_FINGER_STATUS:
+		case F12_GLOVED_FINGER_STATUS:
+#ifdef TYPE_B_PROTOCOL
+			input_mt_slot(rmi4_data->input_dev, finger);
+			input_mt_report_slot_state(rmi4_data->input_dev,
+					MT_TOOL_FINGER, 1);
+#endif
+
+			input_report_key(rmi4_data->input_dev,
+					BTN_TOUCH, 1);
+			input_report_key(rmi4_data->input_dev,
+					BTN_TOOL_FINGER, 1);
+			input_report_abs(rmi4_data->input_dev,
+					ABS_MT_POSITION_X, x);
+			input_report_abs(rmi4_data->input_dev,
+					ABS_MT_POSITION_Y, y);
+#ifdef REPORT_2D_W
+			if (rmi4_data->wedge_sensor) {
+				input_report_abs(rmi4_data->input_dev,
+						ABS_MT_TOUCH_MAJOR, wx);
+				input_report_abs(rmi4_data->input_dev,
+						ABS_MT_TOUCH_MINOR, wx);
+			} else {
+				input_report_abs(rmi4_data->input_dev,
+						ABS_MT_TOUCH_MAJOR,
+						max(wx, wy));
+				input_report_abs(rmi4_data->input_dev,
+						ABS_MT_TOUCH_MINOR,
+						min(wx, wy));
+			}
+#endif
+
+#ifndef TYPE_B_PROTOCOL
+			input_mt_sync(rmi4_data->input_dev);
+#endif
+#ifdef YUEHAO_DEBUG
+			dev_err(rmi4_data->pdev->dev.parent,
+					"%s yuehao: Finger %d: status = 0x%02x, x = %d, y = %d, wx = %d, wy = %d\n",
+					__func__, finger,
+					finger_status,
+					x, y, wx, wy);
+#endif
+			touch_count++;
+			break;
+		default:
+#ifdef TYPE_B_PROTOCOL
+			input_mt_slot(rmi4_data->input_dev, finger);
+			input_mt_report_slot_state(rmi4_data->input_dev,
+					MT_TOOL_FINGER, 0);
+#endif
+			break;
+		}
+	}
+	if (touch_count == 0) {
+	input_report_key(rmi4_data->input_dev,
+			BTN_TOUCH, 0);
+	input_report_key(rmi4_data->input_dev,
+			BTN_TOOL_FINGER, 0);
+#ifndef TYPE_B_PROTOCOL
+	input_mt_sync(rmi4_data->input_dev);
+#endif
+	}
+	input_sync(rmi4_data->input_dev);
+	//return touch_count;
+}
+struct synaptics_rmi4_f12_finger_data finger_tmp_data[10];
+
+#ifdef HAVE_UNLOCKED_IOCTL
+static long device_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+#else
+static int device_ioctl(struct inode *inp, struct file *filp, unsigned int cmd,
+		unsigned long arg)
+#endif
+{
+	int retval;
+	int count = 0;
+
+	int fingers_to_process = 10;
+	unsigned short data_addr;
+	int size_of_2d_data = sizeof(struct synaptics_rmi4_f12_finger_data);
+	struct synaptics_rmi4_data *rmi4_data = rmidev->rmi4_data;
+
+	struct synaptics_rmi4_f12_extra_data *extra_data;
+	struct synaptics_rmi4_fn *fhandler;
+	struct synaptics_rmi4_device_info *rmi;
+
+	rmi = &(rmi4_data->rmi4_mod_info);
+
+	list_for_each_entry(fhandler, &rmi->support_fn_list, link) {
+		if (fhandler->fn_number == SYNAPTICS_RMI4_F12)
+			break;
+	}
+	
+	data_addr = fhandler->full_addr.data_base;
+	extra_data = (struct synaptics_rmi4_f12_extra_data *)fhandler->extra;
+
+	retval = 0;
+	count = fingers_to_process * size_of_2d_data;
+#ifdef YUEHAO_DEBUG		
+	pr_err("yuehao call ioctl cmd:%d\n", cmd);
+#endif
+	switch (cmd) {
+	case DEVICE_IOC_GET_POINTS:
+		retval = synaptics_rmi4_reg_read(rmi4_data,
+			data_addr + extra_data->data1_offset,
+			(unsigned char *)fhandler->data,
+			count);
+		if (copy_to_user((void*)arg, fhandler->data, count)) {
+			//pr_err("yuehao copy to user error\n");
+		} else {
+			//pr_err("yuehao copy to user success\n");
+		}
+		break;
+
+	case DEVICE_IOC_SET_POINTS:
+		if (copy_from_user(finger_tmp_data, (void*)arg, count)) {
+			//pr_err("yuehao copy from user error\n");
+		} else {
+			//pr_err("yuehao copy from user success\n");
+		}
+		report_data_points(10, (struct synaptics_rmi4_f12_finger_data*)finger_tmp_data);
+		//pr_err("process data points done\n");
+		break;
+	case DEVICE_IOC_TEST:
+		pr_err("yuehao call ioctl TEST\n");
+		break;
+	default:
+		retval = -ENOTTY;
+		break;
+	}
+	return retval;
+}
 
 static int rmidev_open(struct inode *inp, struct file *filp)
 {
@@ -692,11 +875,11 @@ static int rmidev_open(struct inode *inp, struct file *filp)
 
 	mutex_lock(&(dev_data->file_mutex));
 
-	rmi4_data->irq_enable(rmi4_data, false, false);
+/*	rmi4_data->irq_enable(rmi4_data, false, false);
 	dev_dbg(rmi4_data->pdev->dev.parent,
 			"%s: Attention interrupt disabled\n",
 			__func__);
-
+*/
 	if (dev_data->ref_count < 1)
 		dev_data->ref_count++;
 	else
@@ -737,6 +920,14 @@ static const struct file_operations rmidev_fops = {
 	.read = rmidev_read,
 	.write = rmidev_write,
 	.open = rmidev_open,
+#ifdef HAVE_UNLOCKED_IOCTL
+	.unlocked_ioctl = device_ioctl,
+#ifdef HAVE_COMPAT_IOCTL
+	.compat_ioctl = device_ioctl,
+#endif
+#else
+	.ioctl = device_ioctl,
+#endif
 	.release = rmidev_release,
 };
 

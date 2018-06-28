@@ -124,6 +124,25 @@
 #define MASK_2BIT 0x03
 #define MASK_1BIT 0x01
 
+#define NO_0D_WHILE_2D
+#define REPORT_2D_Z
+#define REPORT_2D_W
+
+struct synaptics_rmi4_f12_finger_data {
+	unsigned char object_type_and_status;
+	unsigned char x_lsb;
+	unsigned char x_msb;
+	unsigned char y_lsb;
+	unsigned char y_msb;
+#ifdef REPORT_2D_Z
+	unsigned char z;
+#endif
+#ifdef REPORT_2D_W
+	unsigned char wx;
+	unsigned char wy;
+#endif
+};
+
 enum exp_fn {
 	RMI_DEV = 0,
 	RMI_FW_UPDATER,
@@ -397,7 +416,6 @@ struct synaptics_rmi4_data {
 	int sensor_max_y;
 	int force_min;
 	int force_max;
-	int set_wakeup_gesture;
 	bool flash_prog_mode;
 	bool irq_enabled;
 	bool fingers_on_2d;
