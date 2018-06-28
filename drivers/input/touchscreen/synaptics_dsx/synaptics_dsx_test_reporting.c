@@ -1068,6 +1068,9 @@ struct synaptics_rmi4_f54_handle {
 	unsigned char intr_reg_num;
 	unsigned char tx_assigned;
 	unsigned char rx_assigned;
+	unsigned char swap_sensor_side;
+	unsigned char left_mux_size;
+	unsigned char right_mux_size;
 	unsigned char *report_data;
 	unsigned short query_base_addr;
 	unsigned short control_base_addr;
@@ -1433,6 +1436,15 @@ static unsigned char *g_tddi_full_raw_data_output;
 // size = tx_num * rx_num * sizeof(short)
 static signed short *g_tddi_noise_data_output;
 
+
+
+#define EE_SHORT_TEST_LIMIT_PART1  100
+#define EE_SHORT_TEST_LIMIT_PART2  96
+
+// a global buffer to record the testing result of e-to-e short test
+// size = tx_num * rx_num * sizeof(char)
+static unsigned char *g_tddi_ee_short_data_output;
+
 // a global flag to indicate the failure of report image reading
 // true : fail to read image
 static bool g_flag_readrt_err;
@@ -1461,6 +1473,7 @@ show_store_prototype(read_report)
 
 show_store_prototype(tddi_full_raw)
 show_store_prototype(tddi_noise)
+show_store_prototype(tddi_ee_short)
 
 static struct attribute *attrs[] = {
 	attrify(num_of_mapped_tx),
@@ -1485,6 +1498,7 @@ static struct attribute *attrs[] = {
 
 	attrify(tddi_full_raw),
 	attrify(tddi_noise),
+	attrify(tddi_ee_short),
 	NULL,
 };
 
@@ -3668,6 +3682,360 @@ static ssize_t test_sysfs_tddi_noise_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%s\n", (fail_count == 0) ? "PASS" : "FAIL");
 }
 
+static short find_median(short* pdata, int num)
+{
+	int i,j;
+	short temp;
+	short *value;
+	short median;
+
+	value = (short *)kzalloc( num * sizeof(short), GFP_KERNEL);
+
+	for(i=0; i < num; i++)
+		*(value+i) = *(pdata+i);
+
+	//sorting
+	for ( i=1; i <= num-1; i++)
+	{
+		for ( j=1; j <= num-i; j++)
+		{
+			if (*(value+j-1) <= *(value+j))
+			{
+			   temp = *(value+j-1);
+			   *(value+j-1)= *(value+j);
+			   *(value+j) = temp;
+			}
+			else
+				continue ;
+		}
+	}
+
+	//calculation of median
+	if ( num % 2 == 0)
+		median = ( *(value+(num/2 -1)) + *(value+(num/2)) )/2;
+	else
+		median = *(value+(num/2));
+
+	if(value)
+		kfree(value);
+
+	return median;
+}
+
+static int tddi_ratio_calculation(signed short *p_image)
+{
+	int retval = 0;
+	int i, j;
+	int tx_num = f54->tx_assigned;
+	int rx_num = f54->rx_assigned;
+	unsigned char left_size = f54->left_mux_size;
+	unsigned char right_size = f54->right_mux_size;
+	signed short *p_data_16;
+	signed short *p_left_median = NULL;
+	signed short *p_right_median = NULL;
+	signed short *p_left_column_buf = NULL;
+	signed short *p_right_column_buf = NULL;
+	signed int temp;
+	struct synaptics_rmi4_data *rmi4_data = f54->rmi4_data;
+
+	if (!p_image) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Fail. p_image is null\n", __func__);
+		retval = -EINVAL;
+		goto exit;
+	}
+
+	// allocate the buffer for the median value in left/right half
+	p_right_median = (signed short *) kzalloc(rx_num * sizeof(short), GFP_KERNEL);
+	if (!p_right_median) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to alloc mem for p_right_median\n", __func__);
+		retval = -ENOMEM;
+		goto exit;
+	}
+
+	p_left_median = (signed short *) kzalloc(rx_num * sizeof(short), GFP_KERNEL);
+	if (!p_left_median) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to alloc mem for p_left_median\n", __func__);
+		retval = -ENOMEM;
+		goto exit;
+	}
+
+	p_right_column_buf = (signed short *) kzalloc(right_size * rx_num * sizeof(short), GFP_KERNEL);
+	if (!p_right_column_buf ) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to alloc mem for p_right_column_buf\n", __func__);
+		retval = -ENOMEM;
+		goto exit;
+	}
+
+	p_left_column_buf = (signed short *) kzalloc(left_size * rx_num * sizeof(short), GFP_KERNEL);
+	if (!p_left_column_buf ) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to alloc mem for p_left_column_buf\n", __func__);
+		retval = -ENOMEM;
+		goto exit;
+	}
+
+	// divide the input image into left/right parts
+	if (f54->swap_sensor_side) {
+
+		// first row is left side data
+		p_data_16 = p_image;
+		for (i = 0; i < rx_num; i++) {
+			for (j = 0; j < left_size; j++) {
+				p_left_column_buf[i * left_size + j] = p_data_16[j * rx_num + i];
+			}
+		}
+		// right side data
+		p_data_16 = p_image + left_size * rx_num;
+		for (i = 0; i < rx_num; i++) {
+			for (j = 0; j < right_size; j++) {
+				p_right_column_buf[i * right_size + j] = p_data_16[j * rx_num + i];
+			}
+		}
+	}
+	else {
+
+		// first row is right side data
+		p_data_16 = p_image;
+		for (i = 0; i < rx_num; i++) {
+			for (j = 0; j < right_size; j++) {
+				p_right_column_buf[i * right_size + j] = p_data_16[j * rx_num + i];
+			}
+		}
+		// left side data
+		p_data_16 = p_image + right_size * rx_num;
+		for (i = 0; i < rx_num; i++) {
+			for (j = 0; j < left_size; j++) {
+				p_left_column_buf[i * left_size + j] = p_data_16[j * rx_num + i];
+			}
+		}
+	}
+
+	// find the median in every column
+	for (i = 0; i < rx_num; i++) {
+		p_left_median[i] = find_median(p_left_column_buf + i * left_size, left_size);
+		p_right_median[i] = find_median(p_right_column_buf + i * right_size, right_size);
+	}
+
+	// walk through the image of all data
+	// and calculate the ratio by using the median
+	for (i = 0; i < tx_num; i++) {
+		for (j = 0; j < rx_num; j++) {
+
+			// calcueate the ratio
+			if (f54->swap_sensor_side) {
+				// first row is left side
+				if (i < left_size) {
+					temp = (signed int) p_image[i * rx_num + j];
+					temp = temp * 100 / p_left_median[j];
+				} else {
+					temp = (signed int) p_image[i * rx_num + j];
+					temp = temp * 100 / p_right_median[j];
+				}
+			}
+			else {
+				// first row is right side
+				if (i < right_size) {
+					temp = (signed int) p_image[i * rx_num + j];
+					temp = temp * 100 / p_right_median[j];
+				} else {
+					temp = (signed int) p_image[i * rx_num + j];
+					temp = temp * 100 / p_left_median[j];
+				}
+			}
+
+			// replace the original data with the calculated ratio
+			p_image[i * rx_num + j] = temp;
+		}
+	}
+
+exit:
+	kfree(p_right_median);
+	kfree(p_left_median);
+	kfree(p_right_column_buf);
+	kfree(p_left_column_buf);
+	return retval;
+}
+
+static ssize_t test_sysfs_tddi_ee_short_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int retval;
+	int i, j, offset;
+	int tx_num = f54->tx_assigned;
+	int rx_num = f54->rx_assigned;
+	signed short *tddi_rt95_part_one = NULL;
+	signed short *tddi_rt95_part_two = NULL;
+	unsigned int buffer_size = tx_num * rx_num * 2;
+	unsigned long setting;
+	struct synaptics_rmi4_data *rmi4_data = f54->rmi4_data;
+
+	retval = sstrtoul(buf, 10, &setting);
+	if (retval)
+		return retval;
+
+	if (setting != 1)
+		return -EINVAL;
+
+	/* allocate the g_tddi_ee_short_data_output */
+	if (g_tddi_ee_short_data_output)
+		kfree(g_tddi_ee_short_data_output);
+
+	g_tddi_ee_short_data_output = kzalloc(tx_num * rx_num, GFP_KERNEL);
+	if (!g_tddi_ee_short_data_output) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to alloc mem for g_tddi_ee_short_data_output\n",
+				__func__);
+		return -ENOMEM;
+	}
+
+	// allocate the internal buffer
+	tddi_rt95_part_one = kzalloc(buffer_size, GFP_KERNEL);
+	if (!tddi_rt95_part_one) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to alloc mem for tddi_rt95_part_one\n",
+				__func__);
+		retval = -ENOMEM;
+		goto exit;
+	}
+
+	tddi_rt95_part_two = kzalloc(buffer_size, GFP_KERNEL);
+	if (!tddi_rt95_part_two) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to alloc mem for td43xx_rt95_part_two\n",
+				__func__);
+		retval = -ENOMEM;
+		goto exit;
+	}
+
+	g_flag_readrt_err = false;
+
+	/* step 1 */
+	/* get report image 95 */
+	retval = test_sysfs_read_report(dev, attr, "95", count,
+				false, false);
+	if (retval < 0) {
+		dev_err(rmi4_data->pdev->dev.parent,
+				"%s: Failed to read report 95. exit\n", __func__);
+		retval = -EIO;
+		g_flag_readrt_err = true;
+		goto exit;
+	}
+
+
+	/* step 2 */
+	/* use the upper half as part 1 image */
+	/* the data should be lower than TEST_LIMIT_PART1 ( fail, if > TEST_LIMIT_PART1 ) */
+	for (i = 0, offset = 0; i < tx_num * rx_num; i++) {
+		tddi_rt95_part_one[i] = (signed short)(f54->report_data[offset]) |
+								((signed short)(f54->report_data[offset + 1]) << 8);
+		offset += 2;
+	}
+
+	for (i = 0; i < tx_num; i++) {
+		for (j = 0; j < rx_num; j++) {
+			if (tddi_rt95_part_one[i*rx_num + j] > EE_SHORT_TEST_LIMIT_PART1) {
+				dev_err(rmi4_data->pdev->dev.parent,
+						"%s: fail at (tx%-2d, rx%-2d) = %-4d in part 1 image (limit = %d)\n",
+						__func__, i, j, tddi_rt95_part_one[i*rx_num + j], EE_SHORT_TEST_LIMIT_PART1);
+
+				tddi_rt95_part_one[i*rx_num + j] = _TEST_FAIL; // 1: fail
+			}
+			else {
+				tddi_rt95_part_one[i*rx_num + j] = _TEST_PASS;
+			}
+		}
+	}
+
+	/* step 3 */
+	/* use the lower half as part 2 image */
+	/* and perform the calculation */
+	/* the calculated data should be over than TEST_LIMIT_PART2 ( fail, if < TEST_LIMIT_PART2 ) */
+	for (i = 0, offset = buffer_size; i < tx_num * rx_num; i++) {
+		tddi_rt95_part_two[i] = (signed short)(f54->report_data[offset]) |
+								((signed short)(f54->report_data[offset + 1]) << 8);
+		offset += 2;
+	}
+
+	// calculate the ratio
+	tddi_ratio_calculation(tddi_rt95_part_two);
+
+	for (i = 0; i < tx_num; i++) {
+		for (j = 0; j < rx_num; j++) {
+			if (tddi_rt95_part_two[i*rx_num + j] < EE_SHORT_TEST_LIMIT_PART2) {
+				dev_err(rmi4_data->pdev->dev.parent,
+						"%s: fail at (tx%-2d, rx%-2d) = %-4d in part 2 image (limit = %d)\n",
+						__func__, i, j, tddi_rt95_part_two[i*rx_num + j], EE_SHORT_TEST_LIMIT_PART2);
+
+				tddi_rt95_part_two[i*rx_num + j] = _TEST_FAIL; // 1: fail
+			}
+			else {
+				tddi_rt95_part_two[i*rx_num + j] = _TEST_PASS;
+			}
+		}
+	}
+
+	/* step 4 */
+	/* filling out the g_tddi_ee_short_data_output */
+	/* 1: fail / 0 : pass */
+	for (i = 0; i < tx_num; i++) {
+		for (j = 0; j < rx_num; j++) {
+			g_tddi_ee_short_data_output[i * rx_num + j] =
+				(unsigned char)(tddi_rt95_part_one[i * rx_num + j]) || tddi_rt95_part_two[i * rx_num + j];
+		}
+	}
+
+	retval = count;
+
+exit:
+	kfree(tddi_rt95_part_one);
+	kfree(tddi_rt95_part_two);
+
+
+	return retval;
+}
+
+static ssize_t test_sysfs_tddi_ee_short_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int i, j;
+	int tx_num = f54->tx_assigned;
+	int rx_num = f54->rx_assigned;
+	int fail_count = 0;
+
+	if (!g_tddi_ee_short_data_output)
+		return snprintf(buf, PAGE_SIZE, "\nERROR: no g_tddi_ee_short_data_output\n");
+
+	// check the special code if failed to get report image
+	// output the error message
+	if (g_flag_readrt_err) {
+
+		kfree(g_tddi_ee_short_data_output);
+		g_tddi_ee_short_data_output = NULL;
+
+		return snprintf(buf, PAGE_SIZE, "\nERROR: fail to read report image\n");
+	}
+
+	for (i = 0; i < tx_num; i++) {
+		for (j = 0; j < rx_num; j++) {
+			if (g_tddi_ee_short_data_output[i * rx_num + j] != _TEST_PASS) {
+
+				fail_count += 1;
+			}
+		}
+	}
+
+
+	kfree(g_tddi_ee_short_data_output);
+	g_tddi_ee_short_data_output = NULL;
+
+	return snprintf(buf, PAGE_SIZE, "%s\n", (fail_count == 0) ? "PASS" : "FAIL");
+}
+
+
 
 static ssize_t test_sysfs_data_read(struct file *data_file,
 		struct kobject *kobj, struct bin_attribute *attributes,
@@ -5547,6 +5915,11 @@ static void test_f55_init(struct synaptics_rmi4_data *rmi4_data)
 
 		f54->tx_assigned = ctrl_43.afe_l_mux_size +
 				ctrl_43.afe_r_mux_size;
+		/* tddi f54 test reporting +  */
+		f54->swap_sensor_side = ctrl_43.swap_sensor_side;
+		f54->left_mux_size = ctrl_43.afe_l_mux_size;
+		f54->right_mux_size = ctrl_43.afe_r_mux_size;
+		/* tddi f54 test reporting -  */
 	}
 
 	/* force mapping */
