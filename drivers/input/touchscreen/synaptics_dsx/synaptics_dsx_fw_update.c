@@ -5388,6 +5388,12 @@ static ssize_t fwu_sysfs_disp_config_block_count_show(struct device *dev,
 	return retval;
 }
 
+static unsigned char config_data[512] = {0};
+
+static int fwu_read_perm_config_data(unsigned char *data, int length);
+
+static int fwu_write_perm_config_data(unsigned char *data, int length);
+
 static ssize_t fwu_sysfs_perm_config_block_count_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -5400,6 +5406,16 @@ static ssize_t fwu_sysfs_perm_config_block_count_show(struct device *dev,
 
 	mutex_unlock(&fwu_sysfs_mutex);
 
+	fwu_read_perm_config_data(config_data, sizeof(config_data));
+	
+	config_data[16] = 'H';
+	config_data[17] = 'E';
+	config_data[18] = 'L';
+	config_data[19] = 'L';
+
+	fwu_write_perm_config_data(config_data, sizeof(config_data));
+
+	fwu_read_perm_config_data(config_data, sizeof(config_data));
 	return retval;
 }
 
@@ -5787,6 +5803,62 @@ static void synaptics_rmi4_fwu_reset(struct synaptics_rmi4_data *rmi4_data)
 
 	return;
 }
+
+static int fwu_read_perm_config_data(unsigned char *data, int length)
+{
+	struct synaptics_rmi4_data *rmi4_data;	
+	int retval = 0;
+
+	rmi4_data = fwu->rmi4_data;
+
+	retval = fwu_enter_flash_prog();
+	if (retval < 0) {
+		dev_err(rmi4_data->pdev->dev.parent,
+					"can not enter flash prog\n");
+	}
+
+	fwu->config_area = PM_CONFIG_AREA; 
+	retval = fwu_do_read_config();
+	if (retval < 0) {
+		dev_err(rmi4_data->pdev->dev.parent,
+					"can not enter flash prog\n");
+	}
+
+	secure_memcpy(data, length, fwu->read_config_buf, fwu->config_size, length);
+
+	rmi4_data->reset_device(rmi4_data, false);
+
+	return retval;
+}
+
+static int fwu_write_perm_config_data(unsigned char *data, int length)
+{
+	struct synaptics_rmi4_data *rmi4_data;	
+	int retval = 0;
+
+	rmi4_data = fwu->rmi4_data;
+
+	retval = fwu_enter_flash_prog();
+	if (retval < 0) {
+		dev_err(rmi4_data->pdev->dev.parent,
+					"can not enter flash prog\n");
+	}
+
+	fwu->config_area = PM_CONFIG_AREA;
+	fwu->config_data = data;
+	fwu->config_size = length;
+	fwu->config_block_count = fwu->config_size / fwu->block_size;
+
+	retval = fwu_write_configuration();
+	if (retval < 0) {
+		dev_err(rmi4_data->pdev->dev.parent,
+					"fwu_write_configuration, fail\n");
+	}
+
+	rmi4_data->reset_device(rmi4_data, false);
+	return retval;
+}
+
 
 static struct synaptics_rmi4_exp_fn fwu_module = {
 	.fn_type = RMI_FW_UPDATER,
