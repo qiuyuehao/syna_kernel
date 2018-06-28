@@ -126,6 +126,14 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 		bdata->reset_gpio = -1;
 	}
 
+	prop = of_find_property(np, "synaptics,display-reset-gpio", NULL);
+	if (prop && prop->length) {
+		bdata->display_reset_gpio = of_get_named_gpio_flags(np,
+				"synaptics,display-reset-gpio", 0, NULL);
+	} else {
+		bdata->display_reset_gpio = -1;
+	}
+
 	prop = of_find_property(np, "synaptics,reset-on-state", NULL);
 	if (prop && prop->length) {
 		retval = of_property_read_u32(np, "synaptics,reset-on-state",
