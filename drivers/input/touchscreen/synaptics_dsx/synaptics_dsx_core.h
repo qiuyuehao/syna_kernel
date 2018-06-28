@@ -397,6 +397,7 @@ struct synaptics_rmi4_data {
 	int sensor_max_y;
 	int force_min;
 	int force_max;
+	int set_wakeup_gesture;
 	bool flash_prog_mode;
 	bool irq_enabled;
 	bool fingers_on_2d;

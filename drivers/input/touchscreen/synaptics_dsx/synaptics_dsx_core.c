@@ -1013,9 +1013,9 @@ static void synaptics_rmi4_f12_wg(struct synaptics_rmi4_data *rmi4_data,
 	}
 
 	if (enable)
-		reporting_control[2] = F12_WAKEUP_GESTURE_MODE;
+		reporting_control[rmi4_data->set_wakeup_gesture] = F12_WAKEUP_GESTURE_MODE;
 	else
-		reporting_control[2] = F12_CONTINUOUS_MODE;
+		reporting_control[rmi4_data->set_wakeup_gesture] = F12_CONTINUOUS_MODE;
 
 	retval = synaptics_rmi4_reg_write(rmi4_data,
 			fhandler->full_addr.ctrl_base + offset,
@@ -2478,6 +2478,16 @@ static int synaptics_rmi4_f12_init(struct synaptics_rmi4_data *rmi4_data,
 			ctrl_23->data,
 			ctrl_23_size);
 	if (retval < 0)
+		goto exit;
+
+	retval = synaptics_rmi4_f12_find_sub(rmi4_data,
+			fhandler, query_5->data, sizeof(query_5->data),
+			6, 20, 0);
+	if (retval == 1)
+		rmi4_data->set_wakeup_gesture = 2;
+	else if (retval == 0)
+		rmi4_data->set_wakeup_gesture = 0;
+	else if (retval < 0)
 		goto exit;
 
 	/* Maximum number of fingers supported */
