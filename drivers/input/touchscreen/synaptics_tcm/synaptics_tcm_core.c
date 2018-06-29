@@ -52,7 +52,7 @@
 
 #define NOTIFIER_TIMEOUT_MS 500
 
-#define RESPONSE_TIMEOUT_MS 3000
+#define RESPONSE_TIMEOUT_MS 5000
 
 #define APP_STATUS_POLL_TIMEOUT_MS 1000
 
@@ -60,7 +60,7 @@
 
 #define ENABLE_IRQ_DELAY_MS 20
 
-#define FALL_BACK_ON_POLLING
+//#define FALL_BACK_ON_POLLING
 
 #define POLLING_DELAY_MS 5
 
@@ -185,6 +185,12 @@ static struct device_attribute *dynamic_config_attrs[] = {
 	ATTRIFY(enable_glove),
 };
 
+static int syna_tcm_raw_write(struct syna_tcm_hcd *tcm_hcd,
+		unsigned char command, unsigned char *data, unsigned int length);
+
+static int syna_tcm_raw_read(struct syna_tcm_hcd *tcm_hcd,
+		unsigned char *in_buf, unsigned int length);
+
 static ssize_t syna_tcm_sysfs_info_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -288,7 +294,7 @@ static ssize_t syna_tcm_sysfs_irq_en_store(struct device *dev,
 	struct device *p_dev;
 	struct kobject *p_kobj;
 	struct syna_tcm_hcd *tcm_hcd;
-
+if (1) {
 	p_kobj = sysfs_dir->parent;
 	p_dev = container_of(p_kobj, struct device, kobj);
 	tcm_hcd = dev_get_drvdata(p_dev);
@@ -321,8 +327,22 @@ static ssize_t syna_tcm_sysfs_irq_en_store(struct device *dev,
 
 exit:
 	mutex_unlock(&tcm_hcd->extif_mutex);
+} else {
+	
+		unsigned char tmp_data[100];
+		p_kobj = sysfs_dir->parent;
+		p_dev = container_of(p_kobj, struct device, kobj);
+		tcm_hcd = dev_get_drvdata(p_dev);
 
-	return retval;
+		msleep(2000);
+		retval = syna_tcm_raw_read(tcm_hcd, tmp_data, sizeof(tmp_data));
+		if (retval < 0) {
+			pr_err("read error\n");
+		} else {
+			pr_err("data is %x, %x, %x, %x, %X, %x, %x\n", tmp_data[0], tmp_data[1], tmp_data[2], tmp_data[3], tmp_data[4], tmp_data[5], tmp_data[6]);
+		}
+}
+	return count;
 }
 
 static ssize_t syna_tcm_sysfs_reset_store(struct device *dev,
@@ -1160,11 +1180,11 @@ static int syna_tcm_read_message(struct syna_tcm_hcd *tcm_hcd,
 	tcm_hcd->status_report_code = header->code;
 
 	tcm_hcd->payload_length = le2_to_uint(header->length);
-/*
+
 	LOGE(tcm_hcd->pdev->dev.parent,
 			"Header code = 0x%02x Payload length = %d\n",
 			tcm_hcd->status_report_code, tcm_hcd->payload_length);
-*/
+
 	LOGD(tcm_hcd->pdev->dev.parent,
 			"Payload length = %d\n",
 			tcm_hcd->payload_length);
@@ -1429,6 +1449,8 @@ static int syna_tcm_write_message(struct syna_tcm_hcd *tcm_hcd,
 				&tcm_hcd->polling_work,
 				msecs_to_jiffies(polling_delay_ms));
 	}
+	
+	pr_err("start to wait for command complete\n");
 
 	retval = wait_for_completion_timeout(&response_complete,
 			msecs_to_jiffies(RESPONSE_TIMEOUT_MS));
@@ -1614,6 +1636,8 @@ static irqreturn_t syna_tcm_isr(int irq, void *data)
 
 	tcm_hcd->isr_pid = current->pid;
 
+	LOGE(tcm_hcd->pdev->dev.parent,
+				"syna isr happens\n");
 	retval = tcm_hcd->read_message(tcm_hcd,
 			NULL,
 			0);

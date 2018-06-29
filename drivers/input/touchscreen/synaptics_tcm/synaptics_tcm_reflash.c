@@ -34,7 +34,7 @@
 #include <linux/firmware.h>
 #include "synaptics_tcm_core.h"
 
-#define STARTUP_REFLASH
+//#define STARTUP_REFLASH
 
 #define FORCE_REFLASH false
 
@@ -1417,7 +1417,9 @@ static int reflash_write_flash(unsigned int address, const unsigned char *data,
 			UNLOCK_BUFFER(reflash_hcd->out);
 			return retval;
 		}
-
+		LOGE(tcm_hcd->pdev->dev.parent,
+					"start to write flash, xfer_length:%d, wr_chunk_size:%d, remaining_length:%d, max_write_payload_size:%d\n", xfer_length,
+					tcm_hcd->wr_chunk_size, remaining_length, reflash_hcd->max_write_payload_size);
 		retval = tcm_hcd->write_message(tcm_hcd,
 				CMD_WRITE_FLASH,
 				reflash_hcd->out.buf,
@@ -1440,7 +1442,7 @@ static int reflash_write_flash(unsigned int address, const unsigned char *data,
 			UNLOCK_BUFFER(reflash_hcd->out);
 			return retval;
 		}
-
+		LOGE(tcm_hcd->pdev->dev.parent,"start to write flash commmand\n");
 		offset += xfer_length;
 		remaining_length -= xfer_length;
 	}
@@ -1468,6 +1470,9 @@ static int reflash_erase_flash(unsigned int page_start, unsigned int page_count)
 
 	LOCK_BUFFER(reflash_hcd->resp);
 
+	LOGE(tcm_hcd->pdev->dev.parent,
+				"start to write erase command %s\n",
+				STR(CMD_ERASE_FLASH));
 	retval = tcm_hcd->write_message(tcm_hcd,
 			CMD_ERASE_FLASH,
 			out_buf,
@@ -1483,7 +1488,9 @@ static int reflash_erase_flash(unsigned int page_start, unsigned int page_count)
 		UNLOCK_BUFFER(reflash_hcd->resp);
 		return retval;
 	}
-
+	LOGE(tcm_hcd->pdev->dev.parent,
+				"end write erase command %s\n",
+				STR(CMD_ERASE_FLASH));
 	UNLOCK_BUFFER(reflash_hcd->resp);
 
 	return 0;

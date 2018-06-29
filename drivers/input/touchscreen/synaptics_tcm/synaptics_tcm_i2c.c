@@ -375,6 +375,16 @@ exit:
 	return retval;
 }
 
+static int log_data_info(unsigned char *data, int length)
+{
+	int i = 0;
+	pr_err("log data begin----------\n");
+	for (i = 0; i < length; i++) {
+		pr_err("%x, ", data[i]);
+	}
+	pr_err("log data end------------\n");
+	return 0;
+}
 static int syna_tcm_i2c_write(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
 		unsigned int length)
 {
@@ -384,6 +394,8 @@ static int syna_tcm_i2c_write(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
 	struct i2c_client *i2c = to_i2c_client(tcm_hcd->pdev->dev.parent);
 
 	mutex_lock(&tcm_hcd->io_ctrl_mutex);
+	
+	log_data_info(data, length);
 
 	msg.addr = i2c->addr;
 	msg.flags = 0;
