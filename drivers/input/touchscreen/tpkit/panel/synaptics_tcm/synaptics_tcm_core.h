@@ -526,6 +526,7 @@ struct syna_tcm_module_pool {
 	struct syna_tcm_hcd *tcm_hcd;
 };
 
+void syna_log_data(unsigned char *data, int length);
 int syna_tcm_bus_init(void);
 
 void syna_tcm_bus_exit(void);

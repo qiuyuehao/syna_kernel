@@ -316,7 +316,7 @@ static int reflash_get_fw_image(void);
 static int reflash_update_app_config(bool reset);
 
 static int reflash_update_disp_config(bool reset);
-static int reflash_after_fw_update_do_reset(void);
+int reflash_after_fw_update_do_reset(void);
 int reflash_do_reflash(void);
 
 unsigned char tmp_response[100] = {0};
@@ -646,8 +646,9 @@ static enum update_area reflash_compare_id_info(void)
 
 	image_fw_id = le4_to_uint(header->build_id);
 	device_fw_id = tcm_hcd->packrat_number;
+	TS_LOG_ERR("image fw id:%d %x device fw id:%d %x\n", image_fw_id, image_fw_id, device_fw_id, device_fw_id);
 
-	if (image_fw_id > device_fw_id) {
+	if (image_fw_id != device_fw_id) {
 		TS_LOG_ERR(
 				"Image firmware ID newer than device firmware ID\n");
 		update_area = FIRMWARE_CONFIG;
@@ -663,6 +664,7 @@ static enum update_area reflash_compare_id_info(void)
 	device_config_id = tcm_hcd->app_info.customer_config_id;
 
 	for (idx = 0; idx < 16; idx++) {
+		TS_LOG_ERR("image_config_id:%d  device_config_id:%d\n", image_config_id[idx], device_config_id[idx]);
 		if (image_config_id[idx] > device_config_id[idx]) {
 			TS_LOG_ERR(
 					"Image config ID newer than device config ID\n");
@@ -717,7 +719,7 @@ static int reflash_check_app_config(void)
 
 	if (device_addr == 0 && device_size == 0)
 		return 0;
-
+if (0) {
 	if (image_addr != device_addr) {
 		TS_LOG_ERR(
 				"Flash address mismatch\n");
@@ -729,7 +731,7 @@ static int reflash_check_app_config(void)
 				"Config size mismatch\n");
 		return -EINVAL;
 	}
-
+}
 	return 0;
 }
 
@@ -1163,7 +1165,7 @@ static int reflash_do_firmware_udpate(struct syna_tcm_hcd *tcm_hcd, unsigned cha
 	return retval;
 }
 */
-static int reflash_after_fw_update_do_reset(void)
+int reflash_after_fw_update_do_reset(void)
 {
 	int retval = 0;
 	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;

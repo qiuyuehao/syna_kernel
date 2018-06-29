@@ -333,7 +333,18 @@ exit:
 
 	return retval;
 }
-
+void syna_log_data(unsigned char *data, int length)
+{
+	int i;
+	printk("syna data begin\n");
+	for (i = 0; i < length; i++) {
+		printk("[%d]:%x, ", i,data[i]);
+		if (i == 34) {
+			printk("\n");
+		}
+	}
+	printk("syna data end\n");
+}
 static int syna_tcm_i2c_write(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
 		unsigned int length)
 {
@@ -346,8 +357,14 @@ static int syna_tcm_i2c_write(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
 	msg.flags = 0;
 	msg.len = length;
 	msg.buf = data;
-
-	TS_LOG_ERR("write i2c addr: %x\n",msg.addr);
+/*
+	TS_LOG_ERR("write i2c begin:\n");
+	for (i = 0; i < length; i++) {
+		TS_LOG_ERR("data[%d]:%x, \n", i, data[i]);
+	}	
+	TS_LOG_ERR("write i2c end\n");
+*/
+	syna_log_data(data, length);
 	for (attempt = 0; attempt < XFER_ATTEMPTS; attempt++) {
 		if (i2c_transfer(i2c->adapter, &msg, 1) == 1) {
 			retval = length;
@@ -969,8 +986,8 @@ int syna_tcm_raw_read(struct syna_tcm_hcd *tcm_hcd,
 	unsigned int offset = 0;
 	unsigned int chunks = 0;
 	unsigned int chunk_space = 0;
-	unsigned int xfer_length = 0;
-	unsigned int remaining_length = 0;
+	int xfer_length = 0;
+	int remaining_length = 0;
 
 	if (length < 2) {
 		retval = syna_tcm_i2c_read(tcm_hcd,
@@ -1005,12 +1022,15 @@ int syna_tcm_raw_read(struct syna_tcm_hcd *tcm_hcd,
 	LOCK_BUFFER(tcm_hcd->temp);
 
 	for (idx = 0; idx < chunks; idx++) {
+		if (remaining_length <=0) {
+			break;
+		}
 		if (remaining_length > chunk_space)
 			xfer_length = chunk_space;
 		else
 			xfer_length = remaining_length;
 
-		if (xfer_length == 0) {
+		if (xfer_length <= 0) {
 			break;
 		}
 		if (xfer_length == 1) {
@@ -3093,6 +3113,8 @@ data_release:
 #else
 	int retval = NO_ERR;
 	TS_LOG_ERR("yuehao call firmware update\n");
+	retval = touch_init(tcm_hcd);
+
 	reflash_do_reflash();
 	retval = touch_init(tcm_hcd);
 	return retval;
