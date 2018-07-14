@@ -179,8 +179,8 @@
 			label = "spi_0-suspend";
 
 			spi_0_sleep: spi_sleep {
-			       drive-strength = <2>;
-			       bias-pull-down;
+			       drive-strength = <12>;
+			       bias-disable = <0>;
 		        };
 		};
 
@@ -565,7 +565,8 @@
 
 			ts_suspend: ts_suspend {
 				drive-strength = <16>;
-				bias-disable;
+				/*bias-disable;*/
+				bias-pull-up;
 			};
 		};
 
