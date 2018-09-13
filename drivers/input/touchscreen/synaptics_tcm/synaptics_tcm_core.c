@@ -217,7 +217,7 @@ static ssize_t syna_tcm_sysfs_info_show(struct device *dev,
 	p_kobj = sysfs_dir->parent;
 	p_dev = container_of(p_kobj, struct device, kobj);
 	tcm_hcd = dev_get_drvdata(p_dev);
-if (0) {
+if (1) {
 	mutex_lock(&tcm_hcd->extif_mutex);
 
 	retval = tcm_hcd->identify(tcm_hcd, true);
@@ -405,8 +405,14 @@ static ssize_t syna_tcm_sysfs_reset_store(struct device *dev,
 		hw_reset = false;
 	else if (input == 2)
 		hw_reset = true;
-	else
+	else if (input ==3 ) 
+	{
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"reset 3 do check hdl\n");
+		syna_tcm_check_hdl(tcm_hcd);
+	} else {
 		return -EINVAL;
+	}
 
 	mutex_lock(&tcm_hcd->extif_mutex);
 
@@ -1413,6 +1419,7 @@ static int syna_tcm_write_message(struct syna_tcm_hcd *tcm_hcd,
 	LOGE(tcm_hcd->pdev->dev.parent,
 			"Command = 0x%02x\n",
 			command);
+	//syna_log_data(payload, length);
 
 	LOCK_BUFFER(tcm_hcd->out);
 

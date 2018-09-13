@@ -398,7 +398,8 @@ int pm_suspend(suspend_state_t state)
 
 	if (state <= PM_SUSPEND_ON || state >= PM_SUSPEND_MAX)
 		return -EINVAL;
-
+	pr_err("yuehao prevent linux system to enter suspend\n");
+	return -EINVAL;
 	pm_suspend_marker("entry");
 	error = enter_state(state);
 	if (error) {
