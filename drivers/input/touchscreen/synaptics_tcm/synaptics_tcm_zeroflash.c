@@ -313,10 +313,10 @@ static int zeroflash_parse_fw_image(void)
 			image_info->boot_config.size = length;
 			image_info->boot_config.data = content;
 			image_info->boot_config.flash_addr = flash_addr;
-			LOGD(tcm_hcd->pdev->dev.parent,
+			LOGE(tcm_hcd->pdev->dev.parent,
 					"Boot config size = %d\n",
 					length);
-			LOGD(tcm_hcd->pdev->dev.parent,
+			LOGE(tcm_hcd->pdev->dev.parent,
 					"Boot config flash address = 0x%08x\n",
 					flash_addr);
 		} else if (0 == strncmp((char *)descriptor->id_string,
@@ -330,10 +330,10 @@ static int zeroflash_parse_fw_image(void)
 			image_info->app_firmware.size = length;
 			image_info->app_firmware.data = content;
 			image_info->app_firmware.flash_addr = flash_addr;
-			LOGD(tcm_hcd->pdev->dev.parent,
+			LOGE(tcm_hcd->pdev->dev.parent,
 					"Application firmware size = %d\n",
 					length);
-			LOGD(tcm_hcd->pdev->dev.parent,
+			LOGE(tcm_hcd->pdev->dev.parent,
 					"Application firmware flash address = 0x%08x\n",
 					flash_addr);
 		} else if (0 == strncmp((char *)descriptor->id_string,
@@ -348,10 +348,10 @@ static int zeroflash_parse_fw_image(void)
 			image_info->app_config.data = content;
 			image_info->app_config.flash_addr = flash_addr;
 			image_info->packrat_number = le4_to_uint(&content[14]);
-			LOGD(tcm_hcd->pdev->dev.parent,
+			LOGE(tcm_hcd->pdev->dev.parent,
 					"Application config size = %d\n",
 					length);
-			LOGD(tcm_hcd->pdev->dev.parent,
+			LOGE(tcm_hcd->pdev->dev.parent,
 					"Application config flash address = 0x%08x\n",
 					flash_addr);
 		} else if (0 == strncmp((char *)descriptor->id_string,
@@ -365,10 +365,10 @@ static int zeroflash_parse_fw_image(void)
 			image_info->disp_config.size = length;
 			image_info->disp_config.data = content;
 			image_info->disp_config.flash_addr = flash_addr;
-			LOGD(tcm_hcd->pdev->dev.parent,
+			LOGE(tcm_hcd->pdev->dev.parent,
 					"Display config size = %d\n",
 					length);
-			LOGD(tcm_hcd->pdev->dev.parent,
+			LOGE(tcm_hcd->pdev->dev.parent,
 					"Display config flash address = 0x%08x\n",
 					flash_addr);
 		}
