@@ -48,6 +48,7 @@
 struct device_hcd {
 	dev_t dev_num;
 	bool raw_mode;
+	bool rmi_read_mode;
 	bool concurrent;
 	unsigned int ref_count;
 	struct cdev char_dev;
@@ -263,6 +264,12 @@ static int device_ioctl(struct inode *inp, struct file *filp, unsigned int cmd,
 			device_hcd->raw_mode = false;
 		else if (arg == 1)
 			device_hcd->raw_mode = true;
+		else if (arg == 2)
+			device_hcd->rmi_read_mode = false;
+		else if (arg == 3)
+			device_hcd->rmi_read_mode = true;
+		LOGE(tcm_hcd->pdev->dev.parent,
+					"raw mode:%d, rmi_read_mode:%d\n", device_hcd->raw_mode, device_hcd->rmi_read_mode);
 		break;
 	case DEVICE_IOC_CONCURRENT:
 		if (arg == 0)
@@ -282,9 +289,29 @@ static int device_ioctl(struct inode *inp, struct file *filp, unsigned int cmd,
 
 static loff_t device_llseek(struct file *filp, loff_t off, int whence)
 {
-	return -EINVAL;
-}
+	loff_t newpos;
 
+
+	switch (whence) {
+	case SEEK_SET:
+		newpos = off;
+		break;
+	case SEEK_CUR:
+		//newpos = filp->f_pos + off;
+		break;
+	case SEEK_END:
+		//newpos = REG_ADDR_LIMIT + off;
+		break;
+	default:
+		newpos = -EINVAL;
+		break;
+	}
+
+	filp->f_pos = newpos;
+
+	return newpos;
+}
+extern int zeroflash_check_uboot(void);
 static ssize_t device_read(struct file *filp, char __user *buf,
 		size_t count, loff_t *f_pos)
 {
@@ -308,10 +335,27 @@ static ssize_t device_read(struct file *filp, char __user *buf,
 			UNLOCK_BUFFER(device_hcd->resp);
 			goto exit;
 		}
-
-		retval = tcm_hcd->read_message(tcm_hcd,
+		if (device_hcd->rmi_read_mode) {
+			unsigned char testdata = 0;
+			retval = syna_tcm_rmi_read(tcm_hcd, (unsigned short)*f_pos,
 				device_hcd->resp.buf,
 				count);
+			LOGE(tcm_hcd->pdev->dev.parent, "data, addr:%x, count:%d\n", (unsigned short)*f_pos,(unsigned short)count);
+
+			retval = syna_tcm_rmi_read(tcm_hcd, 0x00ee,
+				&testdata,
+				1);
+
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"data read:%x\n", testdata);
+			zeroflash_check_uboot();
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"check uboot here\n");
+		} else {
+			retval = tcm_hcd->read_message(tcm_hcd,
+				device_hcd->resp.buf,
+				count);
+		}
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
 					"Failed to read message\n");
@@ -393,7 +437,12 @@ static ssize_t device_write(struct file *filp, const char __user *buf,
 	LOCK_BUFFER(device_hcd->resp);
 
 	if (device_hcd->raw_mode) {
-		retval = tcm_hcd->write_message(tcm_hcd,
+		if (device_hcd->rmi_read_mode) {
+			retval = syna_tcm_rmi_write(tcm_hcd,
+				(unsigned short)*f_pos, device_hcd->out.buf,
+				count);
+		} else {
+			retval = tcm_hcd->write_message(tcm_hcd,
 				device_hcd->out.buf[0],
 				&device_hcd->out.buf[1],
 				count - 1,
@@ -402,6 +451,8 @@ static ssize_t device_write(struct file *filp, const char __user *buf,
 				NULL,
 				NULL,
 				0);
+		}
+
 	} else {
 		mutex_lock(&tcm_hcd->reset_mutex);
 		retval = tcm_hcd->write_message(tcm_hcd,

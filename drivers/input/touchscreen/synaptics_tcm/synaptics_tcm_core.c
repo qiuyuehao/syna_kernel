@@ -383,7 +383,7 @@ exit:
 
 	return retval;
 }
-
+extern int zeroflash_check_uboot(void);
 static ssize_t syna_tcm_sysfs_reset_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -408,8 +408,9 @@ static ssize_t syna_tcm_sysfs_reset_store(struct device *dev,
 	else if (input ==3 ) 
 	{
 		LOGE(tcm_hcd->pdev->dev.parent,
-				"reset 3 do check hdl\n");
-		syna_tcm_check_hdl(tcm_hcd);
+				"reset 3 do check uboot\n");
+		/* syna_tcm_check_hdl(tcm_hcd); */
+		zeroflash_check_uboot();
 	} else {
 		return -EINVAL;
 	}
@@ -1737,6 +1738,7 @@ static int syna_tcm_enable_irq(struct syna_tcm_hcd *tcm_hcd, bool en, bool ns)
 	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 	static bool irq_freed = true;
 
+	return 0;
 	mutex_lock(&tcm_hcd->irq_en_mutex);
 
 	if (en) {

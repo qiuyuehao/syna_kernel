@@ -185,13 +185,17 @@ DECLARE_COMPLETION(zeroflash_remove_complete);
 
 static struct zeroflash_hcd *zeroflash_hcd;
 
-static int zeroflash_check_uboot(void)
+int zeroflash_check_uboot(void)
 {
 	int retval;
 	unsigned char fn_number;
 	struct rmi_f35_query query;
 	struct rmi_pdt_entry p_entry;
 	struct syna_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
+
+
+	LOGE(tcm_hcd->pdev->dev.parent,
+			"try to find function uboot");
 
 	retval = syna_tcm_rmi_read(tcm_hcd,
 			PDT_END_ADDR,
@@ -203,7 +207,7 @@ static int zeroflash_check_uboot(void)
 		return retval;
 	}
 
-	LOGD(tcm_hcd->pdev->dev.parent,
+	LOGE(tcm_hcd->pdev->dev.parent,
 			"Found F$%02x\n",
 			fn_number);
 
@@ -789,6 +793,8 @@ static void zeroflash_download_firmware_work(struct work_struct *work)
 		goto exit;
 	}
 
+	LOGE(tcm_hcd->pdev->dev.parent, "find F35 and return\n");
+	return;
 	atomic_set(&tcm_hcd->host_downloading, 1);
 
 	retval = syna_tcm_rmi_read(tcm_hcd,
@@ -933,6 +939,7 @@ static int zeroflash_syncbox(struct syna_tcm_hcd *tcm_hcd)
 		zeroflash_download_config();
 		break;
 	case REPORT_HDL:
+		break;
 		retval = tcm_hcd->enable_irq(tcm_hcd, false, true);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
