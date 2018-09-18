@@ -61,7 +61,7 @@
 
 #define F35_WRITE_FW_TO_PMEM_COMMAND 4
 
-#define RESET_TO_HDL_DELAY_MS 11
+#define RESET_TO_HDL_DELAY_MS 0 
 
 #define DOWNLOAD_RETRY_COUNT 10
 
@@ -203,7 +203,7 @@ static int zeroflash_check_uboot(void)
 		return retval;
 	}
 
-	LOGD(tcm_hcd->pdev->dev.parent,
+	LOGE(tcm_hcd->pdev->dev.parent,
 			"Found F$%02x\n",
 			fn_number);
 
@@ -781,6 +781,7 @@ static void zeroflash_download_firmware_work(struct work_struct *work)
 	struct rmi_f35_data data;
 	struct syna_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
 	static unsigned int retry_count;
+	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
 	retval = zeroflash_check_uboot();
 	if (retval < 0) {
@@ -840,13 +841,28 @@ exit:
 		retry_count++;
 
 	if (DOWNLOAD_RETRY_COUNT && retry_count > DOWNLOAD_RETRY_COUNT) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+					"retry max times now, disable irq\n");
 		retval = tcm_hcd->enable_irq(tcm_hcd, false, true);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
 					"Failed to disable interrupt\n");
 		}
 	} else {
+		if (retval < 0) {
+			gpio_set_value(bdata->reset_gpio, bdata->reset_on_state);
+			/* gpio_set_value(bdata->display_reset_gpio, 0); */
+			msleep(20);
+			gpio_set_value(bdata->reset_gpio, !bdata->reset_on_state);
+			/* gpio_set_value(bdata->display_reset_gpio, 1); */
+			msleep(20);
+			LOGE(tcm_hcd->pdev->dev.parent, "something wrong happen, add hw reset try to download\n");
+		}
+
+		msleep(500);
 		retval = tcm_hcd->enable_irq(tcm_hcd, true, NULL);
+		LOGE(tcm_hcd->pdev->dev.parent,
+					"Enable irq to wait for identify irq or try fw download again\n");
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
 					"Failed to enable interrupt\n");

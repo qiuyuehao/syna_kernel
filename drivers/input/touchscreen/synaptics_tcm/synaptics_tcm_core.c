@@ -70,7 +70,7 @@
 
 #define MODE_SWITCH_DELAY_MS 100
 
-#define READ_RETRY_US_MIN 5000
+#define READ_RETRY_US_MIN 10000
 
 #define READ_RETRY_US_MAX 10000
 
@@ -410,6 +410,7 @@ static ssize_t syna_tcm_sysfs_reset_store(struct device *dev,
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"reset 3 do check hdl\n");
 		syna_tcm_check_hdl(tcm_hcd);
+		return count;
 	} else {
 		return -EINVAL;
 	}
@@ -1171,6 +1172,7 @@ static int syna_tcm_read_message(struct syna_tcm_hcd *tcm_hcd,
 {
 	int retval;
 	bool retry;
+	int retry_ff_cnt =5;
 	unsigned int total_length;
 	struct syna_tcm_message_header *header;
 
@@ -1209,11 +1211,17 @@ retry:
 				header->marker);
 		UNLOCK_BUFFER(tcm_hcd->in);
 		retval = -ENXIO;
-		if (retry) {
+
+		while(retry_ff_cnt--) {
 			usleep_range(READ_RETRY_US_MIN, READ_RETRY_US_MAX);
-			retry = false;
+		//	retry = false;
 			goto retry;
 		}
+		/* if (retry) { */
+			/* usleep_range(READ_RETRY_US_MIN, READ_RETRY_US_MAX); */
+			/* retry = false; */
+			/* goto retry; */
+		/* } */
 		goto exit;
 	}
 
