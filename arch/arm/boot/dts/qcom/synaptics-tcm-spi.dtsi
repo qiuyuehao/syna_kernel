@@ -35,7 +35,7 @@
 	synaptics_tcm@0 {
 		compatible = "synaptics,tcm-spi";
 		reg = <0>;
-		spi-max-frequency = <1000000>;
+		spi-max-frequency = <3000000>;
 		interrupt-parent = <&msm_gpio>;
 		interrupts = <65 0x2008>;
 		vdd-supply = <&pm8994_lvs2>;
@@ -55,7 +55,7 @@
 		synaptics,spi-mode = <3>;
 		synaptics,byte-delay-us = <0>;
 		synaptics,block-delay-us = <0>;
-		synaptics,ubl-max-freq = <1000000>;
+		synaptics,ubl-max-freq = <3000000>;
 		synaptics,ubl-byte-delay-us = <20>;
 		synaptics,display-reset-gpio = <&msm_gpio 78 0>;
 	};
