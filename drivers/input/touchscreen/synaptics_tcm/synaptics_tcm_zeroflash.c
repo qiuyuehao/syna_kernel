@@ -63,6 +63,8 @@
 
 #define RESET_TO_HDL_DELAY_MS 0 
 
+#define DOWNLOAD_APP_FAST_RETRY
+
 #define DOWNLOAD_RETRY_COUNT 10
 
 enum f35_error_code {
@@ -184,6 +186,26 @@ struct zeroflash_hcd {
 DECLARE_COMPLETION(zeroflash_remove_complete);
 
 static struct zeroflash_hcd *zeroflash_hcd;
+
+#ifdef DOWNLOAD_APP_FAST_RETRY
+static int zeroflash_check_f35(void)
+{
+	int retval;
+	struct syna_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
+	unsigned char fn_number;
+	retval = syna_tcm_rmi_read(tcm_hcd,
+			PDT_END_ADDR,
+			&fn_number,
+			sizeof(fn_number));
+	if (fn_number != UBL_FN_NUMBER) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to find F$35\n");
+		return -ENODEV;
+	} else {
+		return 0;
+	}
+}
+#endif
 
 static int zeroflash_check_uboot(void)
 {
@@ -699,6 +721,11 @@ static int zeroflash_download_app_fw(void)
 	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 #endif
 
+#ifdef DOWNLOAD_APP_FAST_RETRY
+	unsigned char tmp_buf[256];
+	int retry_cnt = 0;
+#endif
+
 	LOGN(tcm_hcd->pdev->dev.parent,
 			"Downloading application firmware\n");
 
@@ -738,6 +765,10 @@ static int zeroflash_download_app_fw(void)
 
 	command = F35_WRITE_FW_TO_PMEM_COMMAND;
 
+#ifdef DOWNLOAD_APP_FAST_RETRY
+retry_app_download:
+#endif
+
 #if RESET_TO_HDL_DELAY_MS
 	gpio_set_value(bdata->reset_gpio, bdata->reset_on_state);
 	msleep(bdata->reset_active_ms);
@@ -745,6 +776,18 @@ static int zeroflash_download_app_fw(void)
 	mdelay(RESET_TO_HDL_DELAY_MS);
 #endif
 
+#ifdef DOWNLOAD_APP_FAST_RETRY
+	//check f35 again
+	retval = zeroflash_check_f35();
+	if (retval < 0) {
+		retry_cnt++;
+		if (retry_cnt <= 3) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+				"can not read F35, goto retry\n");
+			goto retry_app_download;
+		}
+	}
+#endif
 	retval = syna_tcm_rmi_write(tcm_hcd,
 			zeroflash_hcd->f35_addr.control_base + F35_CTRL3_OFFSET,
 			&command,
@@ -768,7 +811,23 @@ static int zeroflash_download_app_fw(void)
 	}
 
 	UNLOCK_BUFFER(zeroflash_hcd->out);
-
+#ifdef DOWNLOAD_APP_FAST_RETRY
+	//read and check the identify response
+	msleep(20);
+	syna_tcm_raw_read(tcm_hcd, tmp_buf, sizeof(tmp_buf));
+	if ((tmp_buf[0] != MESSAGE_MARKER) && (tmp_buf[1] != REPORT_IDENTIFY)) {
+		retry_cnt++;
+		if (retry_cnt <= 3) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+				"can not read a identify report, goto retry\n");
+			goto retry_app_download;
+		}
+	} else {
+		//successful read message
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"download firmware success\n");
+	}
+#endif
 	LOGN(tcm_hcd->pdev->dev.parent,
 			"Application firmware downloaded\n");
 

@@ -955,7 +955,7 @@ static int syna_tcm_continued_read(struct syna_tcm_hcd *tcm_hcd)
  * Read transactions are carried out until the specific number of data bytes are
  * retrieved from the device and stored in in_buf.
  */
-static int syna_tcm_raw_read(struct syna_tcm_hcd *tcm_hcd,
+int syna_tcm_raw_read(struct syna_tcm_hcd *tcm_hcd,
 		unsigned char *in_buf, unsigned int length)
 {
 	int retval;
