@@ -405,13 +405,21 @@ static ssize_t syna_tcm_sysfs_reset_store(struct device *dev,
 		hw_reset = false;
 	else if (input == 2)
 		hw_reset = true;
-	else if (input ==3 ) 
+	else if (input ==3 )
 	{
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"reset 3 do check hdl\n");
 		syna_tcm_check_hdl(tcm_hcd);
 		return count;
-	} else {
+	} else if (input == 4) {
+		int read_cnt = 60;
+		while (read_cnt--) {
+			msleep(1000);
+			zeroflash_check_uboot();
+		}
+		return count;
+	}
+	else {
 		return -EINVAL;
 	}
 

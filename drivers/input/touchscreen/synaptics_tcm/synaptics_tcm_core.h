@@ -661,4 +661,5 @@ static inline unsigned int ceil_div(unsigned int dividend, unsigned divisor)
 void syna_log_data(unsigned char *data, int length);
 int syna_tcm_raw_read(struct syna_tcm_hcd *tcm_hcd,
 		unsigned char *in_buf, unsigned int length);
+int zeroflash_check_uboot(void);
 #endif

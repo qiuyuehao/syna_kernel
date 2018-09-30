@@ -207,7 +207,7 @@ static int zeroflash_check_f35(void)
 }
 #endif
 
-static int zeroflash_check_uboot(void)
+int zeroflash_check_uboot(void)
 {
 	int retval;
 	unsigned char fn_number;
