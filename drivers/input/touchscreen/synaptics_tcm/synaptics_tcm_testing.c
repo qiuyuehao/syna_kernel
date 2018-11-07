@@ -274,6 +274,7 @@ exit:
 	return retval;
 }
 
+static int testing_do_test(void);
 static ssize_t testing_sysfs_size_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -284,6 +285,7 @@ static ssize_t testing_sysfs_size_show(struct device *dev,
 
 	LOCK_BUFFER(testing_hcd->output);
 
+	testing_do_test();
 	retval = snprintf(buf, PAGE_SIZE,
 			"%u\n",
 			testing_hcd->output.data_length);
@@ -387,7 +389,132 @@ static int testing_run_prod_test_item(enum test_code test_code)
 
 	return 0;
 }
+static void testing_log_data(int bit_count, bool has_signed)
+{
+	struct syna_tcm_app_info *app_info;
+	struct syna_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+	int i = 0, rows, cols;
+	unsigned char *buf = testing_hcd->resp.buf;
+	unsigned int j = 0;
+	app_info = &tcm_hcd->app_info;
 
+	rows = le2_to_uint(app_info->num_of_image_rows);
+	cols = le2_to_uint(app_info->num_of_image_cols);
+	LOGE(tcm_hcd->pdev->dev.parent, "rows:%d, cols:%d\n", rows, cols);
+	LOGE(tcm_hcd->pdev->dev.parent, "data begin, data size:%d\n", testing_hcd->resp.data_length);
+	/* if (testing_hcd->resp.data_length < rows * cols) { */
+	for (i = 0; i < testing_hcd->resp.data_length;) {
+		unsigned int data32;
+		unsigned short data16;
+		unsigned char data8;
+		if (j % rows == 0) {
+			printk("\n[%d]: ", j / rows);
+		}
+		if (bit_count == 8) {
+			data8 = buf[i];
+			printk("%-5d ", has_signed ? (char)data8 : data8);
+		} else if (bit_count == 16){
+			data16 = (buf[i] | (buf[i+1] << 8));
+			printk("%-5d ", has_signed ? (short)data16 : data16);
+		} else if (bit_count == 32) {
+			data32 = (buf[i] | (buf[i+1] << 8) | (buf[i+2] << 16) | (buf[i+3] << 24));
+			printk("%-5d ", has_signed ? (int)data32 : data32);
+		}
+
+		if ((j+1) % rows == 0) {
+			printk("\n");
+		}
+		j++;
+		i += (bit_count/8);
+	}
+	LOGE(tcm_hcd->pdev->dev.parent, "\ndata end");
+}
+static int testing_do_test(void)
+{
+	int retval = 0;
+	struct syna_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+
+	LOGE(tcm_hcd->pdev->dev.parent, "test 1\n");
+	retval = testing_run_prod_test_item(1);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent, "test error 1\n");
+	} else {
+		testing_log_data(8, false);
+	}
+
+		LOGE(tcm_hcd->pdev->dev.parent, "test 2\n");
+	retval = testing_run_prod_test_item(2);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent, "test error 2, full raw cap\n");
+	} else {
+		testing_log_data(8, false);
+	}
+
+			LOGE(tcm_hcd->pdev->dev.parent, "test 3\n");
+	retval = testing_run_prod_test_item(3);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent, "test error 3, full raw cap\n");
+	} else {
+		testing_log_data(8, false);
+	}
+
+				LOGE(tcm_hcd->pdev->dev.parent, "test 5\n");
+	retval = testing_run_prod_test_item(5);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent, "test error 5, full raw cap\n");
+	} else {
+		testing_log_data(16, false);
+	}
+
+				LOGE(tcm_hcd->pdev->dev.parent, "test 10\n");
+	retval = testing_run_prod_test_item(10);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent, "test error 10, full raw cap\n");
+	} else {
+		testing_log_data(16, true);
+	}
+
+				LOGE(tcm_hcd->pdev->dev.parent, "test 18\n");
+	retval = testing_run_prod_test_item(18);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent, "test error 18, full raw cap\n");
+	} else {
+		testing_log_data(32, true);
+	}
+
+			LOGE(tcm_hcd->pdev->dev.parent, "test 22\n");
+	retval = testing_run_prod_test_item(22);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent, "test error 22, full raw cap\n");
+	} else {
+		testing_log_data(16, true);
+	}
+
+	LOGE(tcm_hcd->pdev->dev.parent, "test 25\n");
+	retval = testing_run_prod_test_item(25);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent, "test error 25, full raw cap\n");
+	} else {
+		testing_log_data(16, false);
+	}
+
+				LOGE(tcm_hcd->pdev->dev.parent, "test 26\n");
+	retval = testing_run_prod_test_item(26);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent, "test error 26, full raw cap\n");
+	} else {
+		testing_log_data(16, false);
+	}
+
+				LOGE(tcm_hcd->pdev->dev.parent, "test 29\n");
+	retval = testing_run_prod_test_item(29);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent, "test error 29, full raw cap\n");
+	} else {
+		testing_log_data(16, true);
+	}
+	return 0;
+}
 static int testing_collect_reports(enum report_type report_type,
 		unsigned int num_of_reports)
 {

@@ -56,8 +56,8 @@
 
 #define WAKEUP_GESTURE
 
-#define RD_CHUNK_SIZE 0 /* read length limit in bytes, 0 = unlimited */
-#define WR_CHUNK_SIZE 0 /* write length limit in bytes, 0 = unlimited */
+#define RD_CHUNK_SIZE 256 /* read length limit in bytes, 0 = unlimited */
+#define WR_CHUNK_SIZE 256 /* write length limit in bytes, 0 = unlimited */
 
 #define MESSAGE_HEADER_SIZE 4
 #define MESSAGE_MARKER 0xa5
