@@ -1,9 +1,9 @@
 /*
  * Synaptics TCM touchscreen driver
  *
- * Copyright (C) 2017 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
  *
- * Copyright (C) 2017 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -444,6 +444,7 @@ static int diag_init(struct syna_tcm_hcd *tcm_hcd)
 	if (!diag_hcd->sysfs_dir) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to create sysfs directory\n");
+		retval = -EINVAL;
 		goto err_sysfs_create_dir;
 	}
 
@@ -541,6 +542,7 @@ static struct syna_tcm_module_cb diag_module = {
 	.reset = diag_reset,
 	.suspend = NULL,
 	.resume = NULL,
+	.early_suspend = NULL,
 };
 
 static int __init diag_module_init(void)

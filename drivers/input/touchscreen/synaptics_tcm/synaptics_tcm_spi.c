@@ -1,9 +1,9 @@
 /*
  * Synaptics TCM touchscreen driver
  *
- * Copyright (C) 2017 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
  *
- * Copyright (C) 2017 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,6 +35,8 @@
 #include "synaptics_tcm_core.h"
 
 static unsigned char *buf;
+
+static unsigned int buf_size;
 
 static struct spi_transfer *xfer;
 
@@ -262,7 +264,6 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 static int syna_tcm_spi_alloc_mem(struct syna_tcm_hcd *tcm_hcd,
 		unsigned int count, unsigned int size)
 {
-	static unsigned int buf_size;
 	static unsigned int xfer_count;
 	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
 
@@ -398,7 +399,7 @@ static int syna_tcm_spi_rmi_write(struct syna_tcm_hcd *tcm_hcd,
 	buf[0] = (unsigned char)(addr >> 8) & ~0x80;
 	buf[1] = (unsigned char)addr;
 	retval = secure_memcpy(&buf[2],
-			length,
+			buf_size - 2,
 			data,
 			length,
 			length);

@@ -1,9 +1,9 @@
 /*
  * Synaptics TCM touchscreen driver
  *
- * Copyright (C) 2017 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
  *
- * Copyright (C) 2017 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,7 +38,7 @@
 
 #define FORCE_REFLASH false
 
-#define DISPLAY_REFLASH false
+#define DISPLAY_REFLASH true
 
 #define ENABLE_SYSFS_INTERFACE true
 
@@ -51,6 +51,8 @@
 #define BOOT_CONFIG_ID "BOOT_CONFIG"
 
 #define APP_CODE_ID "APP_CODE"
+
+#define PROD_TEST_ID "APP_PROD_TEST"
 
 #define APP_CONFIG_ID "APP_CONFIG"
 
@@ -165,6 +167,7 @@ static int reflash_update_##p_name(bool reset) \
 	if (retval < 0) { \
 		LOGE(tcm_hcd->pdev->dev.parent, \
 				"Failed "#p_name" partition check\n"); \
+		reset = true; \
 		goto reset; \
 	} \
 \
@@ -172,6 +175,7 @@ static int reflash_update_##p_name(bool reset) \
 	if (retval < 0) { \
 		LOGE(tcm_hcd->pdev->dev.parent, \
 				"Failed to erase "#p_name" partition\n"); \
+		reset = true; \
 		goto reset; \
 	} \
 \
@@ -182,6 +186,7 @@ static int reflash_update_##p_name(bool reset) \
 	if (retval < 0) { \
 		LOGE(tcm_hcd->pdev->dev.parent, \
 				"Failed to write "#p_name" partition\n"); \
+		reset = true; \
 		goto reset; \
 	} \
 \
@@ -194,7 +199,7 @@ reset: \
 	if (!reset) \
 		goto exit; \
 \
-	if (tcm_hcd->reset(tcm_hcd, false) < 0) { \
+	if (tcm_hcd->reset(tcm_hcd, false, true) < 0) { \
 		LOGE(tcm_hcd->pdev->dev.parent, \
 				"Failed to do reset\n"); \
 	} \
@@ -258,6 +263,7 @@ struct block_data {
 struct image_info {
 	struct block_data boot_config;
 	struct block_data app_firmware;
+	struct block_data prod_test_firmware;
 	struct block_data app_config;
 	struct block_data disp_config;
 };
@@ -419,7 +425,7 @@ static ssize_t reflash_sysfs_reflash_store(struct device *dev,
 
 	mutex_lock(&tcm_hcd->extif_mutex);
 
-	wake_lock(&tcm_hcd->wakelock);
+	pm_stay_awake(&tcm_hcd->pdev->dev);
 
 	mutex_lock(&reflash_hcd->reflash_mutex);
 
@@ -427,8 +433,6 @@ static ssize_t reflash_sysfs_reflash_store(struct device *dev,
 		reflash_hcd->image = reflash_hcd->image_buf;
 
 	reflash_hcd->force_update = input & FORCE_UPDATE ? true : false;
-
-	reflash_hcd->disp_cfg_update = input & DISP_CFG_UPDATE ? true : false;
 
 	if (input & REFLASH || input & FORCE_UPDATE) {
 		retval = reflash_do_reflash();
@@ -504,11 +508,10 @@ exit:
 	reflash_hcd->image = NULL;
 	reflash_hcd->image_size = 0;
 	reflash_hcd->force_update = FORCE_REFLASH;
-	reflash_hcd->disp_cfg_update = DISPLAY_REFLASH;
 
 	mutex_unlock(&reflash_hcd->reflash_mutex);
 
-	wake_unlock(&tcm_hcd->wakelock);
+	pm_relax(&tcm_hcd->pdev->dev);
 
 	mutex_unlock(&tcm_hcd->extif_mutex);
 
@@ -584,7 +587,7 @@ static ssize_t reflash_sysfs_lockdown_store(struct file *data_file,
 
 	mutex_lock(&tcm_hcd->extif_mutex);
 
-	wake_lock(&tcm_hcd->wakelock);
+	pm_stay_awake(&tcm_hcd->pdev->dev);
 
 	mutex_lock(&reflash_hcd->reflash_mutex);
 
@@ -600,7 +603,7 @@ static ssize_t reflash_sysfs_lockdown_store(struct file *data_file,
 exit:
 	mutex_unlock(&reflash_hcd->reflash_mutex);
 
-	wake_unlock(&tcm_hcd->wakelock);
+	pm_relax(&tcm_hcd->pdev->dev);
 
 	mutex_unlock(&tcm_hcd->extif_mutex);
 
@@ -645,7 +648,7 @@ static ssize_t reflash_sysfs_lcm_store(struct file *data_file,
 
 	mutex_lock(&tcm_hcd->extif_mutex);
 
-	wake_lock(&tcm_hcd->wakelock);
+	pm_stay_awake(&tcm_hcd->pdev->dev);
 
 	mutex_lock(&reflash_hcd->reflash_mutex);
 
@@ -661,7 +664,7 @@ static ssize_t reflash_sysfs_lcm_store(struct file *data_file,
 exit:
 	mutex_unlock(&reflash_hcd->reflash_mutex);
 
-	wake_unlock(&tcm_hcd->wakelock);
+	pm_relax(&tcm_hcd->pdev->dev);
 
 	mutex_unlock(&tcm_hcd->extif_mutex);
 
@@ -706,7 +709,7 @@ static ssize_t reflash_sysfs_oem_store(struct file *data_file,
 
 	mutex_lock(&tcm_hcd->extif_mutex);
 
-	wake_lock(&tcm_hcd->wakelock);
+	pm_stay_awake(&tcm_hcd->pdev->dev);
 
 	mutex_lock(&reflash_hcd->reflash_mutex);
 
@@ -722,7 +725,7 @@ static ssize_t reflash_sysfs_oem_store(struct file *data_file,
 exit:
 	mutex_unlock(&reflash_hcd->reflash_mutex);
 
-	wake_unlock(&tcm_hcd->wakelock);
+	pm_relax(&tcm_hcd->pdev->dev);
 
 	mutex_unlock(&tcm_hcd->extif_mutex);
 
@@ -861,6 +864,23 @@ static int reflash_parse_fw_image(void)
 					length);
 			LOGD(tcm_hcd->pdev->dev.parent,
 					"Application firmware flash address = 0x%08x\n",
+					flash_addr);
+		} else if (0 == strncmp((char *)descriptor->id_string,
+				PROD_TEST_ID,
+				strlen(PROD_TEST_ID))) {
+			if (checksum != (crc32(~0, content, length) ^ ~0)) {
+				LOGE(tcm_hcd->pdev->dev.parent,
+						"Production test firmware checksum error\n");
+				return -EINVAL;
+			}
+			image_info->prod_test_firmware.size = length;
+			image_info->prod_test_firmware.data = content;
+			image_info->prod_test_firmware.flash_addr = flash_addr;
+			LOGD(tcm_hcd->pdev->dev.parent,
+					"Production test firmware size = %d\n",
+					length);
+			LOGD(tcm_hcd->pdev->dev.parent,
+					"Production test firmware flash address = 0x%08x\n",
 					flash_addr);
 		} else if (0 == strncmp((char *)descriptor->id_string,
 				APP_CONFIG_ID,
@@ -1056,6 +1076,7 @@ static int reflash_read_flash(unsigned int address, unsigned char *data,
 			&reflash_hcd->resp.buf,
 			&reflash_hcd->resp.buf_size,
 			&reflash_hcd->resp.data_length,
+			NULL,
 			0);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -1345,6 +1366,19 @@ static int reflash_check_disp_config(void)
 	return 0;
 }
 
+static int reflash_check_prod_test_firmware(void)
+{
+	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
+
+	if (reflash_hcd->image_info.prod_test_firmware.size == 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"No production test firmware in image file\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int reflash_check_app_firmware(void)
 {
 	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
@@ -1406,7 +1440,7 @@ static int reflash_write_flash(unsigned int address, const unsigned char *data,
 		reflash_hcd->out.buf[1] = (unsigned char)(block_address >> 8);
 
 		retval = secure_memcpy(&reflash_hcd->out.buf[2],
-				xfer_length,
+				reflash_hcd->out.buf_size - 2,
 				&data[offset],
 				datalen - offset,
 				xfer_length);
@@ -1425,6 +1459,7 @@ static int reflash_write_flash(unsigned int address, const unsigned char *data,
 				&reflash_hcd->resp.buf,
 				&reflash_hcd->resp.buf_size,
 				&reflash_hcd->resp.data_length,
+				NULL,
 				WRITE_FLASH_DELAY_MS);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
@@ -1455,6 +1490,8 @@ reflash_write(app_config)
 
 reflash_write(disp_config)
 
+reflash_write(prod_test_firmware)
+
 reflash_write(app_firmware)
 
 static int reflash_erase_flash(unsigned int page_start, unsigned int page_count)
@@ -1475,6 +1512,7 @@ static int reflash_erase_flash(unsigned int page_start, unsigned int page_count)
 			&reflash_hcd->resp.buf,
 			&reflash_hcd->resp.buf_size,
 			&reflash_hcd->resp.data_length,
+			NULL,
 			ERASE_FLASH_DELAY_MS);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -1492,6 +1530,8 @@ static int reflash_erase_flash(unsigned int page_start, unsigned int page_count)
 reflash_erase(app_config)
 
 reflash_erase(disp_config)
+
+reflash_erase(prod_test_firmware)
 
 reflash_erase(app_firmware)
 
@@ -1802,7 +1842,7 @@ static int reflash_update_boot_config(bool lock)
 	retval = 0;
 
 reset:
-	if (tcm_hcd->reset(tcm_hcd, false) < 0) {
+	if (tcm_hcd->reset(tcm_hcd, false, true) < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to do reset\n");
 	}
@@ -1815,6 +1855,8 @@ reset:
 reflash_update(app_config)
 
 reflash_update(disp_config)
+
+reflash_update(prod_test_firmware)
 
 reflash_update(app_firmware)
 
@@ -1845,6 +1887,14 @@ static int reflash_do_reflash(void)
 			goto exit;
 		}
 		memset(&tcm_hcd->app_info, 0x00, sizeof(tcm_hcd->app_info));
+		if (tcm_hcd->features.dual_firmware) {
+			retval = reflash_update_prod_test_firmware(false);
+			if (retval < 0) {
+				LOGE(tcm_hcd->pdev->dev.parent,
+						"Failed to reflash production test firmware\n");
+				goto exit;
+			}
+		}
 	case CONFIG_ONLY:
 		if (reflash_hcd->disp_cfg_update) {
 			retval = reflash_update_disp_config(false);
@@ -1905,7 +1955,7 @@ static void reflash_startup_work(struct work_struct *work)
 	}
 #endif
 
-	wake_lock(&tcm_hcd->wakelock);
+	pm_stay_awake(&tcm_hcd->pdev->dev);
 
 	mutex_lock(&reflash_hcd->reflash_mutex);
 
@@ -1917,7 +1967,7 @@ static void reflash_startup_work(struct work_struct *work)
 
 	mutex_unlock(&reflash_hcd->reflash_mutex);
 
-	wake_unlock(&tcm_hcd->wakelock);
+	pm_relax(&tcm_hcd->pdev->dev);
 
 	return;
 }
@@ -1969,6 +2019,7 @@ static int reflash_init(struct syna_tcm_hcd *tcm_hcd)
 	if (!reflash_hcd->sysfs_dir) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to create sysfs directory\n");
+		retval = -EINVAL;
 		goto err_sysfs_create_dir;
 	}
 
@@ -1994,6 +2045,7 @@ static int reflash_init(struct syna_tcm_hcd *tcm_hcd)
 	if (!reflash_hcd->custom_dir) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to create custom sysfs directory\n");
+		retval = -EINVAL;
 		goto err_custom_sysfs_create_dir;
 	}
 
@@ -2112,6 +2164,7 @@ static struct syna_tcm_module_cb reflash_module = {
 	.reset = reflash_reset,
 	.suspend = NULL,
 	.resume = NULL,
+	.early_suspend = NULL,
 };
 
 static int __init reflash_module_init(void)

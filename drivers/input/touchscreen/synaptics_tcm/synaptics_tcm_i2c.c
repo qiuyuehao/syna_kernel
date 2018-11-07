@@ -1,9 +1,9 @@
 /*
  * Synaptics TCM touchscreen driver
  *
- * Copyright (C) 2017 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
  *
- * Copyright (C) 2017 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,6 +37,8 @@
 #define XFER_ATTEMPTS 10
 
 static unsigned char *buf;
+
+static unsigned int buf_size;
 
 static struct syna_tcm_bus_io bus_io;
 
@@ -202,7 +204,6 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 static int syna_tcm_i2c_alloc_mem(struct syna_tcm_hcd *tcm_hcd,
 		unsigned int size)
 {
-	static unsigned int buf_size;
 	struct i2c_client *i2c = to_i2c_client(tcm_hcd->pdev->dev.parent);
 
 	if (size > buf_size) {
@@ -291,7 +292,7 @@ static int syna_tcm_i2c_rmi_write(struct syna_tcm_hcd *tcm_hcd,
 
 	buf[0] = (unsigned char)addr;
 	retval = secure_memcpy(&buf[1],
-			length,
+			buf_size - 1,
 			data,
 			length,
 			length);
