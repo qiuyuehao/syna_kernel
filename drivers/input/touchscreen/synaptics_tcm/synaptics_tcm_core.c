@@ -36,7 +36,7 @@
 #include <linux/regulator/consumer.h>
 #include "synaptics_tcm_core.h"
 
-#define RESET_ON_RESUME
+//#define RESET_ON_RESUME
 
 #define RESET_ON_RESUME_DELAY_MS 20
 
@@ -50,7 +50,7 @@
 
 #define NOTIFIER_PRIORITY 2
 
-#define RESPONSE_TIMEOUT_MS 3000
+#define RESPONSE_TIMEOUT_MS 5000
 
 #define APP_STATUS_POLL_TIMEOUT_MS 1000
 
@@ -62,7 +62,7 @@
 
 #define POLLING_DELAY_MS 5
 
-#define RUN_WATCHDOG true
+#define RUN_WATCHDOG false
 
 #define WATCHDOG_TRIGGER_COUNT 2
 
@@ -74,7 +74,7 @@
 
 #define READ_RETRY_US_MAX 10000
 
-#define WRITE_DELAY_US_MIN 500
+#define WRITE_DELAY_US_MIN 1000
 
 #define WRITE_DELAY_US_MAX 1000
 
@@ -405,13 +405,21 @@ static ssize_t syna_tcm_sysfs_reset_store(struct device *dev,
 		hw_reset = false;
 	else if (input == 2)
 		hw_reset = true;
-	else if (input ==3 ) 
+	else if (input ==3 )
 	{
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"reset 3 do check hdl\n");
 		syna_tcm_check_hdl(tcm_hcd);
 		return count;
-	} else {
+	} else if (input == 4) {
+		int read_cnt = 30;
+		while (read_cnt--) {
+			msleep(1000);
+			zeroflash_check_uboot();
+		}
+		return count;
+	}
+	else {
 		return -EINVAL;
 	}
 

@@ -56,8 +56,8 @@
 
 //#define WAKEUP_GESTURE
 
-#define RD_CHUNK_SIZE 256 /* read length limit in bytes, 0 = unlimited */
-#define WR_CHUNK_SIZE 2048 /* write length limit in bytes, 0 = unlimited */
+#define RD_CHUNK_SIZE 512 /* read length limit in bytes, 0 = unlimited */
+#define WR_CHUNK_SIZE 512 /* write length limit in bytes, 0 = unlimited */
 
 #define MESSAGE_HEADER_SIZE 4
 #define MESSAGE_MARKER 0xa5
@@ -661,4 +661,5 @@ static inline unsigned int ceil_div(unsigned int dividend, unsigned divisor)
 void syna_log_data(unsigned char *data, int length);
 int syna_tcm_raw_read(struct syna_tcm_hcd *tcm_hcd,
 		unsigned char *in_buf, unsigned int length);
+int zeroflash_check_uboot(void);
 #endif

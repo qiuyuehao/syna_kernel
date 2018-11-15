@@ -63,7 +63,7 @@
 
 #define RESET_TO_HDL_DELAY_MS 0 
 
-#define DOWNLOAD_APP_FAST_RETRY
+#define DOWNLOAD_APP_FAST_RETRY 10
 
 #define DOWNLOAD_RETRY_COUNT 10
 
@@ -207,7 +207,7 @@ static int zeroflash_check_f35(void)
 }
 #endif
 
-static int zeroflash_check_uboot(void)
+int zeroflash_check_uboot(void)
 {
 	int retval;
 	unsigned char fn_number;
@@ -785,6 +785,10 @@ retry_app_download:
 			LOGE(tcm_hcd->pdev->dev.parent,
 				"can not read F35, goto retry\n");
 			goto retry_app_download;
+		} else {
+			LOGE(tcm_hcd->pdev->dev.parent,
+				"retry three times, but still fail,return\n");
+			return retval;
 		}
 	}
 #endif
@@ -824,6 +828,7 @@ retry_app_download:
 		}
 	} else {
 		//successful read message
+		tcm_hcd->host_download_mode = true;
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"download firmware success\n");
 	}
@@ -842,6 +847,7 @@ static void zeroflash_download_firmware_work(struct work_struct *work)
 	static unsigned int retry_count;
 	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
+	atomic_set(&tcm_hcd->host_downloading, 1);
 	retval = zeroflash_check_uboot();
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
