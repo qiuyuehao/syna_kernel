@@ -55,9 +55,6 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 	struct device_node *np = dev->of_node;
 	const char *name;
 
-	bdata->display_reset_gpio = of_get_named_gpio_flags(np,
-			"synaptics,display-reset-gpio", 0, NULL);
-
 	prop = of_find_property(np, "synaptics,irq-gpio", NULL);
 	if (prop && prop->length) {
 		bdata->irq_gpio = of_get_named_gpio_flags(np,

@@ -38,8 +38,6 @@
 
 #define FORCE_REFLASH false
 
-#define DISPLAY_REFLASH true
-
 #define ENABLE_SYSFS_INTERFACE true
 
 #define SYSFS_DIR_NAME "reflash"
@@ -47,6 +45,8 @@
 #define CUSTOM_DIR_NAME "custom"
 
 #define FW_IMAGE_NAME "synaptics/firmware.img"
+
+#define FW_IMAGE_NAME_MANUAL "synaptics/firmware_manual.img"
 
 #define BOOT_CONFIG_ID "BOOT_CONFIG"
 
@@ -296,6 +296,7 @@ struct boot_config {
 struct reflash_hcd {
 	bool force_update;
 	bool disp_cfg_update;
+	bool reflash_by_manual;
 	const unsigned char *image;
 	unsigned char *image_buf;
 	unsigned int image_size;
@@ -375,6 +376,10 @@ static ssize_t reflash_sysfs_oem_store(struct file *data_file,
 		struct kobject *kobj, struct bin_attribute *attributes,
 		char *buf, loff_t pos, size_t count);
 
+static ssize_t reflash_sysfs_cs_show(struct file *data_file,
+		struct kobject *kobj, struct bin_attribute *attributes,
+		char *buf, loff_t pos, size_t count);
+
 static struct bin_attribute bin_attrs[] = {
 	{
 		.attr = {
@@ -411,6 +416,14 @@ static struct bin_attribute bin_attrs[] = {
 		.read = reflash_sysfs_oem_show,
 		.write = reflash_sysfs_oem_store,
 	},
+	{
+		.attr = {
+			.name = "customer_serialization",
+			.mode = (S_IRUGO | S_IRUSR | S_IRGRP),
+		},
+		.size = 0,
+		.read = reflash_sysfs_cs_show,
+	},
 };
 
 static ssize_t reflash_sysfs_reflash_store(struct device *dev,
@@ -433,6 +446,8 @@ static ssize_t reflash_sysfs_reflash_store(struct device *dev,
 		reflash_hcd->image = reflash_hcd->image_buf;
 
 	reflash_hcd->force_update = input & FORCE_UPDATE ? true : false;
+
+	reflash_hcd->reflash_by_manual = true;
 
 	if (input & REFLASH || input & FORCE_UPDATE) {
 		retval = reflash_do_reflash();
@@ -504,7 +519,8 @@ exit:
 		release_firmware(reflash_hcd->fw_entry);
 		reflash_hcd->fw_entry = NULL;
 	}
-
+	
+	reflash_hcd->reflash_by_manual = false;
 	reflash_hcd->image = NULL;
 	reflash_hcd->image_size = 0;
 	reflash_hcd->force_update = FORCE_REFLASH;
@@ -732,6 +748,35 @@ exit:
 	return retval;
 }
 
+static ssize_t reflash_sysfs_cs_show(struct file *data_file,
+		struct kobject *kobj, struct bin_attribute *attributes,
+		char *buf, loff_t pos, size_t count)
+{
+	int retval;
+	unsigned int readlen;
+	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
+
+	mutex_lock(&tcm_hcd->extif_mutex);
+
+	mutex_lock(&reflash_hcd->reflash_mutex);
+
+	retval = reflash_read_data(BOOT_CONFIG, true, NULL);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to read OEM data\n");
+		goto exit;
+	}
+
+	reflash_show_data();
+
+exit:
+	mutex_unlock(&reflash_hcd->reflash_mutex);
+
+	mutex_unlock(&tcm_hcd->extif_mutex);
+
+	return retval;
+}
+
 static int reflash_set_up_flash_access(void)
 {
 	int retval;
@@ -804,6 +849,8 @@ static int reflash_parse_fw_image(void)
 	image = reflash_hcd->image;
 	image_info = &reflash_hcd->image_info;
 	header = (struct image_header *)image;
+
+	reflash_hcd->disp_cfg_update = false;
 
 	magic_value = le4_to_uint(header->magic_value);
 	if (magic_value != IMAGE_FILE_MAGIC_VALUE) {
@@ -907,6 +954,7 @@ static int reflash_parse_fw_image(void)
 						"Display config checksum error\n");
 				return -EINVAL;
 			}
+			reflash_hcd->disp_cfg_update = true;
 			image_info->disp_config.size = length;
 			image_info->disp_config.data = content;
 			image_info->disp_config.flash_addr = flash_addr;
@@ -928,6 +976,7 @@ static int reflash_get_fw_image(void)
 	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
 
 	if (reflash_hcd->image == NULL) {
+		if (reflash_hcd->reflash_by_manual == false) {
 		retval = request_firmware(&reflash_hcd->fw_entry, FW_IMAGE_NAME,
 				tcm_hcd->pdev->dev.parent);
 		if (retval < 0) {
@@ -943,8 +992,25 @@ static int reflash_get_fw_image(void)
 
 		reflash_hcd->image = reflash_hcd->fw_entry->data;
 		reflash_hcd->image_size = reflash_hcd->fw_entry->size;
+		} else {
+			retval = request_firmware(&reflash_hcd->fw_entry, FW_IMAGE_NAME_MANUAL,
+					tcm_hcd->pdev->dev.parent);
+			if (retval < 0) {
+				LOGE(tcm_hcd->pdev->dev.parent,
+						"Failed to request %s\n",
+						FW_IMAGE_NAME_MANUAL);
+				return retval;
+			}
+			
+			LOGD(tcm_hcd->pdev->dev.parent,
+					"Firmware image size = %d\n",
+					(unsigned int)reflash_hcd->fw_entry->size);
+			
+			reflash_hcd->image = reflash_hcd->fw_entry->data;
+			reflash_hcd->image_size = reflash_hcd->fw_entry->size;
+		}
 	}
-
+	
 	retval = reflash_parse_fw_image();
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -1876,6 +1942,8 @@ static int reflash_do_reflash(void)
 	LOGN(tcm_hcd->pdev->dev.parent,
 			"Start of reflash\n");
 
+	atomic_set(&tcm_hcd->firmware_flashing, 1);
+
 	update_area = reflash_compare_id_info();
 
 	switch (update_area) {
@@ -1929,6 +1997,8 @@ exit:
 		reflash_hcd->image_size = 0;
 	}
 
+	atomic_set(&tcm_hcd->firmware_flashing, 0);
+	wake_up_interruptible(&tcm_hcd->reflash_wq);
 	return retval;
 }
 
@@ -1995,8 +2065,6 @@ static int reflash_init(struct syna_tcm_hcd *tcm_hcd)
 	reflash_hcd->tcm_hcd = tcm_hcd;
 
 	reflash_hcd->force_update = FORCE_REFLASH;
-
-	reflash_hcd->disp_cfg_update = DISPLAY_REFLASH;
 
 	mutex_init(&reflash_hcd->reflash_mutex);
 

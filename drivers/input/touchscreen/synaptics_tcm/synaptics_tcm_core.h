@@ -46,7 +46,7 @@
 #endif
 
 #define SYNAPTICS_TCM_ID_PRODUCT (1 << 0)
-#define SYNAPTICS_TCM_ID_VERSION 0x0100
+#define SYNAPTICS_TCM_ID_VERSION 0x0103
 #define SYNAPTICS_TCM_ID_SUBVERSION 0
 
 #define PLATFORM_DRIVER_NAME "synaptics_tcm"
@@ -148,12 +148,14 @@ enum module_type {
 	TCM_RECOVERY = 4,
 	TCM_ZEROFLASH = 5,
 	TCM_DIAGNOSTICS = 6,
+	TCM_ROMBOOT = 7,
 	TCM_LAST,
 };
 
 enum boot_mode {
 	MODE_APPLICATION = 0x01,
 	MODE_HOST_DOWNLOAD = 0x02,
+	MODE_ROMBOOTLOADER = 0x04,
 	MODE_BOOTLOADER = 0x0b,
 	MODE_TDDI_BOOTLOADER = 0x0c,
 	MODE_PRODUCTION_TEST = 0x0e,
@@ -232,6 +234,12 @@ enum command {
 	CMD_DOWNLOAD_CONFIG = 0x30,
 	CMD_ENTER_PRODUCTION_TEST_MODE = 0x31,
 	CMD_GET_FEATURES = 0x32,
+	CMD_GET_ROMBOOT_INFO = 0x40,
+	CMD_WRITE_PROGRAM_RAM = 0x41,
+	CMD_ROMBOOT_RUN_BOOTLOADER_FIRMWARE = 0x42,
+	CMD_SPI_MASTER_WRITE_THEN_READ_EXTENDED = 0x43,
+	CMD_ENTER_IO_BRIDGE_MODE = 0x44,
+	CMD_ROMBOOT_DOWNLOAD = 0x45,
 };
 
 enum status_code {
@@ -254,6 +262,7 @@ enum report_type {
 	REPORT_RAW = 0x13,
 	REPORT_STATUS = 0x1b,
 	REPORT_PRINTF = 0x82,
+	REPORT_ROMBOOT = 0xfd,
 	REPORT_HDL = 0xfe,
 };
 
@@ -357,6 +366,17 @@ struct syna_tcm_app_info {
 	unsigned char num_of_image_rows[2];
 	unsigned char num_of_image_cols[2];
 	unsigned char has_hybrid_data[2];
+	unsigned char num_of_force_elecs[2];
+};
+
+struct syna_tcm_romboot_info {
+	unsigned char version;
+	unsigned char status;
+	unsigned char asic_id[2];
+	unsigned char write_block_size_words;
+	unsigned char max_write_payload_size[2];
+	unsigned char last_reset_reason;
+	unsigned char pc_at_time_of_last_reset[2];
 };
 
 struct syna_tcm_touch_info {
@@ -383,13 +403,16 @@ struct syna_tcm_hcd {
 	pid_t isr_pid;
 	atomic_t command_status;
 	atomic_t host_downloading;
+	atomic_t firmware_flashing;
 	wait_queue_head_t hdl_wq;
+	wait_queue_head_t reflash_wq;
 	int irq;
 	bool init_okay;
 	bool do_polling;
 	bool in_suspend;
 	bool irq_enabled;
 	bool host_download_mode;
+	bool romboot_download_mode;
 	unsigned char fb_ready;
 	unsigned char command;
 	unsigned char async_report_id;
@@ -427,6 +450,7 @@ struct syna_tcm_hcd {
 	struct syna_tcm_report report;
 	struct syna_tcm_app_info app_info;
 	struct syna_tcm_boot_info boot_info;
+	struct syna_tcm_romboot_info romboot_info;
 	struct syna_tcm_touch_info touch_info;
 	struct syna_tcm_identification id_info;
 	struct syna_tcm_helper helper;
@@ -482,6 +506,7 @@ struct syna_tcm_module_handler {
 struct syna_tcm_module_pool {
 	bool initialized;
 	bool queue_work;
+	bool reconstructing;
 	struct mutex mutex;
 	struct list_head list;
 	struct work_struct work;
@@ -658,8 +683,4 @@ static inline unsigned int ceil_div(unsigned int dividend, unsigned divisor)
 	return (dividend + divisor - 1) / divisor;
 }
 
-void syna_log_data(unsigned char *data, int length);
-int syna_tcm_raw_read(struct syna_tcm_hcd *tcm_hcd,
-		unsigned char *in_buf, unsigned int length);
-int zeroflash_check_uboot(void);
 #endif

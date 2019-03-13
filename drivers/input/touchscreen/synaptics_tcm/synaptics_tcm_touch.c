@@ -36,7 +36,7 @@
 
 #define TYPE_B_PROTOCOL
 
-//#define USE_DEFAULT_TOUCH_REPORT_CONFIG
+#define USE_DEFAULT_TOUCH_REPORT_CONFIG
 
 #define TOUCH_REPORT_CONFIG_SIZE 128
 
@@ -45,6 +45,11 @@ enum touch_status {
 	FINGER = 1,
 	GLOVED_FINGER = 2,
 	NOP = -1,
+};
+
+enum gesture_id {
+	NO_GESTURE_DETECTED = 0,
+	GESTURE_DOUBLE_TAP = 0X01,
 };
 
 enum touch_report_code {
@@ -64,7 +69,7 @@ enum touch_report_code {
 	TOUCH_OBJECT_N_TX_POSITION_TIXELS,
 	TOUCH_OBJECT_N_RX_POSITION_TIXELS,
 	TOUCH_0D_BUTTONS_STATE,
-	TOUCH_GESTURE_DOUBLE_TAP,
+	TOUCH_GESTURE_ID,
 	TOUCH_FRAME_RATE,
 	TOUCH_POWER_IM,
 	TOUCH_CID_IM,
@@ -74,6 +79,9 @@ enum touch_report_code {
 	TOUCH_NSM_STATE,
 	TOUCH_NUM_OF_ACTIVE_OBJECTS,
 	TOUCH_NUM_OF_CPU_CYCLES_USED_SINCE_LAST_FRAME,
+	TOUCH_FACE_DETECT,
+	TOUCH_GESTURE_DATA,
+	TOUCH_OBJECT_N_FORCE,
 	TOUCH_TUNING_GAUSSIAN_WIDTHS = 0x80,
 	TOUCH_TUNING_SMALL_OBJECT_PARAMS,
 	TOUCH_TUNING_0D_BUTTONS_VARIANCE,
@@ -100,7 +108,7 @@ struct touch_data {
 	struct object_data *object_data;
 	unsigned int timestamp;
 	unsigned int buttons_state;
-	unsigned int gesture_double_tap;
+	unsigned int gesture_id;
 	unsigned int frame_rate;
 	unsigned int power_im;
 	unsigned int cid_im;
@@ -110,6 +118,8 @@ struct touch_data {
 	unsigned int nsm_state;
 	unsigned int num_of_active_objects;
 	unsigned int num_of_cpu_cycles;
+	unsigned int fd_data;
+	unsigned int force_data;
 };
 
 struct touch_hcd {
@@ -419,6 +429,17 @@ static int touch_parse_report(void)
 			object_data[obj].rx_pos = data;
 			offset += bits;
 			break;
+		case TOUCH_OBJECT_N_FORCE:
+			bits = config_data[idx++];
+			retval = touch_get_report_data(offset, bits, &data);
+			if (retval < 0) {
+				LOGE(tcm_hcd->pdev->dev.parent,
+						"Failed to get object force\n");
+				return retval;
+			}
+			touch_data->force_data = data;
+			offset += bits;
+			break;
 		case TOUCH_0D_BUTTONS_STATE:
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
@@ -430,7 +451,7 @@ static int touch_parse_report(void)
 			touch_data->buttons_state = data;
 			offset += bits;
 			break;
-		case TOUCH_GESTURE_DOUBLE_TAP:
+		case TOUCH_GESTURE_ID:
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
@@ -438,7 +459,7 @@ static int touch_parse_report(void)
 						"Failed to get gesture double tap\n");
 				return retval;
 			}
-			touch_data->gesture_double_tap = data;
+			touch_data->gesture_id = data;
 			offset += bits;
 			break;
 		case TOUCH_FRAME_RATE:
@@ -518,6 +539,10 @@ static int touch_parse_report(void)
 			touch_data->nsm_state = data;
 			offset += bits;
 			break;
+		case TOUCH_GESTURE_DATA:
+			bits = config_data[idx++];
+			offset += bits;
+			break;
 		case TOUCH_NUM_OF_ACTIVE_OBJECTS:
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
@@ -544,6 +569,17 @@ static int touch_parse_report(void)
 			touch_data->num_of_cpu_cycles = data;
 			offset += bits;
 			break;
+		case TOUCH_FACE_DETECT:
+			bits = config_data[idx++];
+			retval = touch_get_report_data(offset, bits, &data);
+			if (retval < 0) {
+				LOGE(tcm_hcd->pdev->dev.parent,
+						"Failed to detect face\n");
+				return retval;
+			}
+			touch_data->fd_data= data;
+			offset += bits;
+			break;
 		case TOUCH_TUNING_GAUSSIAN_WIDTHS:
 			bits = config_data[idx++];
 			offset += bits;
@@ -553,6 +589,10 @@ static int touch_parse_report(void)
 			offset += bits;
 			break;
 		case TOUCH_TUNING_0D_BUTTONS_VARIANCE:
+			bits = config_data[idx++];
+			offset += bits;
+			break;
+		default:
 			bits = config_data[idx++];
 			offset += bits;
 			break;
@@ -602,7 +642,7 @@ static void touch_report(void)
 	object_data = touch_hcd->touch_data.object_data;
 
 #ifdef WAKEUP_GESTURE
-	if (touch_data->gesture_double_tap && tcm_hcd->in_suspend) {
+	if (touch_data->gesture_id == GESTURE_DOUBLE_TAP && tcm_hcd->in_suspend) {
 		input_report_key(touch_hcd->input_dev, KEY_WAKEUP, 1);
 		input_sync(touch_hcd->input_dev);
 		input_report_key(touch_hcd->input_dev, KEY_WAKEUP, 0);
@@ -878,7 +918,7 @@ static int touch_set_report_config(void)
 
 	idx = 0;
 #ifdef WAKEUP_GESTURE
-	touch_hcd->out.buf[idx++] = TOUCH_GESTURE_DOUBLE_TAP;
+	touch_hcd->out.buf[idx++] = TOUCH_GESTURE_ID;
 	touch_hcd->out.buf[idx++] = 8;
 #endif
 	touch_hcd->out.buf[idx++] = TOUCH_FOREACH_ACTIVE_OBJECT;
@@ -971,7 +1011,8 @@ static int touch_set_input_reporting(void)
 			tcm_hcd->app_status != APP_STATUS_OK) {
 		LOGN(tcm_hcd->pdev->dev.parent,
 				"Application firmware not running\n");
-		return 0;
+		if (tcm_hcd->id_info.mode != MODE_HOST_DOWNLOAD)
+			return 0;
 	}
 
 	touch_hcd->report_touch = false;
@@ -1074,7 +1115,8 @@ static int touch_remove(struct syna_tcm_hcd *tcm_hcd)
 
 	tcm_hcd->report_touch = NULL;
 
-	input_unregister_device(touch_hcd->input_dev);
+	if (touch_hcd->input_dev)
+		input_unregister_device(touch_hcd->input_dev);
 
 	kfree(touch_hcd->touch_data.object_data);
 	kfree(touch_hcd->prev_status);
@@ -1151,7 +1193,8 @@ static int touch_reset(struct syna_tcm_hcd *tcm_hcd)
 		return retval;
 	}
 
-	if (tcm_hcd->id_info.mode == MODE_APPLICATION) {
+	if (tcm_hcd->id_info.mode == MODE_APPLICATION ||
+			tcm_hcd->id_info.mode == MODE_HOST_DOWNLOAD) {
 		retval = touch_set_input_reporting();
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
@@ -1168,7 +1211,11 @@ static int touch_early_suspend(struct syna_tcm_hcd *tcm_hcd)
 	if (!touch_hcd)
 		return 0;
 
+#ifdef WAKEUP_GESTURE
+	touch_hcd->suspend_touch = false;
+#else
 	touch_hcd->suspend_touch = true;
+#endif
 
 	touch_free_objects();
 
@@ -1193,6 +1240,8 @@ static int touch_suspend(struct syna_tcm_hcd *tcm_hcd)
 		enable_irq_wake(tcm_hcd->irq);
 		touch_hcd->irq_wake = true;
 	}
+
+	touch_hcd->suspend_touch = false;
 
 	retval = tcm_hcd->set_dynamic_config(tcm_hcd,
 			DC_IN_WAKEUP_GESTURE_MODE,
