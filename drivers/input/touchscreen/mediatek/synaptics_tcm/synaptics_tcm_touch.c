@@ -36,9 +36,12 @@
 
 #define TYPE_B_PROTOCOL
 
-#define USE_DEFAULT_TOUCH_REPORT_CONFIG
+/* #define USE_DEFAULT_TOUCH_REPORT_CONFIG */
 
 #define TOUCH_REPORT_CONFIG_SIZE 128
+
+#include "tpd.h"
+extern struct tpd_device *tpd;
 
 enum touch_status {
 	LIFT = 0,
@@ -615,6 +618,8 @@ static void touch_report(void)
 	unsigned int idx;
 	unsigned int x;
 	unsigned int y;
+	unsigned int wx;
+	unsigned int wy;
 	unsigned int temp;
 	unsigned int status;
 	unsigned int touch_count;
@@ -674,6 +679,10 @@ static void touch_report(void)
 		case GLOVED_FINGER:
 			x = object_data[idx].x_pos;
 			y = object_data[idx].y_pos;
+
+			wx = object_data[idx].x_width;
+			wy =  object_data[idx].y_width;
+
 			if (bdata->swap_axes) {
 				temp = x;
 				x = y;
@@ -696,12 +705,16 @@ static void touch_report(void)
 					ABS_MT_POSITION_X, x);
 			input_report_abs(touch_hcd->input_dev,
 					ABS_MT_POSITION_Y, y);
+						input_report_abs(touch_hcd->input_dev,
+					ABS_MT_TOUCH_MAJOR, max(wx, wy));
+			input_report_abs(touch_hcd->input_dev,
+					ABS_MT_TOUCH_MINOR, min(wx, wy));
 #ifndef TYPE_B_PROTOCOL
 			input_mt_sync(touch_hcd->input_dev);
 #endif
-			LOGD(tcm_hcd->pdev->dev.parent,
-					"Finger %d: x = %d, y = %d\n",
-					idx, x, y);
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Finger %d: x = %d, y = %d, wx = %d, wy = %d\n",
+					idx, x, y, wx, wy);
 			touch_count++;
 			break;
 		default:
@@ -736,10 +749,19 @@ exit:
  * retrieved from the application information packet. In addition, set up an
  * array for tracking the status of touch objects.
  */
+extern struct tpd_device *tpd;
+extern int tpd_register_flag;
+
 static int touch_set_input_params(void)
 {
 	struct syna_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd;
 
+	if (!tpd_register_flag) {
+		printk("syna mtk input device not register yet\n");
+	} else {
+		printk("syna input device pointer tpd->dev\n");
+		touch_hcd->input_dev = tpd->dev;
+	}
 	input_set_abs_params(touch_hcd->input_dev,
 			ABS_MT_POSITION_X, 0, touch_hcd->max_x, 0, 0);
 	input_set_abs_params(touch_hcd->input_dev,
@@ -826,53 +848,72 @@ static int touch_get_input_params(void)
 static int touch_set_input_dev(void)
 {
 	int retval;
-	struct syna_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd;
+	/* struct syna_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd; */
+	int wait_cnt = 100;
 
-	touch_hcd->input_dev = input_allocate_device();
-	if (touch_hcd->input_dev == NULL) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to allocate input device\n");
-		return -ENODEV;
+	while (wait_cnt) {
+		if ((tpd != NULL) && (tpd->dev != NULL)) {
+			printk("syna find tpd and tpd->dev, break\n");
+			break;
+		} else {
+			msleep(50);
+			wait_cnt--;
+			printk("syna wait tpd and tpd->dev, break\n");
+		}
+	}
+	if ((tpd != NULL) && (tpd->dev != NULL)) {
+		touch_hcd->input_dev = tpd->dev;
+		printk("syna input device point to tpd dev\n");
+	} else {
+		touch_hcd->input_dev = NULL;
+		return -1;
 	}
 
-	touch_hcd->input_dev->name = TOUCH_INPUT_NAME;
-	touch_hcd->input_dev->phys = TOUCH_INPUT_PHYS_PATH;
-	touch_hcd->input_dev->id.product = SYNAPTICS_TCM_ID_PRODUCT;
-	touch_hcd->input_dev->id.version = SYNAPTICS_TCM_ID_VERSION;
-	touch_hcd->input_dev->dev.parent = tcm_hcd->pdev->dev.parent;
-	input_set_drvdata(touch_hcd->input_dev, tcm_hcd);
+	/* touch_hcd->input_dev = input_allocate_device(); */
+	/* if (touch_hcd->input_dev == NULL) { */
+		/* LOGE(tcm_hcd->pdev->dev.parent, */
+				/* "Failed to allocate input device\n"); */
+		/* return -ENODEV; */
+	/* } */
 
-	set_bit(EV_SYN, touch_hcd->input_dev->evbit);
-	set_bit(EV_KEY, touch_hcd->input_dev->evbit);
-	set_bit(EV_ABS, touch_hcd->input_dev->evbit);
-	set_bit(BTN_TOUCH, touch_hcd->input_dev->keybit);
-	set_bit(BTN_TOOL_FINGER, touch_hcd->input_dev->keybit);
-#ifdef INPUT_PROP_DIRECT
-	set_bit(INPUT_PROP_DIRECT, touch_hcd->input_dev->propbit);
-#endif
+	/* touch_hcd->input_dev->name = TOUCH_INPUT_NAME; */
+	/* touch_hcd->input_dev->phys = TOUCH_INPUT_PHYS_PATH; */
+	/* touch_hcd->input_dev->id.product = SYNAPTICS_TCM_ID_PRODUCT; */
+	/* touch_hcd->input_dev->id.version = SYNAPTICS_TCM_ID_VERSION; */
+	/* touch_hcd->input_dev->dev.parent = tcm_hcd->pdev->dev.parent; */
+	/* input_set_drvdata(touch_hcd->input_dev, tcm_hcd); */
 
-#ifdef WAKEUP_GESTURE
-	set_bit(KEY_WAKEUP, touch_hcd->input_dev->keybit);
-	input_set_capability(touch_hcd->input_dev, EV_KEY, KEY_WAKEUP);
-#endif
+	/* set_bit(EV_SYN, touch_hcd->input_dev->evbit); */
+	/* set_bit(EV_KEY, touch_hcd->input_dev->evbit); */
+	/* set_bit(EV_ABS, touch_hcd->input_dev->evbit); */
+	/* set_bit(BTN_TOUCH, touch_hcd->input_dev->keybit); */
+	/* set_bit(BTN_TOOL_FINGER, touch_hcd->input_dev->keybit); */
+/* #ifdef INPUT_PROP_DIRECT */
+	/* set_bit(INPUT_PROP_DIRECT, touch_hcd->input_dev->propbit); */
+/* #endif */
+
+/* #ifdef WAKEUP_GESTURE */
+	/* set_bit(KEY_WAKEUP, touch_hcd->input_dev->keybit); */
+	/* input_set_capability(touch_hcd->input_dev, EV_KEY, KEY_WAKEUP); */
+/* #endif */
 
 	retval = touch_set_input_params();
-	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to set input parameters\n");
-		input_free_device(touch_hcd->input_dev);
-		touch_hcd->input_dev = NULL;
-		return retval;
-	}
+	/* if (retval < 0) { */
+		/* LOGE(tcm_hcd->pdev->dev.parent, */
+				/* "Failed to set input parameters\n"); */
+		/* input_free_device(touch_hcd->input_dev); */
+		/* touch_hcd->input_dev = NULL; */
+		/* return retval; */
+	/* } */
 
-	retval = input_register_device(touch_hcd->input_dev);
-	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to register input device\n");
-		input_free_device(touch_hcd->input_dev);
-		touch_hcd->input_dev = NULL;
-		return retval;
-	}
+	/* retval = input_register_device(touch_hcd->input_dev); */
+	/* if (retval < 0) { */
+		/* LOGE(tcm_hcd->pdev->dev.parent, */
+				/* "Failed to register input device\n"); */
+		/* input_free_device(touch_hcd->input_dev); */
+		/* touch_hcd->input_dev = NULL; */
+		/* return retval; */
+	/* } */
 
 	return 0;
 }
@@ -930,6 +971,10 @@ static int touch_set_report_config(void)
 	touch_hcd->out.buf[idx++] = 12;
 	touch_hcd->out.buf[idx++] = TOUCH_OBJECT_N_Y_POSITION;
 	touch_hcd->out.buf[idx++] = 12;
+	touch_hcd->out.buf[idx++] = TOUCH_OBJECT_N_X_WIDTH;
+	touch_hcd->out.buf[idx++] = 8;
+	touch_hcd->out.buf[idx++] = TOUCH_OBJECT_N_Y_WIDTH;
+	touch_hcd->out.buf[idx++] = 8;
 	touch_hcd->out.buf[idx++] = TOUCH_FOREACH_END;
 	touch_hcd->out.buf[idx++] = TOUCH_END;
 
@@ -1046,10 +1091,10 @@ static int touch_set_input_reporting(void)
 		goto exit;
 	}
 
-	if (touch_hcd->input_dev != NULL) {
-		input_unregister_device(touch_hcd->input_dev);
-		touch_hcd->input_dev = NULL;
-	}
+	/* if (touch_hcd->input_dev != NULL) { */
+		/* input_unregister_device(touch_hcd->input_dev); */
+		/* touch_hcd->input_dev = NULL; */
+	/* } */
 
 	retval = touch_set_input_dev();
 	if (retval < 0) {

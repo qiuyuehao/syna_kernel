@@ -34,6 +34,8 @@
 #include <linux/kthread.h>
 #include <linux/interrupt.h>
 #include <linux/regulator/consumer.h>
+#include <linux/fb.h>
+#include "tpd.h"
 #include "synaptics_tcm_core.h"
 
 /* #define RESET_ON_RESUME */
@@ -202,6 +204,8 @@ static struct device_attribute *dynamic_config_attrs[] = {
 };
 
 static int syna_tcm_get_app_info(struct syna_tcm_hcd *tcm_hcd);
+/* static u8 boot_mode; */
+extern int tpd_load_status;	/* 0: failed, 1: success */
 
 static ssize_t syna_tcm_sysfs_info_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -585,6 +589,7 @@ exit:
 	return retval;
 }
 
+extern int zeroflash_check_f35(void);
 static ssize_t syna_tcm_sysfs_reset_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -601,6 +606,19 @@ static ssize_t syna_tcm_sysfs_reset_store(struct device *dev,
 
 	if (sscanf(buf, "%u", &input) != 1)
 		return -EINVAL;
+	if (input == 3) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"syan check F35 call\n");
+		zeroflash_check_f35();
+		return count;
+	}
+
+	if (input == 4) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"enable syna irq to try download again\n");
+		tcm_hcd->enable_irq(tcm_hcd, true, false);
+		return count;
+	}
 
 	if (input == 1)
 		hw_reset = false;
@@ -1192,7 +1210,7 @@ static int syna_tcm_continued_read(struct syna_tcm_hcd *tcm_hcd)
  * Read transactions are carried out until the specific number of data bytes are
  * retrieved from the device and stored in in_buf.
  */
-static int syna_tcm_raw_read(struct syna_tcm_hcd *tcm_hcd,
+int syna_tcm_raw_read(struct syna_tcm_hcd *tcm_hcd,
 		unsigned char *in_buf, unsigned int length)
 {
 	int retval;
@@ -1668,7 +1686,7 @@ static int syna_tcm_write_message(struct syna_tcm_hcd *tcm_hcd,
 
 	chunks = chunks == 0 ? 1 : chunks;
 
-	LOGD(tcm_hcd->pdev->dev.parent,
+	LOGE(tcm_hcd->pdev->dev.parent,
 			"Command = 0x%02x\n",
 			command);
 
@@ -1968,6 +1986,7 @@ static irqreturn_t syna_tcm_isr(int irq, void *data)
 
 	tcm_hcd->isr_pid = current->pid;
 
+
 	retval = tcm_hcd->read_message(tcm_hcd,
 			NULL,
 			0);
@@ -2115,13 +2134,13 @@ static int syna_tcm_config_gpio(struct syna_tcm_hcd *tcm_hcd)
 {
 	int retval;
 	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
-
+/*
 	syna_tcm_set_gpio(tcm_hcd, bdata->display_reset_gpio,
 			true, 1, 1);
 	syna_tcm_set_gpio(tcm_hcd, bdata->display_reset_gpio,
 			false, 0, 0);
 	msleep(bdata->reset_delay_ms);
-
+*/
 	if (bdata->irq_gpio >= 0) {
 		retval = syna_tcm_set_gpio(tcm_hcd, bdata->irq_gpio,
 				true, 0, 0);
@@ -2156,14 +2175,14 @@ static int syna_tcm_config_gpio(struct syna_tcm_hcd *tcm_hcd)
 		gpio_set_value(bdata->power_gpio, bdata->power_on_state);
 		msleep(bdata->power_delay_ms);
 	}
-
+/*
 	if (bdata->reset_gpio >= 0) {
 		gpio_set_value(bdata->reset_gpio, bdata->reset_on_state);
 		msleep(bdata->reset_active_ms);
 		gpio_set_value(bdata->reset_gpio, !bdata->reset_on_state);
 		msleep(bdata->reset_delay_ms);
 	}
-
+*/
 	return 0;
 
 err_set_gpio_reset:
@@ -3301,6 +3320,10 @@ exit:
 	return retval;
 }
 
+static void syna_mtk_tcm_resume(struct device *dev)
+{
+	syna_tcm_resume(dev);
+}
 static int syna_tcm_suspend(struct device *dev)
 {
 	struct syna_tcm_module_handler *mod_handler;
@@ -3331,6 +3354,11 @@ static int syna_tcm_suspend(struct device *dev)
 	return 0;
 }
 #endif
+
+static void syna_mtk_tcm_suspend(struct device *dev)
+{
+	syna_tcm_suspend(dev);
+}
 
 #ifdef CONFIG_FB
 static int syna_tcm_early_suspend(struct device *dev)
@@ -3602,12 +3630,14 @@ static int syna_tcm_probe(struct platform_device *pdev)
 	}
 
 #ifdef CONFIG_FB
+if (0) {
 	tcm_hcd->fb_notifier.notifier_call = syna_tcm_fb_notifier_cb;
 	retval = fb_register_client(&tcm_hcd->fb_notifier);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to register FB notifier client\n");
 	}
+}
 #endif
 
 	tcm_hcd->notifier_thread = kthread_run(syna_tcm_report_notifier,
@@ -3637,7 +3667,7 @@ static int syna_tcm_probe(struct platform_device *pdev)
 				"Failed to enable interrupt\n");
 		goto err_enable_irq;
 	}
-
+/*
 	retval = tcm_hcd->reset(tcm_hcd, false, false);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -3653,7 +3683,7 @@ static int syna_tcm_probe(struct platform_device *pdev)
 		tcm_hcd->init_okay = true;
 		tcm_hcd->update_watchdog(tcm_hcd, true);
 	}
-
+*/
 	mod_pool.workqueue =
 			create_singlethread_workqueue("syna_tcm_module");
 	INIT_WORK(&mod_pool.work, syna_tcm_module_work);
@@ -3853,15 +3883,45 @@ static struct platform_driver syna_tcm_driver = {
 	.shutdown = syna_tcm_shutdown,
 };
 
-static int __init syna_tcm_module_init(void)
+static int tpd_local_init(void)
 {
 	int retval;
 
+	printk("syna tpd_local_init\n");
 	retval = syna_tcm_bus_init();
 	if (retval < 0)
 		return retval;
-
+#if 0
+	boot_mode = get_boot_mode();
+	if (boot_mode == 3) {
+		boot_mode = NORMAL_BOOT;
+	}
+#endif
+	printk("syna platform_driver_register, set tpd_load_status = 1\n");
+	tpd_load_status = 1;
 	return platform_driver_register(&syna_tcm_driver);
+}
+
+struct tpd_driver_t synaptics_mtk_driver = {
+	.tpd_device_name = "synaptics_tcm",
+	.tpd_local_init = tpd_local_init,
+	.suspend = syna_mtk_tcm_suspend,
+	.resume = syna_mtk_tcm_resume,
+	.tpd_have_button = 0,
+};
+
+static int __init syna_tcm_module_init(void)
+{
+	printk("syna module init\n");
+
+	tpd_get_dts_info();
+
+	if(tpd_driver_add(&synaptics_mtk_driver) < 0){
+		pr_err("Fail to add syna tpd driver\n");
+		return -ENODEV;
+	}
+
+	return 0;
 }
 
 static void __exit syna_tcm_module_exit(void)

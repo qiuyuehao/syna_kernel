@@ -36,6 +36,7 @@
 
 static unsigned char *buf;
 
+
 static unsigned int buf_size;
 
 static struct spi_transfer *xfer;
@@ -305,7 +306,7 @@ static int syna_tcm_spi_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 {
 	int retval;
 	unsigned int idx;
-	unsigned int mode;
+	//unsigned int mode;
 	unsigned int byte_count;
 	struct spi_message msg;
 	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
@@ -317,7 +318,7 @@ static int syna_tcm_spi_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 
 	byte_count = length + 2;
 
-	if (bdata->ubl_byte_delay_us == 0)
+	if (1/*bdata->ubl_byte_delay_us == 0*/)
 		retval = syna_tcm_spi_alloc_mem(tcm_hcd, 2, byte_count);
 	else
 		retval = syna_tcm_spi_alloc_mem(tcm_hcd, byte_count, 3);
@@ -329,19 +330,18 @@ static int syna_tcm_spi_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 
 	buf[0] = (unsigned char)(addr >> 8) | 0x80;
 	buf[1] = (unsigned char)addr;
-
-	if (bdata->ubl_byte_delay_us == 0) {
+	if (/*bdata->ubl_byte_delay_us == 0*/1) {
 		xfer[0].len = 2;
 		xfer[0].tx_buf = buf;
-		xfer[0].speed_hz = bdata->ubl_max_freq;
+//		xfer[0].speed_hz = 1000000;
 		spi_message_add_tail(&xfer[0], &msg);
 		memset(&buf[2], 0xff, length);
 		xfer[1].len = length;
 		xfer[1].tx_buf = &buf[2];
 		xfer[1].rx_buf = data;
-		if (bdata->block_delay_us)
-			xfer[1].delay_usecs = bdata->block_delay_us;
-		xfer[1].speed_hz = bdata->ubl_max_freq;
+//		if (bdata->block_delay_us)
+//			xfer[1].delay_usecs = bdata->block_delay_us;
+//		xfer[1].speed_hz = bdata->ubl_max_freq;
 		spi_message_add_tail(&xfer[1], &msg);
 	} else {
 		buf[2] = 0xff;
@@ -361,8 +361,8 @@ static int syna_tcm_spi_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 		}
 	}
 
-	mode = spi->mode;
-	spi->mode = SPI_MODE_3;
+//	mode = spi->mode;
+//	spi->mode = SPI_MODE_3;
 
 	retval = spi_sync(spi, &msg);
 	if (retval == 0) {
@@ -373,7 +373,7 @@ static int syna_tcm_spi_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 				retval);
 	}
 
-	spi->mode = mode;
+//	spi->mode = mode;
 
 exit:
 	mutex_unlock(&tcm_hcd->io_ctrl_mutex);
@@ -385,11 +385,11 @@ static int syna_tcm_spi_rmi_write(struct syna_tcm_hcd *tcm_hcd,
 		unsigned short addr, unsigned char *data, unsigned int length)
 {
 	int retval;
-	unsigned int mode;
+	//unsigned int mode;
 	unsigned int byte_count;
 	struct spi_message msg;
 	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
-	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
+	//const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
 	mutex_lock(&tcm_hcd->io_ctrl_mutex);
 
@@ -419,12 +419,12 @@ static int syna_tcm_spi_rmi_write(struct syna_tcm_hcd *tcm_hcd,
 
 	xfer[0].len = byte_count;
 	xfer[0].tx_buf = buf;
-	if (bdata->block_delay_us)
-		xfer[0].delay_usecs = bdata->block_delay_us;
+//	if (bdata->block_delay_us)
+//		xfer[0].delay_usecs = bdata->block_delay_us;
 	spi_message_add_tail(&xfer[0], &msg);
 
-	mode = spi->mode;
-	spi->mode = SPI_MODE_3;
+//	mode = spi->mode;
+//	spi->mode = SPI_MODE_3;
 
 	retval = spi_sync(spi, &msg);
 	if (retval == 0) {
@@ -435,7 +435,7 @@ static int syna_tcm_spi_rmi_write(struct syna_tcm_hcd *tcm_hcd,
 				retval);
 	}
 
-	spi->mode = mode;
+//	spi->mode = mode;
 
 exit:
 	mutex_unlock(&tcm_hcd->io_ctrl_mutex);
@@ -561,6 +561,7 @@ static int syna_tcm_spi_probe(struct spi_device *spi)
 {
 	int retval;
 
+    printk("%s\n",__func__);
 	if (spi->master->flags & SPI_MASTER_HALF_DUPLEX) {
 		LOGE(&spi->dev,
 				"Full duplex not supported by host\n");
@@ -671,6 +672,7 @@ static struct spi_driver syna_tcm_spi_driver = {
 
 int syna_tcm_bus_init(void)
 {
+    printk("%s\n",__func__);
 	return spi_register_driver(&syna_tcm_spi_driver);
 }
 EXPORT_SYMBOL(syna_tcm_bus_init);

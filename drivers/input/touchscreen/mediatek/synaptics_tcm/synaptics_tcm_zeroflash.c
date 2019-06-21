@@ -34,6 +34,7 @@
 #include <linux/crc32.h>
 #include <linux/firmware.h>
 #include "synaptics_tcm_core.h"
+#include "td4330_JDI6.53_hdl_spi_15.h"
 
 #define FW_IMAGE_NAME "synaptics/hdl_firmware.img"
 
@@ -64,6 +65,8 @@
 #define F35_WRITE_FW_TO_PMEM_COMMAND 4
 
 #define RESET_TO_HDL_DELAY_MS 12
+
+#define DOWNLOAD_APP_FAST_RETRY
 
 #define DOWNLOAD_RETRY_COUNT 10
 
@@ -201,7 +204,7 @@ static struct zeroflash_hcd *zeroflash_hcd;
 static void zeroflash_download_firmware(void);
 
 #ifdef DOWNLOAD_APP_FAST_RETRY
-static int zeroflash_check_f35(void)
+int zeroflash_check_f35(void)
 {
 	int retval;
 	struct syna_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
@@ -210,11 +213,15 @@ static int zeroflash_check_f35(void)
 			PDT_END_ADDR,
 			&fn_number,
 			sizeof(fn_number));
+	LOGE(tcm_hcd->pdev->dev.parent,
+				"syna rmi read function number is %x\n", fn_number);
 	if (fn_number != UBL_FN_NUMBER) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to find F$35\n");
 		return -ENODEV;
 	} else {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"syna rmi read find F35\n");
 		return 0;
 	}
 }
@@ -293,11 +300,13 @@ static ssize_t zeroflash_sysfs_hdl_store(struct device *dev,
 static int zeroflash_check_uboot(void)
 {
 	int retval;
+	unsigned int retry_times = 3;
 	unsigned char fn_number;
 	struct rmi_f35_query query;
 	struct rmi_pdt_entry p_entry;
 	struct syna_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
 
+retry:
 	retval = syna_tcm_rmi_read(tcm_hcd,
 			PDT_END_ADDR,
 			&fn_number,
@@ -308,13 +317,16 @@ static int zeroflash_check_uboot(void)
 		return retval;
 	}
 
-	LOGD(tcm_hcd->pdev->dev.parent,
+	LOGN(tcm_hcd->pdev->dev.parent,
 			"Found F$%02x\n",
 			fn_number);
 
 	if (fn_number != UBL_FN_NUMBER) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to find F$35\n");
+                if (retry_times --) {
+                    goto retry;
+                }
 		return -ENODEV;
 	}
 
@@ -402,7 +414,8 @@ static int zeroflash_parse_fw_image(void)
 		if (magic_value != FLASH_AREA_MAGIC_VALUE)
 			continue;
 
-		length = le4_to_uint(descriptor->length);
+		length = le4_to_uint(descriptor->length); 
+                printk("syna 0x%x\n", length);
 		content = (unsigned char *)descriptor + sizeof(*descriptor);
 		flash_addr = le4_to_uint(descriptor->flash_addr_words) * 2;
 		checksum = le4_to_uint(descriptor->checksum);
@@ -489,7 +502,7 @@ static int zeroflash_get_fw_image(void)
 
 	if (zeroflash_hcd->fw_entry != NULL)
 		return 0;
-
+/*
 	do {
 		retval = request_firmware(&zeroflash_hcd->fw_entry,
 				FW_IMAGE_NAME,
@@ -503,12 +516,12 @@ static int zeroflash_get_fw_image(void)
 			break;
 		}
 	} while (1);
-
+*/
 	LOGD(tcm_hcd->pdev->dev.parent,
 			"Firmware image size = %d\n",
 			(unsigned int)zeroflash_hcd->fw_entry->size);
 
-	zeroflash_hcd->image = zeroflash_hcd->fw_entry->data;
+	zeroflash_hcd->image = SynapticsImage;
 
 	retval = zeroflash_parse_fw_image();
 	if (retval < 0) {
@@ -822,11 +835,14 @@ exit:
 
 	return;
 }
+extern int syna_tcm_raw_read(struct syna_tcm_hcd *tcm_hcd,
+		unsigned char *in_buf, unsigned int length);
 
 static int zeroflash_download_app_fw(void)
 {
 	int retval;
 	unsigned char command;
+	int out_buf_size = 0;
 	struct image_info *image_info;
 	struct syna_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
 #if RESET_TO_HDL_DELAY_MS
@@ -851,9 +867,12 @@ static int zeroflash_download_app_fw(void)
 
 	LOCK_BUFFER(zeroflash_hcd->out);
 
+	out_buf_size = image_info->app_firmware.size;
+	LOGE(tcm_hcd->pdev->dev.parent,
+				"firmware size %d out_buf_size:%d\n", image_info->app_firmware.size, out_buf_size);
 	retval = syna_tcm_alloc_mem(tcm_hcd,
 			&zeroflash_hcd->out,
-			image_info->app_firmware.size);
+			out_buf_size);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to allocate memory for zeroflash_hcd->out.buf\n");
@@ -865,7 +884,7 @@ static int zeroflash_download_app_fw(void)
 			zeroflash_hcd->out.buf_size,
 			image_info->app_firmware.data,
 			image_info->app_firmware.size,
-			image_info->app_firmware.size);
+			out_buf_size);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to copy application firmware data\n");
@@ -873,7 +892,9 @@ static int zeroflash_download_app_fw(void)
 		return retval;
 	}
 
-	zeroflash_hcd->out.data_length = image_info->app_firmware.size;
+	/* zeroflash_hcd->out.data_length = image_info->app_firmware.size; */
+	zeroflash_hcd->out.data_length = out_buf_size;
+
 
 	command = F35_WRITE_FW_TO_PMEM_COMMAND;
 
@@ -904,6 +925,8 @@ retry_app_download:
 		}
 	}
 #endif
+	//set spi speed 3M here
+	//
 	retval = syna_tcm_rmi_write(tcm_hcd,
 			zeroflash_hcd->f35_addr.control_base + F35_CTRL3_OFFSET,
 			&command,
@@ -935,7 +958,7 @@ retry_app_download:
 		retry_cnt++;
 		if (retry_cnt <= 3) {
 			LOGE(tcm_hcd->pdev->dev.parent,
-				"can not read a identify report, goto retry\n");
+				"can not read a identify report, goto retry, %x, %x, %x, %x, %x\n", tmp_buf[0], tmp_buf[1],tmp_buf[2],tmp_buf[3],tmp_buf[4]);
 			goto retry_app_download;
 		}
 	} else {
@@ -959,6 +982,8 @@ static void zeroflash_download_firmware_work(struct work_struct *work)
 	static unsigned int retry_count;
 
 	atomic_set(&tcm_hcd->host_downloading, 1);
+	//set spi speed 500k here
+	//
 	retval = zeroflash_check_uboot();
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -1014,7 +1039,8 @@ static void zeroflash_download_firmware_work(struct work_struct *work)
 
 exit:
 	if (retval < 0)
-		retry_count++;
+;
+	//	retry_count++;
 
 	if (DOWNLOAD_RETRY_COUNT && retry_count > DOWNLOAD_RETRY_COUNT) {
 		LOGE(tcm_hcd->pdev->dev.parent,
