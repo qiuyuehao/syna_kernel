@@ -1497,18 +1497,30 @@ reflash_write(app_firmware)
 static int reflash_erase_flash(unsigned int page_start, unsigned int page_count)
 {
 	int retval;
-	unsigned char out_buf[2];
+	unsigned char out_buf[4] = {0};
+	int size_erase_cmd;
 	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
 
-	out_buf[0] = (unsigned char)page_start;
-	out_buf[1] = (unsigned char)page_count;
+	if ((page_start > 0xff) || (page_count > 0xff))  {
+		size_erase_cmd = 4;
+
+		out_buf[0] = (unsigned char)(page_start & 0xff);
+		out_buf[1] = (unsigned char)((page_start >> 8) & 0xff);
+		out_buf[2] = (unsigned char)(page_count & 0xff);
+		out_buf[3] = (unsigned char)((page_count >> 8) & 0xff);
+	} else {
+		size_erase_cmd = 2;
+
+		out_buf[0] = (unsigned char)(page_start & 0xff);
+		out_buf[1] = (unsigned char)(page_count & 0xff);
+	}
 
 	LOCK_BUFFER(reflash_hcd->resp);
 
 	retval = tcm_hcd->write_message(tcm_hcd,
 			CMD_ERASE_FLASH,
 			out_buf,
-			sizeof(out_buf),
+			size_erase_cmd,
 			&reflash_hcd->resp.buf,
 			&reflash_hcd->resp.buf_size,
 			&reflash_hcd->resp.data_length,
