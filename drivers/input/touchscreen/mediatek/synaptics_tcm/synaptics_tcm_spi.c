@@ -4,6 +4,10 @@
  * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
  *
  * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2018-2019 Ian Su <ian.su@tw.synaptics.com>
+ * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@synaptics.com>
+ * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@synaptics.com>
+ * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,7 +40,6 @@
 
 static unsigned char *buf;
 
-
 static unsigned int buf_size;
 
 static struct spi_transfer *xfer;
@@ -55,9 +58,6 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 	struct property *prop;
 	struct device_node *np = dev->of_node;
 	const char *name;
-
-	bdata->display_reset_gpio = of_get_named_gpio_flags(np,
-			"synaptics,display-reset-gpio", 0, NULL);
 
 	prop = of_find_property(np, "synaptics,irq-gpio", NULL);
 	if (prop && prop->length) {
@@ -175,6 +175,14 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 		}
 	} else {
 		bdata->reset_delay_ms = 0;
+	}
+
+	prop = of_find_property(np, "synaptics,tpio-reset-gpio", NULL);
+	if (prop && prop->length) {
+		bdata->tpio_reset_gpio = of_get_named_gpio_flags(np,
+				"synaptics,tpio-reset-gpio", 0, NULL);
+	} else {
+		bdata->tpio_reset_gpio = -1;
 	}
 
 	prop = of_find_property(np, "synaptics,x-flip", NULL);
@@ -306,7 +314,7 @@ static int syna_tcm_spi_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 {
 	int retval;
 	unsigned int idx;
-	//unsigned int mode;
+	unsigned int mode;
 	unsigned int byte_count;
 	struct spi_message msg;
 	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
@@ -318,7 +326,7 @@ static int syna_tcm_spi_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 
 	byte_count = length + 2;
 
-	if (1/*bdata->ubl_byte_delay_us == 0*/)
+	if (bdata->ubl_byte_delay_us == 0)
 		retval = syna_tcm_spi_alloc_mem(tcm_hcd, 2, byte_count);
 	else
 		retval = syna_tcm_spi_alloc_mem(tcm_hcd, byte_count, 3);
@@ -330,18 +338,19 @@ static int syna_tcm_spi_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 
 	buf[0] = (unsigned char)(addr >> 8) | 0x80;
 	buf[1] = (unsigned char)addr;
-	if (/*bdata->ubl_byte_delay_us == 0*/1) {
+
+	if (bdata->ubl_byte_delay_us == 0) {
 		xfer[0].len = 2;
 		xfer[0].tx_buf = buf;
-//		xfer[0].speed_hz = 1000000;
+		xfer[0].speed_hz = bdata->ubl_max_freq;
 		spi_message_add_tail(&xfer[0], &msg);
 		memset(&buf[2], 0xff, length);
 		xfer[1].len = length;
 		xfer[1].tx_buf = &buf[2];
 		xfer[1].rx_buf = data;
-//		if (bdata->block_delay_us)
-//			xfer[1].delay_usecs = bdata->block_delay_us;
-//		xfer[1].speed_hz = bdata->ubl_max_freq;
+		if (bdata->block_delay_us)
+			xfer[1].delay_usecs = bdata->block_delay_us;
+		xfer[1].speed_hz = bdata->ubl_max_freq;
 		spi_message_add_tail(&xfer[1], &msg);
 	} else {
 		buf[2] = 0xff;
@@ -361,8 +370,8 @@ static int syna_tcm_spi_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 		}
 	}
 
-//	mode = spi->mode;
-//	spi->mode = SPI_MODE_3;
+	mode = spi->mode;
+	spi->mode = SPI_MODE_3;
 
 	retval = spi_sync(spi, &msg);
 	if (retval == 0) {
@@ -373,7 +382,7 @@ static int syna_tcm_spi_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 				retval);
 	}
 
-//	spi->mode = mode;
+	spi->mode = mode;
 
 exit:
 	mutex_unlock(&tcm_hcd->io_ctrl_mutex);
@@ -385,11 +394,11 @@ static int syna_tcm_spi_rmi_write(struct syna_tcm_hcd *tcm_hcd,
 		unsigned short addr, unsigned char *data, unsigned int length)
 {
 	int retval;
-	//unsigned int mode;
+	unsigned int mode;
 	unsigned int byte_count;
 	struct spi_message msg;
 	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
-	//const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
+	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
 	mutex_lock(&tcm_hcd->io_ctrl_mutex);
 
@@ -419,12 +428,12 @@ static int syna_tcm_spi_rmi_write(struct syna_tcm_hcd *tcm_hcd,
 
 	xfer[0].len = byte_count;
 	xfer[0].tx_buf = buf;
-//	if (bdata->block_delay_us)
-//		xfer[0].delay_usecs = bdata->block_delay_us;
+	if (bdata->block_delay_us)
+		xfer[0].delay_usecs = bdata->block_delay_us;
 	spi_message_add_tail(&xfer[0], &msg);
 
-//	mode = spi->mode;
-//	spi->mode = SPI_MODE_3;
+	mode = spi->mode;
+	spi->mode = SPI_MODE_3;
 
 	retval = spi_sync(spi, &msg);
 	if (retval == 0) {
@@ -435,7 +444,7 @@ static int syna_tcm_spi_rmi_write(struct syna_tcm_hcd *tcm_hcd,
 				retval);
 	}
 
-//	spi->mode = mode;
+	spi->mode = mode;
 
 exit:
 	mutex_unlock(&tcm_hcd->io_ctrl_mutex);
@@ -561,7 +570,6 @@ static int syna_tcm_spi_probe(struct spi_device *spi)
 {
 	int retval;
 
-    printk("%s\n",__func__);
 	if (spi->master->flags & SPI_MASTER_HALF_DUPLEX) {
 		LOGE(&spi->dev,
 				"Full duplex not supported by host\n");
@@ -672,7 +680,6 @@ static struct spi_driver syna_tcm_spi_driver = {
 
 int syna_tcm_bus_init(void)
 {
-    printk("%s\n",__func__);
 	return spi_register_driver(&syna_tcm_spi_driver);
 }
 EXPORT_SYMBOL(syna_tcm_bus_init);

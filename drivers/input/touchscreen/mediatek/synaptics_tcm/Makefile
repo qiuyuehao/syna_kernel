@@ -16,4 +16,4 @@
 #obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_TCM_DIAGNOSTICS) += synaptics_tcm_diagnostics.o
 #obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_TCM_ROMBOOT) += synaptics_tcm_romboot.o
 ccflags-y += -I$(srctree)/drivers/input/touchscreen/mediatek
-obj-y += synaptics_tcm_spi.o synaptics_tcm_core.o synaptics_tcm_touch.o synaptics_tcm_device.o synaptics_tcm_testing.o synaptics_tcm_reflash.o synaptics_tcm_recovery.o synaptics_tcm_zeroflash.o synaptics_tcm_diagnostics.o synaptics_tcm_romboot.o
+obj-y += synaptics_tcm_i2c.o synaptics_tcm_core.o synaptics_tcm_touch.o synaptics_tcm_device.o synaptics_tcm_testing.o synaptics_tcm_reflash.o synaptics_tcm_recovery.o synaptics_tcm_zeroflash.o synaptics_tcm_diagnostics.o

@@ -4,6 +4,10 @@
  * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
  *
  * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2018-2019 Ian Su <ian.su@tw.synaptics.com>
+ * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@synaptics.com>
+ * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@synaptics.com>
+ * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -48,13 +52,11 @@
 
 #define MIN_READ_LENGTH 9
 
-#define KEEP_DRIVER_ON_ERROR
-
 /* #define FORCE_RUN_APPLICATION_FIRMWARE */
 
 #define NOTIFIER_PRIORITY 2
 
-#define RESPONSE_TIMEOUT_MS 5000
+#define RESPONSE_TIMEOUT_MS 3000
 
 #define APP_STATUS_POLL_TIMEOUT_MS 1000
 
@@ -66,29 +68,23 @@
 
 #define POLLING_DELAY_MS 5
 
-#define RUN_WATCHDOG false
-
-#define WATCHDOG_TRIGGER_COUNT 2
-
-#define WATCHDOG_DELAY_MS 1000
-
 #define MODE_SWITCH_DELAY_MS 100
 
-#define READ_RETRY_US_MIN 10000
+#define READ_RETRY_US_MIN 5000
 
 #define READ_RETRY_US_MAX 10000
 
-#define WRITE_DELAY_US_MIN 1000
+#define WRITE_DELAY_US_MIN 500
 
 #define WRITE_DELAY_US_MAX 1000
-
-#define HOST_DOWNLOAD_WAIT_MS 100
-
-#define HOST_DOWNLOAD_TIMEOUT_MS 1000
 
 #define DYNAMIC_CONFIG_SYSFS_DIR_NAME "dynamic_config"
 
 #define ROMBOOT_DOWNLOAD_UNIT 16
+
+#define PDT_END_ADDR 0x00ee
+
+#define RMI_UBL_FN_NUMBER 0x35
 
 #define dynamic_config_sysfs(c_name, id) \
 static ssize_t syna_tcm_sysfs_##c_name##_show(struct device *dev, \
@@ -161,10 +157,12 @@ static struct kobject *sysfs_dir;
 static struct syna_tcm_module_pool mod_pool;
 
 SHOW_PROTOTYPE(syna_tcm, info)
-SHOW_PROTOTYPE(syna_tcm, appinfo)
+SHOW_PROTOTYPE(syna_tcm, info_appfw)
 STORE_PROTOTYPE(syna_tcm, irq_en)
 STORE_PROTOTYPE(syna_tcm, reset)
+#ifdef WATCHDOG_SW
 STORE_PROTOTYPE(syna_tcm, watchdog)
+#endif
 SHOW_STORE_PROTOTYPE(syna_tcm, no_doze)
 SHOW_STORE_PROTOTYPE(syna_tcm, disable_noise_mitigation)
 SHOW_STORE_PROTOTYPE(syna_tcm, inhibit_frequency_shift)
@@ -181,10 +179,12 @@ SHOW_STORE_PROTOTYPE(syna_tcm, enable_glove)
 
 static struct device_attribute *attrs[] = {
 	ATTRIFY(info),
-	ATTRIFY(appinfo),
+	ATTRIFY(info_appfw),
 	ATTRIFY(irq_en),
 	ATTRIFY(reset),
+#ifdef WATCHDOG_SW
 	ATTRIFY(watchdog),
+#endif
 };
 
 static struct device_attribute *dynamic_config_attrs[] = {
@@ -204,9 +204,11 @@ static struct device_attribute *dynamic_config_attrs[] = {
 };
 
 static int syna_tcm_get_app_info(struct syna_tcm_hcd *tcm_hcd);
+static int syna_tcm_sensor_detection(struct syna_tcm_hcd *tcm_hcd);
+static void syna_tcm_check_hdl(struct syna_tcm_hcd *tcm_hcd,
+							unsigned char id);
 /* static u8 boot_mode; */
 extern int tpd_load_status;	/* 0: failed, 1: success */
-
 static ssize_t syna_tcm_sysfs_info_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -259,15 +261,15 @@ static ssize_t syna_tcm_sysfs_info_show(struct device *dev,
 	count += retval;
 
 	switch (tcm_hcd->id_info.mode) {
-	case MODE_APPLICATION:
+	case MODE_APPLICATION_FIRMWARE:
 		retval = snprintf(buf, PAGE_SIZE - count,
-				"Firmware mode:      Application\n");
+				"Firmware mode:      Application Firmware\n");
 		if (retval < 0)
 			goto exit;
 		break;
-	case MODE_HOST_DOWNLOAD:
+	case MODE_HOSTDOWNLOAD_FIRMWARE:
 		retval = snprintf(buf, PAGE_SIZE - count,
-				"Firmware mode:      Host Download\n");
+				"Firmware mode:      Host Download Firmware\n");
 		if (retval < 0)
 			goto exit;
 		break;
@@ -280,6 +282,12 @@ static ssize_t syna_tcm_sysfs_info_show(struct device *dev,
 	case MODE_TDDI_BOOTLOADER:
 		retval = snprintf(buf, PAGE_SIZE - count,
 				"Firmware mode:      TDDI Bootloader\n");
+		if (retval < 0)
+			goto exit;
+		break;
+	case MODE_TDDI_HOSTDOWNLOAD_BOOTLOADER:
+		retval = snprintf(buf, PAGE_SIZE - count,
+				"Firmware mode:      TDDI Host Download Bootloader\n");
 		if (retval < 0)
 			goto exit;
 		break;
@@ -345,7 +353,7 @@ exit:
 	return retval;
 }
 
-static ssize_t syna_tcm_sysfs_appinfo_show(struct device *dev,
+static ssize_t syna_tcm_sysfs_info_appfw_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	int retval;
@@ -371,8 +379,8 @@ static ssize_t syna_tcm_sysfs_appinfo_show(struct device *dev,
 	count = 0;
 
 	retval = snprintf(buf, PAGE_SIZE - count,
-			"app info version:  %d\n",
-			le2_to_uint(tcm_hcd->app_info.version));
+		"app info version:  %d\n",
+		le2_to_uint(tcm_hcd->app_info.version));
 	if (retval < 0)
 		goto exit;
 
@@ -380,8 +388,8 @@ static ssize_t syna_tcm_sysfs_appinfo_show(struct device *dev,
 	count += retval;
 
 	retval = snprintf(buf, PAGE_SIZE - count,
-			"app info status:  %d\n",
-			le2_to_uint(tcm_hcd->app_info.status));
+		"app info status:  %d\n",
+		le2_to_uint(tcm_hcd->app_info.status));
 	if (retval < 0)
 		goto exit;
 
@@ -389,8 +397,8 @@ static ssize_t syna_tcm_sysfs_appinfo_show(struct device *dev,
 	count += retval;
 
 	retval = snprintf(buf, PAGE_SIZE - count,
-			"static config size:  %d\n",
-			le2_to_uint(tcm_hcd->app_info.static_config_size));
+		"static config size:  %d\n",
+		le2_to_uint(tcm_hcd->app_info.static_config_size));
 	if (retval < 0)
 		goto exit;
 
@@ -398,8 +406,8 @@ static ssize_t syna_tcm_sysfs_appinfo_show(struct device *dev,
 	count += retval;
 
 	retval = snprintf(buf, PAGE_SIZE - count,
-			"dynamic config size:  %d\n",
-			le2_to_uint(tcm_hcd->app_info.dynamic_config_size));
+		"dynamic config size:  %d\n",
+		le2_to_uint(tcm_hcd->app_info.dynamic_config_size));
 	if (retval < 0)
 		goto exit;
 
@@ -407,8 +415,8 @@ static ssize_t syna_tcm_sysfs_appinfo_show(struct device *dev,
 	count += retval;
 
 	retval = snprintf(buf, PAGE_SIZE - count,
-			"app config block:  %d\n",
-			le2_to_uint(tcm_hcd->app_info.app_config_start_write_block));
+		"app config block:  %d\n",
+		le2_to_uint(tcm_hcd->app_info.app_config_start_write_block));
 	if (retval < 0)
 		goto exit;
 
@@ -416,8 +424,8 @@ static ssize_t syna_tcm_sysfs_appinfo_show(struct device *dev,
 	count += retval;
 
 	retval = snprintf(buf, PAGE_SIZE - count,
-			"app config size:  %d\n",
-			le2_to_uint(tcm_hcd->app_info.app_config_size));
+		"app config size:  %d\n",
+		le2_to_uint(tcm_hcd->app_info.app_config_size));
 	if (retval < 0)
 		goto exit;
 
@@ -425,8 +433,8 @@ static ssize_t syna_tcm_sysfs_appinfo_show(struct device *dev,
 	count += retval;
 
 	retval = snprintf(buf, PAGE_SIZE - count,
-			"touch report config max size:  %d\n",
-			le2_to_uint(tcm_hcd->app_info.max_touch_report_config_size));
+		"touch report config max size:  %d\n",
+		le2_to_uint(tcm_hcd->app_info.max_touch_report_config_size));
 	if (retval < 0)
 		goto exit;
 
@@ -434,16 +442,15 @@ static ssize_t syna_tcm_sysfs_appinfo_show(struct device *dev,
 	count += retval;
 
 	retval = snprintf(buf, PAGE_SIZE - count,
-			"touch report payload max size:  %d\n",
-			le2_to_uint(tcm_hcd->app_info.max_touch_report_payload_size));
+		"touch report payload max size:  %d\n",
+		le2_to_uint(tcm_hcd->app_info.max_touch_report_payload_size));
 	if (retval < 0)
 		goto exit;
 
 	buf += retval;
 	count += retval;
 
-	retval = snprintf(buf, PAGE_SIZE - count,
-				"config id:  ");
+	retval = snprintf(buf, PAGE_SIZE - count, "config id:  ");
 	if (retval < 0)
 		goto exit;
 
@@ -452,13 +459,12 @@ static ssize_t syna_tcm_sysfs_appinfo_show(struct device *dev,
 
 	for (i = 0; i < sizeof(tcm_hcd->app_info.customer_config_id); i++) {
 		retval = snprintf(buf, PAGE_SIZE - count,
-					"0x%2x ", tcm_hcd->app_info.customer_config_id[i]);
+			"0x%2x ", tcm_hcd->app_info.customer_config_id[i]);
 		buf += retval;
 		count += retval;
 	}
 
-	retval = snprintf(buf, PAGE_SIZE - count,
-				"\n");
+	retval = snprintf(buf, PAGE_SIZE - count, "\n");
 	if (retval < 0)
 		goto exit;
 
@@ -466,8 +472,8 @@ static ssize_t syna_tcm_sysfs_appinfo_show(struct device *dev,
 	count += retval;
 
 	retval = snprintf(buf, PAGE_SIZE - count,
-			"max x:  %d\n",
-			le2_to_uint(tcm_hcd->app_info.max_x));
+		"max x:  %d\n",
+		le2_to_uint(tcm_hcd->app_info.max_x));
 	if (retval < 0)
 		goto exit;
 
@@ -475,8 +481,8 @@ static ssize_t syna_tcm_sysfs_appinfo_show(struct device *dev,
 	count += retval;
 
 	retval = snprintf(buf, PAGE_SIZE - count,
-			"max y:  %d\n",
-			le2_to_uint(tcm_hcd->app_info.max_y));
+		"max y:  %d\n",
+		le2_to_uint(tcm_hcd->app_info.max_y));
 	if (retval < 0)
 		goto exit;
 
@@ -484,8 +490,8 @@ static ssize_t syna_tcm_sysfs_appinfo_show(struct device *dev,
 	count += retval;
 
 	retval = snprintf(buf, PAGE_SIZE - count,
-			"max objects:  %d\n",
-			le2_to_uint(tcm_hcd->app_info.max_objects));
+		"max objects:  %d\n",
+		le2_to_uint(tcm_hcd->app_info.max_objects));
 	if (retval < 0)
 		goto exit;
 
@@ -493,8 +499,8 @@ static ssize_t syna_tcm_sysfs_appinfo_show(struct device *dev,
 	count += retval;
 
 	retval = snprintf(buf, PAGE_SIZE - count,
-			"num cols:  %d\n",
-			le2_to_uint(tcm_hcd->app_info.num_of_image_cols));
+		"num cols:  %d\n",
+		le2_to_uint(tcm_hcd->app_info.num_of_image_cols));
 	if (retval < 0)
 		goto exit;
 
@@ -502,8 +508,8 @@ static ssize_t syna_tcm_sysfs_appinfo_show(struct device *dev,
 	count += retval;
 
 	retval = snprintf(buf, PAGE_SIZE - count,
-			"num rows:  %d\n",
-			le2_to_uint(tcm_hcd->app_info.num_of_image_rows));
+		"num rows:  %d\n",
+		le2_to_uint(tcm_hcd->app_info.num_of_image_rows));
 	if (retval < 0)
 		goto exit;
 
@@ -511,8 +517,8 @@ static ssize_t syna_tcm_sysfs_appinfo_show(struct device *dev,
 	count += retval;
 
 	retval = snprintf(buf, PAGE_SIZE - count,
-			"num buttons:  %d\n",
-			le2_to_uint(tcm_hcd->app_info.num_of_buttons));
+		"num buttons:  %d\n",
+		le2_to_uint(tcm_hcd->app_info.num_of_buttons));
 	if (retval < 0)
 		goto exit;
 
@@ -520,8 +526,8 @@ static ssize_t syna_tcm_sysfs_appinfo_show(struct device *dev,
 	count += retval;
 
 	retval = snprintf(buf, PAGE_SIZE - count,
-			"has profile:  %d\n",
-			le2_to_uint(tcm_hcd->app_info.has_hybrid_data));
+		"has profile:  %d\n",
+		le2_to_uint(tcm_hcd->app_info.has_hybrid_data));
 	if (retval < 0)
 		goto exit;
 
@@ -529,8 +535,8 @@ static ssize_t syna_tcm_sysfs_appinfo_show(struct device *dev,
 	count += retval;
 
 	retval = snprintf(buf, PAGE_SIZE - count,
-			"num force electrodes:  %d\n",
-			le2_to_uint(tcm_hcd->app_info.num_of_force_elecs));
+		"num force electrodes:  %d\n",
+		le2_to_uint(tcm_hcd->app_info.num_of_force_elecs));
 	if (retval < 0)
 		goto exit;
 
@@ -589,7 +595,6 @@ exit:
 	return retval;
 }
 
-extern int zeroflash_check_f35(void);
 static ssize_t syna_tcm_sysfs_reset_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -606,19 +611,6 @@ static ssize_t syna_tcm_sysfs_reset_store(struct device *dev,
 
 	if (sscanf(buf, "%u", &input) != 1)
 		return -EINVAL;
-	if (input == 3) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"syan check F35 call\n");
-		zeroflash_check_f35();
-		return count;
-	}
-
-	if (input == 4) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"enable syna irq to try download again\n");
-		tcm_hcd->enable_irq(tcm_hcd, true, false);
-		return count;
-	}
 
 	if (input == 1)
 		hw_reset = false;
@@ -629,10 +621,10 @@ static ssize_t syna_tcm_sysfs_reset_store(struct device *dev,
 
 	mutex_lock(&tcm_hcd->extif_mutex);
 
-	retval = tcm_hcd->reset(tcm_hcd, hw_reset, true);
+	retval = tcm_hcd->reset_n_reinit(tcm_hcd, hw_reset, true);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to do reset\n");
+				"Failed to do reset and reinit\n");
 		goto exit;
 	}
 
@@ -644,6 +636,7 @@ exit:
 	return retval;
 }
 
+#ifdef WATCHDOG_SW
 static ssize_t syna_tcm_sysfs_watchdog_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -671,6 +664,7 @@ static ssize_t syna_tcm_sysfs_watchdog_store(struct device *dev,
 
 	return count;
 }
+#endif
 
 dynamic_config_sysfs(no_doze, DC_NO_DOZE)
 
@@ -698,34 +692,6 @@ dynamic_config_sysfs(enable_thick_glove, DC_ENABLE_THICK_GLOVE)
 
 dynamic_config_sysfs(enable_glove, DC_ENABLE_GLOVE)
 
-static void syna_tcm_romboot_download(struct syna_tcm_hcd *tcm_hcd)
-{
-	struct syna_tcm_module_handler *mod_handler;
-
-	LOCK_BUFFER(tcm_hcd->report.buffer);
-
-	tcm_hcd->report.buffer.buf = NULL;
-	tcm_hcd->report.buffer.buf_size = 0;
-	tcm_hcd->report.buffer.data_length = 0;
-	tcm_hcd->report.id = REPORT_ROMBOOT;
-
-	UNLOCK_BUFFER(tcm_hcd->report.buffer);
-
-	mutex_lock(&mod_pool.mutex);
-
-	if (!list_empty(&mod_pool.list)) {
-		list_for_each_entry(mod_handler, &mod_pool.list, link) {
-			if (!mod_handler->insert &&
-					!mod_handler->detach &&
-					(mod_handler->mod_cb->syncbox))
-				mod_handler->mod_cb->syncbox(tcm_hcd);
-		}
-	}
-
-	mutex_unlock(&mod_pool.mutex);
-
-	return;
-}
 
 int syna_tcm_add_module(struct syna_tcm_module_cb *mod_cb, bool insert)
 {
@@ -778,7 +744,6 @@ static void syna_tcm_module_work(struct work_struct *work)
 	struct syna_tcm_hcd *tcm_hcd = mod_pool.tcm_hcd;
 
 	mutex_lock(&mod_pool.mutex);
-	mod_pool.reconstructing = true;
 
 	if (!list_empty(&mod_pool.list)) {
 		list_for_each_entry_safe(mod_handler,
@@ -799,12 +764,13 @@ static void syna_tcm_module_work(struct work_struct *work)
 		}
 	}
 
-	mod_pool.reconstructing = false;
 	mutex_unlock(&mod_pool.mutex);
 
 	return;
 }
 
+
+#ifdef REPORT_NOTIFIER
 /**
  * syna_tcm_report_notifier() - notify occurrence of report received from device
  *
@@ -832,7 +798,6 @@ static int syna_tcm_report_notifier(void *data)
 		set_current_state(TASK_RUNNING);
 
 		mutex_lock(&mod_pool.mutex);
-		mod_pool.reconstructing = true;
 
 		if (!list_empty(&mod_pool.list)) {
 			list_for_each_entry(mod_handler, &mod_pool.list, link) {
@@ -843,7 +808,6 @@ static int syna_tcm_report_notifier(void *data)
 			}
 		}
 
-		mod_pool.reconstructing = false;
 		mutex_unlock(&mod_pool.mutex);
 
 		set_current_state(TASK_INTERRUPTIBLE);
@@ -851,6 +815,7 @@ static int syna_tcm_report_notifier(void *data)
 
 	return 0;
 }
+#endif
 
 /**
  * syna_tcm_dispatch_report() - dispatch report received from device
@@ -878,25 +843,49 @@ static void syna_tcm_dispatch_report(struct syna_tcm_hcd *tcm_hcd)
 
 	tcm_hcd->report.id = tcm_hcd->status_report_code;
 
-	mutex_lock(&mod_pool.mutex);
+	/* report directly if touch report is received */
+	if (tcm_hcd->report.id == REPORT_TOUCH) {
+		if (tcm_hcd->report_touch)
+			tcm_hcd->report_touch();
 
-	if (!list_empty(&mod_pool.list)) {
-		list_for_each_entry(mod_handler, &mod_pool.list, link) {
-			if (!mod_handler->insert &&
-					!mod_handler->detach &&
-					(mod_handler->mod_cb->syncbox))
-				mod_handler->mod_cb->syncbox(tcm_hcd);
+	} else {
+
+		/* once an identify report is received, */
+		/* reinitialize touch in case any changes */
+		if ((tcm_hcd->report.id == REPORT_IDENTIFY) &&
+				IS_FW_MODE(tcm_hcd->id_info.mode)) {
+
+			if (atomic_read(&tcm_hcd->helper.task) == HELP_NONE) {
+				atomic_set(&tcm_hcd->helper.task,
+						HELP_TOUCH_REINIT);
+				queue_work(tcm_hcd->helper.workqueue,
+						&tcm_hcd->helper.work);
+			}
 		}
+
+		/* dispatch received report to the other modules */
+		mutex_lock(&mod_pool.mutex);
+
+		if (!list_empty(&mod_pool.list)) {
+			list_for_each_entry(mod_handler, &mod_pool.list, link) {
+				if (!mod_handler->insert &&
+						!mod_handler->detach &&
+						(mod_handler->mod_cb->syncbox))
+					mod_handler->mod_cb->syncbox(tcm_hcd);
+			}
+		}
+
+		tcm_hcd->async_report_id = tcm_hcd->status_report_code;
+
+		mutex_unlock(&mod_pool.mutex);
 	}
-
-	tcm_hcd->async_report_id = tcm_hcd->status_report_code;
-
-	mutex_unlock(&mod_pool.mutex);
 
 	UNLOCK_BUFFER(tcm_hcd->report.buffer);
 	UNLOCK_BUFFER(tcm_hcd->in);
 
+#ifdef REPORT_NOTIFIER
 	wake_up_process(tcm_hcd->notifier_thread);
+#endif
 
 	return;
 }
@@ -1030,22 +1019,28 @@ static void syna_tcm_dispatch_message(struct syna_tcm_hcd *tcm_hcd)
 				break;
 			}
 		} else {
-			if (tcm_hcd->id_info.mode == MODE_ROMBOOTLOADER) {
-				tcm_hcd->romboot_download_mode = true;
-				syna_tcm_romboot_download(tcm_hcd);
+
+			if ((tcm_hcd->id_info.mode == MODE_ROMBOOTLOADER) &&
+					tcm_hcd->in_hdl_mode) {
+
+				if (atomic_read(&tcm_hcd->helper.task) ==
+						HELP_NONE) {
+					atomic_set(&tcm_hcd->helper.task,
+							HELP_SEND_ROMBOOT_HDL);
+					queue_work(tcm_hcd->helper.workqueue,
+							&tcm_hcd->helper.work);
+				} else {
+					LOGN(tcm_hcd->pdev->dev.parent,
+							"Helper thread is busy\n");
+				}
 				return;
 			}
 		}
 
-		if (tcm_hcd->id_info.mode == MODE_HOST_DOWNLOAD) {
-			if (!tcm_hcd->romboot_download_mode)
-				tcm_hcd->host_download_mode = true;
-			return;
-		}
-
 #ifdef FORCE_RUN_APPLICATION_FIRMWARE
-		if (tcm_hcd->id_info.mode != MODE_APPLICATION &&
+		if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) &&
 				!mutex_is_locked(&tcm_hcd->reset_mutex)) {
+
 			if (atomic_read(&tcm_hcd->helper.task) == HELP_NONE) {
 				atomic_set(&tcm_hcd->helper.task,
 						HELP_RUN_APPLICATION_FIRMWARE);
@@ -1055,13 +1050,18 @@ static void syna_tcm_dispatch_message(struct syna_tcm_hcd *tcm_hcd)
 			}
 		}
 #endif
+
+		/* To avoid the identify report dispatching during the HDL. */
+		if (atomic_read(&tcm_hcd->host_downloading)) {
+			LOGN(tcm_hcd->pdev->dev.parent,
+					"Switched to TCM mode and going to download the configs\n");
+			return;
+		}
 	}
 
-	if (tcm_hcd->status_report_code >= REPORT_IDENTIFY) {
-		if((mod_pool.reconstructing) && (tcm_hcd->status_report_code == REPORT_TOUCH))
-			return;
+
+	if (tcm_hcd->status_report_code >= REPORT_IDENTIFY)
 		syna_tcm_dispatch_report(tcm_hcd);
-	}
 	else
 		syna_tcm_dispatch_response(tcm_hcd);
 
@@ -1210,7 +1210,7 @@ static int syna_tcm_continued_read(struct syna_tcm_hcd *tcm_hcd)
  * Read transactions are carried out until the specific number of data bytes are
  * retrieved from the device and stored in in_buf.
  */
-int syna_tcm_raw_read(struct syna_tcm_hcd *tcm_hcd,
+static int syna_tcm_raw_read(struct syna_tcm_hcd *tcm_hcd,
 		unsigned char *in_buf, unsigned int length)
 {
 	int retval;
@@ -1459,6 +1459,7 @@ retry:
 
 	header = (struct syna_tcm_message_header *)tcm_hcd->in.buf;
 
+
 	if (header->marker != MESSAGE_MARKER) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Incorrect header marker (0x%02x)\n",
@@ -1478,7 +1479,7 @@ retry:
 	tcm_hcd->payload_length = le2_to_uint(header->length);
 
 	LOGD(tcm_hcd->pdev->dev.parent,
-			"Status code = 0x%02x\n",
+			"Status report code = 0x%02x\n",
 			tcm_hcd->status_report_code);
 
 	LOGD(tcm_hcd->pdev->dev.parent,
@@ -1501,7 +1502,7 @@ retry:
 			goto exit;
 		default:
 			LOGE(tcm_hcd->pdev->dev.parent,
-					"Incorrect header code (0x%02x)\n",
+					"Incorrect Status code (0x%02x)\n",
 					tcm_hcd->status_report_code);
 			if (tcm_hcd->status_report_code == STATUS_INVALID) {
 				if (retry) {
@@ -1566,14 +1567,10 @@ check_padding:
 	if (tcm_hcd->rd_chunk_size == 0)
 		tcm_hcd->read_length = total_length;
 #endif
-
-	mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
-
-	syna_tcm_dispatch_message(tcm_hcd);
+	if (tcm_hcd->is_detected)
+		syna_tcm_dispatch_message(tcm_hcd);
 
 	retval = 0;
-
-	return retval;
 
 exit:
 	if (retval < 0) {
@@ -1618,7 +1615,8 @@ static int syna_tcm_write_message(struct syna_tcm_hcd *tcm_hcd,
 	unsigned int xfer_length;
 	unsigned int remaining_length;
 	unsigned int command_status;
-	bool is_romboot_hdl = command == CMD_ROMBOOT_DOWNLOAD ? true : false;
+	bool is_romboot_hdl = (command == CMD_ROMBOOT_DOWNLOAD) ? true : false;
+	bool is_hdl_reset = (command == CMD_RESET) && (tcm_hcd->in_hdl_mode);
 
 	if (response_code != NULL)
 		*response_code = STATUS_INVALID;
@@ -1686,7 +1684,7 @@ static int syna_tcm_write_message(struct syna_tcm_hcd *tcm_hcd,
 
 	chunks = chunks == 0 ? 1 : chunks;
 
-	LOGE(tcm_hcd->pdev->dev.parent,
+	LOGD(tcm_hcd->pdev->dev.parent,
 			"Command = 0x%02x\n",
 			command);
 
@@ -1765,6 +1763,9 @@ static int syna_tcm_write_message(struct syna_tcm_hcd *tcm_hcd,
 	UNLOCK_BUFFER(tcm_hcd->out);
 
 	mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
+
+	if (is_hdl_reset)
+		goto exit;
 
 	if (tcm_hcd->do_polling && polling_delay_ms) {
 		queue_delayed_work(tcm_hcd->polling_workqueue,
@@ -1847,7 +1848,7 @@ static int syna_tcm_wait_hdl(struct syna_tcm_hcd *tcm_hcd)
 	return retval;
 }
 
-static void syna_tcm_check_hdl(struct syna_tcm_hcd *tcm_hcd)
+static void syna_tcm_check_hdl(struct syna_tcm_hcd *tcm_hcd, unsigned char id)
 {
 	struct syna_tcm_module_handler *mod_handler;
 
@@ -1856,7 +1857,7 @@ static void syna_tcm_check_hdl(struct syna_tcm_hcd *tcm_hcd)
 	tcm_hcd->report.buffer.buf = NULL;
 	tcm_hcd->report.buffer.buf_size = 0;
 	tcm_hcd->report.buffer.data_length = 0;
-	tcm_hcd->report.id = REPORT_HDL;
+	tcm_hcd->report.id = id;
 
 	UNLOCK_BUFFER(tcm_hcd->report.buffer);
 
@@ -1876,6 +1877,7 @@ static void syna_tcm_check_hdl(struct syna_tcm_hcd *tcm_hcd)
 	return;
 }
 
+#ifdef WATCHDOG_SW
 static void syna_tcm_update_watchdog(struct syna_tcm_hcd *tcm_hcd, bool en)
 {
 	cancel_delayed_work_sync(&tcm_hcd->watchdog.work);
@@ -1927,10 +1929,10 @@ static void syna_tcm_watchdog_work(struct work_struct *work)
 		tcm_hcd->watchdog.count++;
 
 		if (tcm_hcd->watchdog.count >= WATCHDOG_TRIGGER_COUNT) {
-			retval = tcm_hcd->reset(tcm_hcd, true, false);
+			retval = tcm_hcd->reset_n_reinit(tcm_hcd, true, false);
 			if (retval < 0) {
 				LOGE(tcm_hcd->pdev->dev.parent,
-						"Failed to do reset\n");
+						"Failed to do reset and reinit\n");
 			}
 			tcm_hcd->watchdog.count = 0;
 		}
@@ -1943,6 +1945,7 @@ exit:
 
 	return;
 }
+#endif
 
 static void syna_tcm_polling_work(struct work_struct *work)
 {
@@ -1963,7 +1966,7 @@ static void syna_tcm_polling_work(struct work_struct *work)
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to read message\n");
 		if (retval == -ENXIO && tcm_hcd->hw_if->bus_io->type == BUS_SPI)
-			syna_tcm_check_hdl(tcm_hcd);
+			syna_tcm_check_hdl(tcm_hcd, REPORT_HDL_F35);
 	}
 
 	if (!(tcm_hcd->in_suspend && retval < 0)) {
@@ -1986,15 +1989,15 @@ static irqreturn_t syna_tcm_isr(int irq, void *data)
 
 	tcm_hcd->isr_pid = current->pid;
 
-
 	retval = tcm_hcd->read_message(tcm_hcd,
 			NULL,
 			0);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		if (tcm_hcd->sensor_type == TYPE_F35)
+			syna_tcm_check_hdl(tcm_hcd, REPORT_HDL_F35);
+		else
+			LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to read message\n");
-		if (retval == -ENXIO && tcm_hcd->hw_if->bus_io->type == BUS_SPI)
-			syna_tcm_check_hdl(tcm_hcd);
 	}
 
 exit:
@@ -2134,13 +2137,7 @@ static int syna_tcm_config_gpio(struct syna_tcm_hcd *tcm_hcd)
 {
 	int retval;
 	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
-/*
-	syna_tcm_set_gpio(tcm_hcd, bdata->display_reset_gpio,
-			true, 1, 1);
-	syna_tcm_set_gpio(tcm_hcd, bdata->display_reset_gpio,
-			false, 0, 0);
-	msleep(bdata->reset_delay_ms);
-*/
+
 	if (bdata->irq_gpio >= 0) {
 		retval = syna_tcm_set_gpio(tcm_hcd, bdata->irq_gpio,
 				true, 0, 0);
@@ -2175,14 +2172,14 @@ static int syna_tcm_config_gpio(struct syna_tcm_hcd *tcm_hcd)
 		gpio_set_value(bdata->power_gpio, bdata->power_on_state);
 		msleep(bdata->power_delay_ms);
 	}
-/*
+
 	if (bdata->reset_gpio >= 0) {
 		gpio_set_value(bdata->reset_gpio, bdata->reset_on_state);
 		msleep(bdata->reset_active_ms);
 		gpio_set_value(bdata->reset_gpio, !bdata->reset_on_state);
 		msleep(bdata->reset_delay_ms);
 	}
-*/
+
 	return 0;
 
 err_set_gpio_reset:
@@ -2415,7 +2412,7 @@ static int syna_tcm_get_romboot_info(struct syna_tcm_hcd *tcm_hcd)
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to write command %s\n",
-				STR(CMD_GET_BOOT_INFO));
+				STR(CMD_GET_ROMBOOT_INFO));
 		goto exit;
 	}
 
@@ -2512,10 +2509,14 @@ static int syna_tcm_identify(struct syna_tcm_hcd *tcm_hcd, bool id)
 	if (tcm_hcd->wr_chunk_size == 0)
 		tcm_hcd->wr_chunk_size = max_write_size;
 
+	LOGN(tcm_hcd->pdev->dev.parent,
+		"Firmware build id = %d\n", tcm_hcd->packrat_number);
+
 get_info:
 	switch (tcm_hcd->id_info.mode) {
-	case MODE_APPLICATION:
-	case MODE_HOST_DOWNLOAD:
+	case MODE_APPLICATION_FIRMWARE:
+	case MODE_HOSTDOWNLOAD_FIRMWARE:
+
 		retval = syna_tcm_get_app_info(tcm_hcd);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
@@ -2525,6 +2526,10 @@ get_info:
 		break;
 	case MODE_BOOTLOADER:
 	case MODE_TDDI_BOOTLOADER:
+
+		LOGD(tcm_hcd->pdev->dev.parent,
+			"In bootloader mode\n");
+
 		retval = syna_tcm_get_boot_info(tcm_hcd);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
@@ -2533,6 +2538,10 @@ get_info:
 		}
 		break;
 	case MODE_ROMBOOTLOADER:
+
+		LOGD(tcm_hcd->pdev->dev.parent,
+			"In rombootloader mode\n");
+
 		retval = syna_tcm_get_romboot_info(tcm_hcd);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
@@ -2584,7 +2593,7 @@ retry:
 		goto exit;
 	}
 
-	if (tcm_hcd->id_info.mode != MODE_PRODUCTION_TEST) {
+	if (tcm_hcd->id_info.mode != MODE_PRODUCTIONTEST_FIRMWARE) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to run production test firmware\n");
 		if (retry) {
@@ -2644,7 +2653,7 @@ retry:
 		goto exit;
 	}
 
-	if (tcm_hcd->id_info.mode != MODE_APPLICATION) {
+	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode)) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to run application firmware (boot status = 0x%02x)\n",
 				tcm_hcd->boot_info.status);
@@ -2692,9 +2701,15 @@ static int syna_tcm_run_bootloader_firmware(struct syna_tcm_hcd *tcm_hcd)
 			NULL,
 			MODE_SWITCH_DELAY_MS);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		if (tcm_hcd->id_info.mode == MODE_ROMBOOTLOADER) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write command %s\n",
+				STR(CMD_ROMBOOT_RUN_BOOTLOADER_FIRMWARE));
+		} else {
+			LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to write command %s\n",
 				STR(CMD_RUN_BOOTLOADER_FIRMWARE));
+		}
 		goto exit;
 	}
 
@@ -2705,13 +2720,13 @@ static int syna_tcm_run_bootloader_firmware(struct syna_tcm_hcd *tcm_hcd)
 				"Failed to do identification\n");
 		goto exit;
 		}
-	}
 
-	if (tcm_hcd->id_info.mode == MODE_APPLICATION) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to enter bootloader mode\n");
-		retval = -EINVAL;
-		goto exit;
+		if (IS_FW_MODE(tcm_hcd->id_info.mode)) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to enter bootloader mode\n");
+			retval = -EINVAL;
+			goto exit;
+		}
 	}
 
 	retval = 0;
@@ -2729,7 +2744,9 @@ static int syna_tcm_switch_mode(struct syna_tcm_hcd *tcm_hcd,
 
 	mutex_lock(&tcm_hcd->reset_mutex);
 
+#ifdef WATCHDOG_SW
 	tcm_hcd->update_watchdog(tcm_hcd, false);
+#endif
 
 	switch (mode) {
 	case FW_MODE_BOOTLOADER:
@@ -2766,7 +2783,9 @@ static int syna_tcm_switch_mode(struct syna_tcm_hcd *tcm_hcd,
 	retval = 0;
 
 exit:
+#ifdef WATCHDOG_SW
 	tcm_hcd->update_watchdog(tcm_hcd, true);
+#endif
 
 	mutex_unlock(&tcm_hcd->reset_mutex);
 
@@ -2961,7 +2980,34 @@ exit:
 	return retval;
 }
 
-static int syna_tcm_reset(struct syna_tcm_hcd *tcm_hcd, bool hw, bool update_wd)
+static int syna_tcm_reset(struct syna_tcm_hcd *tcm_hcd)
+{
+	int retval;
+	unsigned char *resp_buf;
+	unsigned int resp_buf_size;
+	unsigned int resp_length;
+	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
+
+	retval = tcm_hcd->write_message(tcm_hcd,
+				CMD_RESET,
+				NULL,
+				0,
+				&resp_buf,
+				&resp_buf_size,
+				&resp_length,
+				NULL,
+				bdata->reset_delay_ms);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write command %s\n",
+				STR(CMD_RESET));
+	}
+
+	return retval;
+}
+
+static int syna_tcm_reset_and_reinit(struct syna_tcm_hcd *tcm_hcd,
+		bool hw, bool update_wd)
 {
 	int retval;
 	unsigned char *resp_buf;
@@ -2975,8 +3021,10 @@ static int syna_tcm_reset(struct syna_tcm_hcd *tcm_hcd, bool hw, bool update_wd)
 
 	mutex_lock(&tcm_hcd->reset_mutex);
 
+#ifdef WATCHDOG_SW
 	if (update_wd)
 		tcm_hcd->update_watchdog(tcm_hcd, false);
+#endif
 
 	if (hw) {
 		if (bdata->reset_gpio < 0) {
@@ -2989,35 +3037,31 @@ static int syna_tcm_reset(struct syna_tcm_hcd *tcm_hcd, bool hw, bool update_wd)
 		msleep(bdata->reset_active_ms);
 		gpio_set_value(bdata->reset_gpio, !bdata->reset_on_state);
 	} else {
-		retval = tcm_hcd->write_message(tcm_hcd,
-				CMD_RESET,
-				NULL,
-				0,
-				&resp_buf,
-				&resp_buf_size,
-				&resp_length,
-				NULL,
-				bdata->reset_delay_ms);
-		if (retval < 0 && !tcm_hcd->host_download_mode) {
+		retval = syna_tcm_reset(tcm_hcd);
+		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to write command %s\n",
-					STR(CMD_RESET));
-			if (!tcm_hcd->romboot_download_mode)
-				goto exit;
+					"Failed to do reset\n");
+			goto exit;
 		}
 	}
 
-	if (tcm_hcd->host_download_mode || tcm_hcd->romboot_download_mode) {
+	/* for hdl, the remaining re-init process will be done */
+	/* in the helper thread, so wait for the completion here */
+	if (tcm_hcd->in_hdl_mode) {
 		mutex_unlock(&tcm_hcd->reset_mutex);
 		kfree(resp_buf);
+
 		retval = syna_tcm_wait_hdl(tcm_hcd);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
 					"Failed to wait for completion of host download\n");
 			return retval;
 		}
+
+#ifdef WATCHDOG_SW
 		if (update_wd)
 			tcm_hcd->update_watchdog(tcm_hcd, true);
+#endif
 		return 0;
 	}
 
@@ -3030,7 +3074,7 @@ static int syna_tcm_reset(struct syna_tcm_hcd *tcm_hcd, bool hw, bool update_wd)
 		goto exit;
 	}
 
-	if (tcm_hcd->id_info.mode == MODE_APPLICATION)
+	if (IS_FW_MODE(tcm_hcd->id_info.mode))
 		goto get_features;
 
 	retval = tcm_hcd->write_message(tcm_hcd,
@@ -3060,7 +3104,7 @@ get_features:
 			"Firmware mode = 0x%02x\n",
 			tcm_hcd->id_info.mode);
 
-	if (tcm_hcd->id_info.mode != MODE_APPLICATION) {
+	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode)) {
 		LOGN(tcm_hcd->pdev->dev.parent,
 				"Boot status = 0x%02x\n",
 				tcm_hcd->boot_info.status);
@@ -3070,8 +3114,8 @@ get_features:
 				tcm_hcd->app_status);
 	}
 
-	if (tcm_hcd->id_info.mode != MODE_APPLICATION)
-		goto dispatch_reset;
+	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode))
+		goto dispatch_reinit;
 
 	retval = tcm_hcd->write_message(tcm_hcd,
 			CMD_GET_FEATURES,
@@ -3098,27 +3142,27 @@ get_features:
 		}
 	}
 
-dispatch_reset:
+dispatch_reinit:
 	mutex_lock(&mod_pool.mutex);
-	mod_pool.reconstructing = true;
 
 	if (!list_empty(&mod_pool.list)) {
 		list_for_each_entry(mod_handler, &mod_pool.list, link) {
 			if (!mod_handler->insert &&
 					!mod_handler->detach &&
-					(mod_handler->mod_cb->reset))
-				mod_handler->mod_cb->reset(tcm_hcd);
+					(mod_handler->mod_cb->reinit))
+				mod_handler->mod_cb->reinit(tcm_hcd);
 		}
 	}
 
-	mod_pool.reconstructing = false;
 	mutex_unlock(&mod_pool.mutex);
 
 	retval = 0;
 
 exit:
+#ifdef WATCHDOG_SW
 	if (update_wd)
 		tcm_hcd->update_watchdog(tcm_hcd, true);
+#endif
 
 	mutex_unlock(&tcm_hcd->reset_mutex);
 
@@ -3174,38 +3218,74 @@ static void syna_tcm_helper_work(struct work_struct *work)
 	task = atomic_read(&helper->task);
 
 	switch (task) {
+
+	/* this helper can help to run the application firmware */
 	case HELP_RUN_APPLICATION_FIRMWARE:
 		mutex_lock(&tcm_hcd->reset_mutex);
+
+#ifdef WATCHDOG_SW
 		tcm_hcd->update_watchdog(tcm_hcd, false);
+#endif
 		retval = syna_tcm_run_application_firmware(tcm_hcd);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
 					"Failed to switch to application mode\n");
 		}
+#ifdef WATCHDOG_SW
 		tcm_hcd->update_watchdog(tcm_hcd, true);
+#endif
 		mutex_unlock(&tcm_hcd->reset_mutex);
 		break;
-	case HELP_SEND_RESET_NOTIFICATION:
+
+	/* the reinit helper is used to notify all installed modules to */
+	/* do the re-initialization process, since the HDL is completed */
+	case HELP_SEND_REINIT_NOTIFICATION:
 		mutex_lock(&tcm_hcd->reset_mutex);
+
+		/* do identify to ensure application firmware is running */
 		retval = tcm_hcd->identify(tcm_hcd, true);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to do identification\n");
+					"Application firmware is not running\n");
 			mutex_unlock(&tcm_hcd->reset_mutex);
 			break;
 		}
+
+		/* init the touch reporting here */
+		/* since the HDL is completed */
+		retval = touch_reinit(tcm_hcd);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to initialze touch reporting\n");
+			break;
+		}
+
 		mutex_lock(&mod_pool.mutex);
 		if (!list_empty(&mod_pool.list)) {
 			list_for_each_entry(mod_handler, &mod_pool.list, link) {
 				if (!mod_handler->insert &&
 						!mod_handler->detach &&
-						(mod_handler->mod_cb->reset))
-					mod_handler->mod_cb->reset(tcm_hcd);
+						(mod_handler->mod_cb->reinit))
+					mod_handler->mod_cb->reinit(tcm_hcd);
 			}
 		}
 		mutex_unlock(&mod_pool.mutex);
 		mutex_unlock(&tcm_hcd->reset_mutex);
 		wake_up_interruptible(&tcm_hcd->hdl_wq);
+		break;
+
+	/* this helper is used to reinit the touch reporting */
+	case HELP_TOUCH_REINIT:
+		retval = touch_reinit(tcm_hcd);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to re-initialze touch reporting\n");
+		}
+		break;
+
+	/* this helper is used to trigger a romboot hdl */
+	case HELP_SEND_ROMBOOT_HDL:
+		syna_tcm_check_hdl(tcm_hcd, REPORT_HDL_ROMBOOT);
 		break;
 	default:
 		break;
@@ -3226,44 +3306,33 @@ static int syna_tcm_resume(struct device *dev)
 	if (!tcm_hcd->in_suspend)
 		return 0;
 
-	if (tcm_hcd->host_download_mode) {
-#ifndef WAKEUP_GESTURE
-		syna_tcm_check_hdl(tcm_hcd);
-		retval = syna_tcm_wait_hdl(tcm_hcd);
-		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to wait for completion of host download\n");
-			goto exit;
+	if (tcm_hcd->in_hdl_mode) {
+		if (!tcm_hcd->wakeup_gesture_enabled) {
+			tcm_hcd->enable_irq(tcm_hcd, true, NULL);
+			retval = syna_tcm_wait_hdl(tcm_hcd);
+			if (retval < 0) {
+				LOGE(tcm_hcd->pdev->dev.parent,
+						"Failed to wait for completion of host download\n");
+				goto exit;
+			}
+			goto mod_resume;
 		}
-#endif
-	} else if (tcm_hcd->romboot_download_mode) {
-#ifndef WAKEUP_GESTURE
-		tcm_hcd->enable_irq(tcm_hcd, true, NULL);
-		retval = syna_tcm_wait_hdl(tcm_hcd);
-		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to wait for completion of host download\n");
-			goto exit;
-		}
-#endif
 	} else {
-#ifndef WAKEUP_GESTURE
-		tcm_hcd->enable_irq(tcm_hcd, true, NULL);
-#endif
+		if (!tcm_hcd->wakeup_gesture_enabled)
+			tcm_hcd->enable_irq(tcm_hcd, true, NULL);
+
 #ifdef RESET_ON_RESUME
 		msleep(RESET_ON_RESUME_DELAY_MS);
 		goto do_reset;
 #endif
 	}
 
-	tcm_hcd->update_watchdog(tcm_hcd, true);
-
-	if (tcm_hcd->id_info.mode != MODE_APPLICATION ||
+	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) ||
 			tcm_hcd->app_status != APP_STATUS_OK) {
 		LOGN(tcm_hcd->pdev->dev.parent,
-				"Application firmware not running\n");
-		if (tcm_hcd->id_info.mode != MODE_HOST_DOWNLOAD)
-			goto do_reset;
+				"Identifying mode = 0x%02x\n",
+				tcm_hcd->id_info.mode);
+		goto do_reset;
 	}
 
 	retval = tcm_hcd->sleep(tcm_hcd, false);
@@ -3283,22 +3352,29 @@ static int syna_tcm_resume(struct device *dev)
 	goto mod_resume;
 
 do_reset:
-	retval = tcm_hcd->reset(tcm_hcd, false, true);
+	retval = tcm_hcd->reset_n_reinit(tcm_hcd, false, true);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to do reset\n");
+				"Failed to do reset and reinit\n");
 		goto exit;
 	}
 
-	if (tcm_hcd->id_info.mode != MODE_APPLICATION ||
+	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) ||
 			tcm_hcd->app_status != APP_STATUS_OK) {
 		LOGN(tcm_hcd->pdev->dev.parent,
-				"Application firmware not running\n");
+				"Identifying mode = 0x%02x\n",
+				tcm_hcd->id_info.mode);
 		retval = 0;
 		goto exit;
 	}
 
 mod_resume:
+	touch_resume(tcm_hcd);
+
+#ifdef WATCHDOG_SW
+	tcm_hcd->update_watchdog(tcm_hcd, true);
+#endif
+
 	mutex_lock(&mod_pool.mutex);
 
 	if (!list_empty(&mod_pool.list)) {
@@ -3332,6 +3408,9 @@ static int syna_tcm_suspend(struct device *dev)
 	if (tcm_hcd->in_suspend)
 		return 0;
 
+
+	touch_suspend(tcm_hcd);
+
 	mutex_lock(&mod_pool.mutex);
 
 	if (!list_empty(&mod_pool.list)) {
@@ -3345,9 +3424,8 @@ static int syna_tcm_suspend(struct device *dev)
 
 	mutex_unlock(&mod_pool.mutex);
 
-#ifndef WAKEUP_GESTURE
-	tcm_hcd->enable_irq(tcm_hcd, false, true);
-#endif
+	if (!tcm_hcd->wakeup_gesture_enabled)
+		tcm_hcd->enable_irq(tcm_hcd, false, true);
 
 	tcm_hcd->in_suspend = true;
 
@@ -3363,33 +3441,35 @@ static void syna_mtk_tcm_suspend(struct device *dev)
 #ifdef CONFIG_FB
 static int syna_tcm_early_suspend(struct device *dev)
 {
-#ifndef WAKEUP_GESTURE
 	int retval;
-#endif
-
 	struct syna_tcm_module_handler *mod_handler;
 	struct syna_tcm_hcd *tcm_hcd = dev_get_drvdata(dev);
 
 	if (tcm_hcd->in_suspend)
 		return 0;
 
+#ifdef WATCHDOG_SW
 	tcm_hcd->update_watchdog(tcm_hcd, false);
+#endif
 
-	if (tcm_hcd->id_info.mode != MODE_APPLICATION ||
+	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) ||
 			tcm_hcd->app_status != APP_STATUS_OK) {
 		LOGN(tcm_hcd->pdev->dev.parent,
-				"Application firmware not running\n");
+				"Identifying mode = 0x%02x\n",
+				tcm_hcd->id_info.mode);
 		return 0;
 	}
 
-#ifndef WAKEUP_GESTURE
-	retval = tcm_hcd->sleep(tcm_hcd, true);
-	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to enter deep sleep\n");
-		return retval;
+	if (!tcm_hcd->wakeup_gesture_enabled) {
+		retval = tcm_hcd->sleep(tcm_hcd, true);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to enter deep sleep\n");
+			return retval;
+		}
 	}
-#endif
+
+	touch_early_suspend(tcm_hcd);
 
 	mutex_lock(&mod_pool.mutex);
 
@@ -3417,23 +3497,27 @@ static int syna_tcm_fb_notifier_cb(struct notifier_block *nb,
 			container_of(nb, struct syna_tcm_hcd, fb_notifier);
 
 	retval = 0;
-
-	if (atomic_read(&tcm_hcd->firmware_flashing) && *transition == FB_BLANK_POWERDOWN) {
-		retval = wait_event_interruptible_timeout(tcm_hcd->reflash_wq,
-				!atomic_read(&tcm_hcd->firmware_flashing),
-				msecs_to_jiffies(RESPONSE_TIMEOUT_MS));
-		if (retval == 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
-					"Timed out waiting for completion of flashing firmware\n");
-			atomic_set(&tcm_hcd->firmware_flashing, 0);
-			return -EIO;
-		} else {
-			retval = 0;
-		}
-	}
-
 	if (evdata && evdata->data && tcm_hcd) {
 		transition = evdata->data;
+
+		if (atomic_read(&tcm_hcd->firmware_flashing) &&
+				*transition == FB_BLANK_POWERDOWN) {
+
+			retval = wait_event_interruptible_timeout(
+				tcm_hcd->reflash_wq,
+				!atomic_read(&tcm_hcd->firmware_flashing),
+				msecs_to_jiffies(RESPONSE_TIMEOUT_MS)
+				);
+			if (retval == 0) {
+				LOGE(tcm_hcd->pdev->dev.parent,
+						"Timed out waiting for completion of flashing firmware\n");
+				atomic_set(&tcm_hcd->firmware_flashing, 0);
+				return -EIO;
+			} else {
+				retval = 0;
+			}
+		}
+
 		if (action == FB_EARLY_EVENT_BLANK &&
 				*transition == FB_BLANK_POWERDOWN)
 			retval = syna_tcm_early_suspend(&tcm_hcd->pdev->dev);
@@ -3459,6 +3543,146 @@ static int syna_tcm_fb_notifier_cb(struct notifier_block *nb,
 	return 0;
 }
 #endif
+
+static int syna_tcm_check_f35(struct syna_tcm_hcd *tcm_hcd)
+{
+	int retval;
+	unsigned char fn_number;
+	int retry = 0;
+	const int retry_max = 10;
+
+f35_boot_recheck:
+			retval = syna_tcm_rmi_read(tcm_hcd,
+						PDT_END_ADDR,
+						&fn_number,
+						sizeof(fn_number));
+			if (retval < 0) {
+				LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to read F35 function number\n");
+				tcm_hcd->is_detected = false;
+				return -ENODEV;
+			}
+
+			LOGD(tcm_hcd->pdev->dev.parent,
+					"Found F$%02x\n",
+					fn_number);
+
+			if (fn_number != RMI_UBL_FN_NUMBER) {
+					LOGE(tcm_hcd->pdev->dev.parent,
+							"Failed to find F$35, try_times = %d\n",
+							retry);
+				if (retry < retry_max) {
+					msleep(100);
+					retry++;
+			goto f35_boot_recheck;
+				}
+				tcm_hcd->is_detected = false;
+				return -ENODEV;
+			}
+	return 0;
+}
+
+static int syna_tcm_sensor_detection(struct syna_tcm_hcd *tcm_hcd)
+{
+	int retval;
+	unsigned char *build_id;
+	unsigned int payload_length;
+	unsigned int max_write_size;
+
+	tcm_hcd->in_hdl_mode = false;
+	tcm_hcd->sensor_type = TYPE_UNKNOWN;
+
+	/* read sensor info for identification */
+	retval = tcm_hcd->read_message(tcm_hcd,
+			NULL,
+			0);
+
+	/* once the tcm communication interface is not ready, */
+	/* check whether the device is in F35 mode        */
+	if (retval < 0) {
+		if (retval == -ENXIO &&
+				tcm_hcd->hw_if->bus_io->type == BUS_SPI) {
+
+			retval = syna_tcm_check_f35(tcm_hcd);
+			if (retval < 0) {
+				LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to read TCM message\n");
+				return retval;
+			}
+			tcm_hcd->in_hdl_mode = true;
+			tcm_hcd->sensor_type = TYPE_F35;
+			tcm_hcd->is_detected = true;
+			tcm_hcd->rd_chunk_size = HDL_RD_CHUNK_SIZE;
+			tcm_hcd->wr_chunk_size = HDL_WR_CHUNK_SIZE;
+			LOGN(tcm_hcd->pdev->dev.parent,
+					"F35 mode\n");
+
+			return retval;
+		} else {
+			LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to read TCM message\n");
+
+			return retval;
+		}
+	}
+
+	/* expect to get an identify report after powering on */
+
+	if (tcm_hcd->status_report_code != REPORT_IDENTIFY) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Unexpected report code (0x%02x)\n",
+				tcm_hcd->status_report_code);
+
+		return -ENODEV;
+	}
+
+	tcm_hcd->is_detected = true;
+	payload_length = tcm_hcd->payload_length;
+
+	LOCK_BUFFER(tcm_hcd->in);
+
+	retval = secure_memcpy((unsigned char *)&tcm_hcd->id_info,
+				sizeof(tcm_hcd->id_info),
+				&tcm_hcd->in.buf[MESSAGE_HEADER_SIZE],
+				tcm_hcd->in.buf_size - MESSAGE_HEADER_SIZE,
+				MIN(sizeof(tcm_hcd->id_info), payload_length));
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to copy identification info\n");
+		UNLOCK_BUFFER(tcm_hcd->in);
+		return retval;
+	}
+
+	UNLOCK_BUFFER(tcm_hcd->in);
+
+	build_id = tcm_hcd->id_info.build_id;
+	tcm_hcd->packrat_number = le4_to_uint(build_id);
+
+	max_write_size = le2_to_uint(tcm_hcd->id_info.max_write_size);
+	tcm_hcd->wr_chunk_size = MIN(max_write_size, WR_CHUNK_SIZE);
+	if (tcm_hcd->wr_chunk_size == 0)
+		tcm_hcd->wr_chunk_size = max_write_size;
+
+	if (tcm_hcd->id_info.mode == MODE_ROMBOOTLOADER) {
+		tcm_hcd->in_hdl_mode = true;
+		tcm_hcd->sensor_type = TYPE_ROMBOOT;
+		tcm_hcd->rd_chunk_size = HDL_RD_CHUNK_SIZE;
+		tcm_hcd->wr_chunk_size = HDL_WR_CHUNK_SIZE;
+		LOGN(tcm_hcd->pdev->dev.parent,
+					"RomBoot mode\n");
+	} else if (tcm_hcd->id_info.mode == MODE_APPLICATION_FIRMWARE) {
+		tcm_hcd->sensor_type = TYPE_FLASH;
+		LOGN(tcm_hcd->pdev->dev.parent,
+				"Application mode (build id = %d)\n",
+				tcm_hcd->packrat_number);
+	} else {
+		LOGW(tcm_hcd->pdev->dev.parent,
+				"TCM is detected, but mode is 0x%02x\n",
+			tcm_hcd->id_info.mode);
+	}
+
+	return 0;
+}
 
 static int syna_tcm_probe(struct platform_device *pdev)
 {
@@ -3494,6 +3718,7 @@ static int syna_tcm_probe(struct platform_device *pdev)
 	tcm_hcd->pdev = pdev;
 	tcm_hcd->hw_if = hw_if;
 	tcm_hcd->reset = syna_tcm_reset;
+	tcm_hcd->reset_n_reinit = syna_tcm_reset_and_reinit;
 	tcm_hcd->sleep = syna_tcm_sleep;
 	tcm_hcd->identify = syna_tcm_identify;
 	tcm_hcd->enable_irq = syna_tcm_enable_irq;
@@ -3506,6 +3731,8 @@ static int syna_tcm_probe(struct platform_device *pdev)
 
 	tcm_hcd->rd_chunk_size = RD_CHUNK_SIZE;
 	tcm_hcd->wr_chunk_size = WR_CHUNK_SIZE;
+	tcm_hcd->is_detected = false;
+	tcm_hcd->wakeup_gesture_enabled = WAKEUP_GESTURE;
 
 #ifdef PREDICTIVE_READING
 	tcm_hcd->read_length = MIN_READ_LENGTH;
@@ -3513,8 +3740,10 @@ static int syna_tcm_probe(struct platform_device *pdev)
 	tcm_hcd->read_length = MESSAGE_HEADER_SIZE;
 #endif
 
+#ifdef WATCHDOG_SW
 	tcm_hcd->watchdog.run = RUN_WATCHDOG;
 	tcm_hcd->update_watchdog = syna_tcm_update_watchdog;
+#endif
 
 	if (bdata->irq_gpio >= 0)
 		tcm_hcd->irq = gpio_to_irq(bdata->irq_gpio);
@@ -3557,7 +3786,7 @@ static int syna_tcm_probe(struct platform_device *pdev)
 	device_init_wakeup(&pdev->dev, 1);
 
 	init_waitqueue_head(&tcm_hcd->hdl_wq);
-	
+
 	init_waitqueue_head(&tcm_hcd->reflash_wq);
 	atomic_set(&tcm_hcd->firmware_flashing, 0);
 
@@ -3586,6 +3815,14 @@ static int syna_tcm_probe(struct platform_device *pdev)
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to configure GPIO's\n");
 		goto err_config_gpio;
+	}
+
+	/* detect the type of touch controller */
+	retval = syna_tcm_sensor_detection(tcm_hcd);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to detect the sensor\n");
+		goto err_sysfs_create_dir;
 	}
 
 	sysfs_dir = kobject_create_and_add(PLATFORM_DRIVER_NAME,
@@ -3630,16 +3867,16 @@ static int syna_tcm_probe(struct platform_device *pdev)
 	}
 
 #ifdef CONFIG_FB
-if (0) {
 	tcm_hcd->fb_notifier.notifier_call = syna_tcm_fb_notifier_cb;
 	retval = fb_register_client(&tcm_hcd->fb_notifier);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to register FB notifier client\n");
 	}
-}
 #endif
 
+
+#ifdef REPORT_NOTIFIER
 	tcm_hcd->notifier_thread = kthread_run(syna_tcm_report_notifier,
 			tcm_hcd, "syna_tcm_report_notifier");
 	if (IS_ERR(tcm_hcd->notifier_thread)) {
@@ -3648,71 +3885,86 @@ if (0) {
 				"Failed to create and run tcm_hcd->notifier_thread\n");
 		goto err_create_run_kthread;
 	}
+#endif
 
 	tcm_hcd->helper.workqueue =
 			create_singlethread_workqueue("syna_tcm_helper");
 	INIT_WORK(&tcm_hcd->helper.work, syna_tcm_helper_work);
 
+#ifdef WATCHDOG_SW
 	tcm_hcd->watchdog.workqueue =
 			create_singlethread_workqueue("syna_tcm_watchdog");
 	INIT_DELAYED_WORK(&tcm_hcd->watchdog.work, syna_tcm_watchdog_work);
+#endif
 
 	tcm_hcd->polling_workqueue =
 			create_singlethread_workqueue("syna_tcm_polling");
 	INIT_DELAYED_WORK(&tcm_hcd->polling_work, syna_tcm_polling_work);
 
+
+	/* skip the following initialization */
+	/* since the fw is not ready for hdl devices */
+	if (tcm_hcd->in_hdl_mode)
+		goto prepare_modules;
+
+
+	/* register and enable the interrupt in probe */
+	/* if this is not the hdl device */
 	retval = tcm_hcd->enable_irq(tcm_hcd, true, NULL);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to enable interrupt\n");
+			"Failed to enable interrupt\n");
 		goto err_enable_irq;
 	}
-/*
-	retval = tcm_hcd->reset(tcm_hcd, false, false);
+	LOGD(tcm_hcd->pdev->dev.parent,
+			"Interrupt is registered\n");
+
+	/* ensure the app firmware is running */
+	retval = syna_tcm_identify(tcm_hcd, false);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to do reset\n");
-		tcm_hcd->init_okay = false;
-		tcm_hcd->watchdog.run = false;
-		tcm_hcd->update_watchdog(tcm_hcd, false);
-		tcm_hcd->enable_irq(tcm_hcd, false, false);
-#ifndef KEEP_DRIVER_ON_ERROR
-		goto err_reset;
-#endif
-	} else {
-		tcm_hcd->init_okay = true;
-		tcm_hcd->update_watchdog(tcm_hcd, true);
+			"Application firmware is not running\n");
+		goto err_enable_irq;
 	}
-*/
+	/* initialize the touch reporting */
+	retval = touch_init(tcm_hcd);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+			"Failed to initialze touch reporting\n");
+		goto err_enable_irq;
+	}
+
+prepare_modules:
+	/* prepare to add other modules */
 	mod_pool.workqueue =
 			create_singlethread_workqueue("syna_tcm_module");
 	INIT_WORK(&mod_pool.work, syna_tcm_module_work);
 	mod_pool.tcm_hcd = tcm_hcd;
 	mod_pool.queue_work = true;
-	mod_pool.reconstructing = false;
 	queue_work(mod_pool.workqueue, &mod_pool.work);
 
 	return 0;
 
-#ifndef KEEP_DRIVER_ON_ERROR
-err_reset:
-#endif
 err_enable_irq:
 	cancel_delayed_work_sync(&tcm_hcd->polling_work);
 	flush_workqueue(tcm_hcd->polling_workqueue);
 	destroy_workqueue(tcm_hcd->polling_workqueue);
 
+#ifdef WATCHDOG_SW
 	cancel_delayed_work_sync(&tcm_hcd->watchdog.work);
 	flush_workqueue(tcm_hcd->watchdog.workqueue);
 	destroy_workqueue(tcm_hcd->watchdog.workqueue);
+#endif
 
 	cancel_work_sync(&tcm_hcd->helper.work);
 	flush_workqueue(tcm_hcd->helper.workqueue);
 	destroy_workqueue(tcm_hcd->helper.workqueue);
 
+#ifdef REPORT_NOTIFIER
 	kthread_stop(tcm_hcd->notifier_thread);
 
 err_create_run_kthread:
+#endif
 #ifdef CONFIG_FB
 	fb_unregister_client(&tcm_hcd->fb_notifier);
 #endif
@@ -3774,10 +4026,15 @@ static int syna_tcm_remove(struct platform_device *pdev)
 	struct syna_tcm_hcd *tcm_hcd = platform_get_drvdata(pdev);
 	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
+	touch_remove(tcm_hcd);
+
 	mutex_lock(&mod_pool.mutex);
 
 	if (!list_empty(&mod_pool.list)) {
-		list_for_each_entry_safe(mod_handler, tmp_handler, &mod_pool.list, link) {
+		list_for_each_entry_safe(mod_handler,
+				tmp_handler,
+				&mod_pool.list,
+				link) {
 			if (mod_handler->mod_cb->remove)
 				mod_handler->mod_cb->remove(tcm_hcd);
 			list_del(&mod_handler->link);
@@ -3801,15 +4058,19 @@ static int syna_tcm_remove(struct platform_device *pdev)
 	flush_workqueue(tcm_hcd->polling_workqueue);
 	destroy_workqueue(tcm_hcd->polling_workqueue);
 
+#ifdef WATCHDOG_SW
 	cancel_delayed_work_sync(&tcm_hcd->watchdog.work);
 	flush_workqueue(tcm_hcd->watchdog.workqueue);
 	destroy_workqueue(tcm_hcd->watchdog.workqueue);
+#endif
 
 	cancel_work_sync(&tcm_hcd->helper.work);
 	flush_workqueue(tcm_hcd->helper.workqueue);
 	destroy_workqueue(tcm_hcd->helper.workqueue);
 
+#ifdef REPORT_NOTIFIER
 	kthread_stop(tcm_hcd->notifier_thread);
+#endif
 
 #ifdef CONFIG_FB
 	fb_unregister_client(&tcm_hcd->fb_notifier);

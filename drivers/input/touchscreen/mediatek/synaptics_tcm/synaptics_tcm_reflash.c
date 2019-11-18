@@ -4,6 +4,10 @@
  * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
  *
  * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2018-2019 Ian Su <ian.su@tw.synaptics.com>
+ * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@synaptics.com>
+ * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@synaptics.com>
+ * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,20 +37,20 @@
 #include <linux/crc32.h>
 #include <linux/firmware.h>
 #include "synaptics_tcm_core.h"
-
+/*
 #define STARTUP_REFLASH
-
+*/
 #define FORCE_REFLASH false
 
-#define ENABLE_SYSFS_INTERFACE true
+#define ENABLE_SYS_REFLASH true
 
 #define SYSFS_DIR_NAME "reflash"
 
 #define CUSTOM_DIR_NAME "custom"
 
-#define FW_IMAGE_NAME "synaptics/firmware.img"
+#define FW_IMAGE_NAME "synaptics/reflash_firmware.img"
 
-#define FW_IMAGE_NAME_MANUAL "synaptics/firmware_manual.img"
+#define FW_IMAGE_NAME_MANUAL "synaptics/reflash_firmware_manual.img"
 
 #define BOOT_CONFIG_ID "BOOT_CONFIG"
 
@@ -89,126 +93,6 @@
 #define BOOT_CFG_UPDATE (1 << 4)
 
 #define BOOT_CFG_LOCKDOWN (1 << 5)
-
-#define reflash_write(p_name) \
-static int reflash_write_##p_name(void) \
-{ \
-	int retval; \
-	unsigned int size; \
-	unsigned int flash_addr; \
-	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd; \
-	const unsigned char *data; \
-\
-	data = reflash_hcd->image_info.p_name.data; \
-	size = reflash_hcd->image_info.p_name.size; \
-	flash_addr = reflash_hcd->image_info.p_name.flash_addr; \
-\
-	retval = reflash_write_flash(flash_addr, data, size); \
-	if (retval < 0) { \
-		LOGE(tcm_hcd->pdev->dev.parent, \
-				"Failed to write to flash\n"); \
-		return retval; \
-	} \
-\
-	return 0; \
-}
-
-#define reflash_erase(p_name) \
-static int reflash_erase_##p_name(void) \
-{ \
-	int retval; \
-	unsigned int size; \
-	unsigned int flash_addr; \
-	unsigned int page_start; \
-	unsigned int page_count; \
-	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd; \
-\
-	flash_addr = reflash_hcd->image_info.p_name.flash_addr; \
-\
-	page_start = flash_addr / reflash_hcd->page_size; \
-\
-	size = reflash_hcd->image_info.p_name.size; \
-	page_count = ceil_div(size, reflash_hcd->page_size); \
-\
-	LOGD(tcm_hcd->pdev->dev.parent, \
-			"Page start = %d\n", \
-			page_start); \
-\
-	LOGD(tcm_hcd->pdev->dev.parent, \
-			"Page count = %d\n", \
-			page_count); \
-\
-	retval = reflash_erase_flash(page_start, page_count); \
-	if (retval < 0) { \
-		LOGE(tcm_hcd->pdev->dev.parent, \
-				"Failed to erase flash pages\n"); \
-		return retval; \
-	} \
-\
-	return 0; \
-}
-
-#define reflash_update(p_name) \
-static int reflash_update_##p_name(bool reset) \
-{ \
-	int retval; \
-	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd; \
-\
-	retval = reflash_set_up_flash_access(); \
-	if (retval < 0) { \
-		LOGE(tcm_hcd->pdev->dev.parent, \
-				"Failed to set up flash access\n"); \
-		return retval; \
-	} \
-\
-	tcm_hcd->update_watchdog(tcm_hcd, false); \
-\
-	retval = reflash_check_##p_name(); \
-	if (retval < 0) { \
-		LOGE(tcm_hcd->pdev->dev.parent, \
-				"Failed "#p_name" partition check\n"); \
-		reset = true; \
-		goto reset; \
-	} \
-\
-	retval = reflash_erase_##p_name(); \
-	if (retval < 0) { \
-		LOGE(tcm_hcd->pdev->dev.parent, \
-				"Failed to erase "#p_name" partition\n"); \
-		reset = true; \
-		goto reset; \
-	} \
-\
-	LOGN(tcm_hcd->pdev->dev.parent, \
-			"Partition erased ("#p_name")\n"); \
-\
-	retval = reflash_write_##p_name(); \
-	if (retval < 0) { \
-		LOGE(tcm_hcd->pdev->dev.parent, \
-				"Failed to write "#p_name" partition\n"); \
-		reset = true; \
-		goto reset; \
-	} \
-\
-	LOGN(tcm_hcd->pdev->dev.parent, \
-			"Partition written ("#p_name")\n"); \
-\
-	retval = 0; \
-\
-reset: \
-	if (!reset) \
-		goto exit; \
-\
-	if (tcm_hcd->reset(tcm_hcd, false, true) < 0) { \
-		LOGE(tcm_hcd->pdev->dev.parent, \
-				"Failed to do reset\n"); \
-	} \
-\
-exit: \
-	tcm_hcd->update_watchdog(tcm_hcd, true); \
-\
-	return retval; \
-}
 
 #define reflash_show_data() \
 { \
@@ -519,7 +403,7 @@ exit:
 		release_firmware(reflash_hcd->fw_entry);
 		reflash_hcd->fw_entry = NULL;
 	}
-	
+
 	reflash_hcd->reflash_by_manual = false;
 	reflash_hcd->image = NULL;
 	reflash_hcd->image_size = 0;
@@ -790,7 +674,7 @@ static int reflash_set_up_flash_access(void)
 		return retval;
 	}
 
-	if (tcm_hcd->id_info.mode == MODE_APPLICATION) {
+	if (tcm_hcd->id_info.mode == MODE_APPLICATION_FIRMWARE) {
 		retval = tcm_hcd->switch_mode(tcm_hcd, FW_MODE_BOOTLOADER);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
@@ -977,40 +861,36 @@ static int reflash_get_fw_image(void)
 
 	if (reflash_hcd->image == NULL) {
 		if (reflash_hcd->reflash_by_manual == false) {
-		retval = request_firmware(&reflash_hcd->fw_entry, FW_IMAGE_NAME,
-				tcm_hcd->pdev->dev.parent);
-		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to request %s\n",
-					FW_IMAGE_NAME);
-			return retval;
-		}
 
-		LOGD(tcm_hcd->pdev->dev.parent,
-				"Firmware image size = %d\n",
-				(unsigned int)reflash_hcd->fw_entry->size);
+			retval = request_firmware(&reflash_hcd->fw_entry,
+				FW_IMAGE_NAME, tcm_hcd->pdev->dev.parent);
+			if (retval < 0) {
+				LOGE(tcm_hcd->pdev->dev.parent,
+						"Failed to request %s\n",
+						FW_IMAGE_NAME);
+				return retval;
+			}
 
-		reflash_hcd->image = reflash_hcd->fw_entry->data;
-		reflash_hcd->image_size = reflash_hcd->fw_entry->size;
 		} else {
-			retval = request_firmware(&reflash_hcd->fw_entry, FW_IMAGE_NAME_MANUAL,
-					tcm_hcd->pdev->dev.parent);
+			retval = request_firmware(&reflash_hcd->fw_entry,
+						FW_IMAGE_NAME_MANUAL,
+						tcm_hcd->pdev->dev.parent);
 			if (retval < 0) {
 				LOGE(tcm_hcd->pdev->dev.parent,
 						"Failed to request %s\n",
 						FW_IMAGE_NAME_MANUAL);
 				return retval;
 			}
-			
-			LOGD(tcm_hcd->pdev->dev.parent,
-					"Firmware image size = %d\n",
-					(unsigned int)reflash_hcd->fw_entry->size);
-			
-			reflash_hcd->image = reflash_hcd->fw_entry->data;
-			reflash_hcd->image_size = reflash_hcd->fw_entry->size;
 		}
+
+		reflash_hcd->image = reflash_hcd->fw_entry->data;
+		reflash_hcd->image_size = reflash_hcd->fw_entry->size;
+
+		LOGD(tcm_hcd->pdev->dev.parent,
+				"Firmware image size = %d\n",
+				reflash_hcd->image_size);
 	}
-	
+
 	retval = reflash_parse_fw_image();
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -1049,7 +929,7 @@ static enum update_area reflash_compare_id_info(void)
 		goto exit;
 	}
 
-	if (tcm_hcd->id_info.mode != MODE_APPLICATION) {
+	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode)) {
 		update_area = FIRMWARE_CONFIG;
 		goto exit;
 	}
@@ -1552,29 +1432,122 @@ static int reflash_write_flash(unsigned int address, const unsigned char *data,
 	return 0;
 }
 
-reflash_write(app_config)
+static int reflash_write_app_config(void)
+{
+	int retval;
+	unsigned int size;
+	unsigned int flash_addr;
+	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
+	const unsigned char *data;
 
-reflash_write(disp_config)
+	data = reflash_hcd->image_info.app_config.data;
+	size = reflash_hcd->image_info.app_config.size;
+	flash_addr = reflash_hcd->image_info.app_config.flash_addr;
 
-reflash_write(prod_test_firmware)
+	retval = reflash_write_flash(flash_addr, data, size);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write app_config to flash\n");
+		return retval;
+	}
 
-reflash_write(app_firmware)
+	return 0;
+}
+
+static int reflash_write_disp_config(void)
+{
+	int retval;
+	unsigned int size;
+	unsigned int flash_addr;
+	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
+	const unsigned char *data;
+
+	data = reflash_hcd->image_info.disp_config.data;
+	size = reflash_hcd->image_info.disp_config.size;
+	flash_addr = reflash_hcd->image_info.disp_config.flash_addr;
+
+	retval = reflash_write_flash(flash_addr, data, size);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write disp_config to flash\n");
+		return retval;
+	}
+
+	return 0;
+}
+
+static int reflash_write_prod_test_firmware(void)
+{
+	int retval;
+	unsigned int size;
+	unsigned int flash_addr;
+	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
+	const unsigned char *data;
+
+	data = reflash_hcd->image_info.prod_test_firmware.data;
+	size = reflash_hcd->image_info.prod_test_firmware.size;
+	flash_addr = reflash_hcd->image_info.prod_test_firmware.flash_addr;
+
+	retval = reflash_write_flash(flash_addr, data, size);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write prod_test_firmware to flash\n");
+		return retval;
+	}
+
+	return 0;
+}
+
+static int reflash_write_app_firmware(void)
+{
+	int retval;
+	unsigned int size;
+	unsigned int flash_addr;
+	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
+	const unsigned char *data;
+
+	data = reflash_hcd->image_info.app_firmware.data;
+	size = reflash_hcd->image_info.app_firmware.size;
+	flash_addr = reflash_hcd->image_info.app_firmware.flash_addr;
+
+	retval = reflash_write_flash(flash_addr, data, size);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write app_firmware to flash\n");
+		return retval;
+	}
+
+	return 0;
+}
+
 
 static int reflash_erase_flash(unsigned int page_start, unsigned int page_count)
 {
 	int retval;
-	unsigned char out_buf[2];
+	unsigned char out_buf[4] = {0};
+	int size_erase_cmd;
 	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
 
-	out_buf[0] = (unsigned char)page_start;
-	out_buf[1] = (unsigned char)page_count;
+	if ((page_start > 0xff) || (page_count > 0xff))  {
+		size_erase_cmd = 4;
+
+		out_buf[0] = (unsigned char)(page_start & 0xff);
+		out_buf[1] = (unsigned char)((page_start >> 8) & 0xff);
+		out_buf[2] = (unsigned char)(page_count & 0xff);
+		out_buf[3] = (unsigned char)((page_count >> 8) & 0xff);
+	} else {
+		size_erase_cmd = 2;
+
+		out_buf[0] = (unsigned char)(page_start & 0xff);
+		out_buf[1] = (unsigned char)(page_count & 0xff);
+	}
 
 	LOCK_BUFFER(reflash_hcd->resp);
 
 	retval = tcm_hcd->write_message(tcm_hcd,
 			CMD_ERASE_FLASH,
 			out_buf,
-			sizeof(out_buf),
+			size_erase_cmd,
 			&reflash_hcd->resp.buf,
 			&reflash_hcd->resp.buf_size,
 			&reflash_hcd->resp.data_length,
@@ -1593,13 +1566,121 @@ static int reflash_erase_flash(unsigned int page_start, unsigned int page_count)
 	return 0;
 }
 
-reflash_erase(app_config)
 
-reflash_erase(disp_config)
+static int reflash_erase(unsigned int flash_addr, unsigned int size)
+{
+	int retval;
+	unsigned int page_start;
+	unsigned int page_count;
+	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
 
-reflash_erase(prod_test_firmware)
+	page_start = flash_addr / reflash_hcd->page_size;
 
-reflash_erase(app_firmware)
+	page_count = ceil_div(size, reflash_hcd->page_size);
+
+	LOGD(tcm_hcd->pdev->dev.parent,
+			"Page start = %d (0x%04x)\n",
+			page_start, page_start);
+
+	LOGD(tcm_hcd->pdev->dev.parent,
+			"Page count = %d (0x%04x)\n",
+			page_count, page_count);
+
+	retval = reflash_erase_flash(page_start, page_count);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to erase pages, addr = 0x%04x, count = %d\n",
+				page_start, page_count);
+		return retval;
+	}
+
+	return 0;
+}
+
+static int reflash_erase_app_config(void)
+{
+	int retval;
+	unsigned int size;
+	unsigned int flash_addr;
+	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
+
+	flash_addr = reflash_hcd->image_info.app_config.flash_addr;
+
+	size = reflash_hcd->image_info.app_config.size;
+
+	retval = reflash_erase(flash_addr, size);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to erase app_config\n");
+		return retval;
+	}
+
+	return 0;
+}
+
+static int reflash_erase_disp_config(void)
+{
+	int retval;
+	unsigned int size;
+	unsigned int flash_addr;
+	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
+
+	flash_addr = reflash_hcd->image_info.disp_config.flash_addr;
+
+	size = reflash_hcd->image_info.disp_config.size;
+
+	retval = reflash_erase(flash_addr, size);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to erase disp_config\n");
+		return retval;
+	}
+
+	return 0;
+}
+
+static int reflash_erase_prod_test_firmware(void)
+{
+	int retval;
+	unsigned int size;
+	unsigned int flash_addr;
+	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
+
+	flash_addr = reflash_hcd->image_info.prod_test_firmware.flash_addr;
+
+	size = reflash_hcd->image_info.prod_test_firmware.size;
+
+	retval = reflash_erase(flash_addr, size);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to erase prod_test_firmware\n");
+		return retval;
+	}
+
+	return 0;
+}
+
+static int reflash_erase_app_firmware(void)
+{
+	int retval;
+	unsigned int size;
+	unsigned int flash_addr;
+	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
+
+	flash_addr = reflash_hcd->image_info.app_firmware.flash_addr;
+
+	size = reflash_hcd->image_info.app_firmware.size;
+
+	retval = reflash_erase(flash_addr, size);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to erase app_firmware\n");
+		return retval;
+	}
+
+	return 0;
+}
+
 
 static int reflash_update_custom_otp(const unsigned char *data,
 		unsigned int offset, unsigned int datalen)
@@ -1617,7 +1698,9 @@ static int reflash_update_custom_otp(const unsigned char *data,
 		return retval;
 	}
 
+#ifdef WATCHDOG_SW
 	tcm_hcd->update_watchdog(tcm_hcd, false);
+#endif
 
 	temp = le2_to_uint(tcm_hcd->boot_info.custom_otp_start_block);
 	addr = temp * reflash_hcd->write_block_size;
@@ -1656,7 +1739,9 @@ run_app_firmware:
 				"Failed to run application firmware\n");
 	}
 
+#ifdef WATCHDOG_SW
 	tcm_hcd->update_watchdog(tcm_hcd, true);
+#endif
 
 	return retval;
 }
@@ -1688,7 +1773,9 @@ static int reflash_update_custom_lcm(const unsigned char *data,
 		return retval;
 	}
 
+#ifdef WATCHDOG_SW
 	tcm_hcd->update_watchdog(tcm_hcd, false);
+#endif
 
 	addr *= reflash_hcd->write_block_size;
 	length *= reflash_hcd->write_block_size;
@@ -1737,7 +1824,9 @@ run_app_firmware:
 				"Failed to run application firmware\n");
 	}
 
+#ifdef WATCHDOG_SW
 	tcm_hcd->update_watchdog(tcm_hcd, true);
+#endif
 
 	return retval;
 }
@@ -1769,7 +1858,9 @@ static int reflash_update_custom_oem(const unsigned char *data,
 		return retval;
 	}
 
+#ifdef WATCHDOG_SW
 	tcm_hcd->update_watchdog(tcm_hcd, false);
+#endif
 
 	addr *= reflash_hcd->write_block_size;
 	length *= reflash_hcd->write_block_size;
@@ -1818,7 +1909,9 @@ run_app_firmware:
 				"Failed to run application firmware\n");
 	}
 
+#ifdef WATCHDOG_SW
 	tcm_hcd->update_watchdog(tcm_hcd, true);
+#endif
 
 	return retval;
 }
@@ -1833,6 +1926,7 @@ static int reflash_update_boot_config(bool lock)
 	struct boot_config *last_slot;
 	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
 
+	addr = 0;
 	retval = reflash_set_up_flash_access();
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -1840,7 +1934,9 @@ static int reflash_update_boot_config(bool lock)
 		return retval;
 	}
 
+#ifdef WATCHDOG_SW
 	tcm_hcd->update_watchdog(tcm_hcd, false);
+#endif
 
 	retval = reflash_check_boot_config();
 	if (retval < 0) {
@@ -1908,23 +2004,264 @@ static int reflash_update_boot_config(bool lock)
 	retval = 0;
 
 reset:
-	if (tcm_hcd->reset(tcm_hcd, false, true) < 0) {
+	if (tcm_hcd->reset(tcm_hcd) < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to do reset\n");
 	}
 
+#ifdef WATCHDOG_SW
 	tcm_hcd->update_watchdog(tcm_hcd, true);
+#endif
 
 	return retval;
 }
 
-reflash_update(app_config)
+static int reflash_update_app_config(bool do_reset)
+{
+	int retval;
+	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
 
-reflash_update(disp_config)
+	retval = reflash_set_up_flash_access();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to set up flash access\n");
+		return retval;
+	}
 
-reflash_update(prod_test_firmware)
+#ifdef WATCHDOG_SW
+	tcm_hcd->update_watchdog(tcm_hcd, false);
+#endif
 
-reflash_update(app_firmware)
+	retval = reflash_check_app_config();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to check app_config partition\n");
+		do_reset = true;
+		goto reset;
+	}
+
+	retval = reflash_erase_app_config();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to erase app_config partition\n");
+		do_reset = true;
+		goto reset;
+	}
+
+	LOGN(tcm_hcd->pdev->dev.parent,
+			"app_config partition erased\n");
+
+	retval = reflash_write_app_config();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write app_config partition\n");
+		do_reset = true;
+		goto reset;
+	}
+
+	LOGN(tcm_hcd->pdev->dev.parent,
+			"app_config partition written\n");
+
+	retval = 0;
+
+reset:
+	if (!do_reset)
+		goto exit;
+
+	if (tcm_hcd->reset_n_reinit(tcm_hcd, false, true) < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to do reset\n");
+	}
+
+exit:
+#ifdef WATCHDOG_SW
+	tcm_hcd->update_watchdog(tcm_hcd, true);
+#endif
+
+	return retval;
+}
+
+static int reflash_update_disp_config(bool do_reset)
+{
+	int retval;
+	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
+
+	retval = reflash_set_up_flash_access();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to set up flash access\n");
+		return retval;
+	}
+
+#ifdef WATCHDOG_SW
+	tcm_hcd->update_watchdog(tcm_hcd, false);
+#endif
+
+	retval = reflash_check_disp_config();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to check disp_config partition\n");
+		do_reset = true;
+		goto reset;
+	}
+
+	retval = reflash_erase_disp_config();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to erase disp_config partition\n");
+		do_reset = true;
+		goto reset;
+	}
+
+	LOGN(tcm_hcd->pdev->dev.parent,
+			"disp_config partition erased\n");
+
+	retval = reflash_write_disp_config();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write disp_config partition\n");
+		do_reset = true;
+		goto reset;
+	}
+
+	LOGN(tcm_hcd->pdev->dev.parent,
+			"disp_config partition written\n");
+
+	retval = 0;
+
+reset:
+	if (!do_reset)
+		goto exit;
+
+	if (tcm_hcd->reset_n_reinit(tcm_hcd, false, true) < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to do reset\n");
+	}
+
+exit:
+#ifdef WATCHDOG_SW
+	tcm_hcd->update_watchdog(tcm_hcd, true);
+#endif
+
+	return retval;
+}
+
+static int reflash_update_prod_test_firmware(void)
+{
+	int retval;
+	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
+
+	retval = reflash_set_up_flash_access();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to set up flash access\n");
+		return retval;
+	}
+
+#ifdef WATCHDOG_SW
+	tcm_hcd->update_watchdog(tcm_hcd, false);
+#endif
+
+	retval = reflash_check_prod_test_firmware();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to check prod_test_firmware partition\n");
+		goto reset;
+	}
+
+	retval = reflash_erase_prod_test_firmware();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to erase prod_test_firmware partition\n");
+		goto reset;
+	}
+
+	LOGN(tcm_hcd->pdev->dev.parent,
+			"prod_test_firmware partition erased\n");
+
+	retval = reflash_write_prod_test_firmware();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write prod_test_firmware partition\n");
+		goto reset;
+	}
+
+	LOGN(tcm_hcd->pdev->dev.parent,
+			"prod_test_firmware partition written\n");
+
+	retval = 0;
+
+reset:
+	if (tcm_hcd->reset_n_reinit(tcm_hcd, false, true) < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to do reset\n");
+	}
+
+#ifdef WATCHDOG_SW
+	tcm_hcd->update_watchdog(tcm_hcd, true);
+#endif
+
+	return retval;
+}
+
+static int reflash_update_app_firmware(void)
+{
+	int retval;
+	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
+
+	retval = reflash_set_up_flash_access();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to set up flash access\n");
+		return retval;
+	}
+
+#ifdef WATCHDOG_SW
+	tcm_hcd->update_watchdog(tcm_hcd, false);
+#endif
+
+	retval = reflash_check_app_firmware();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to check app_firmware partition\n");
+		goto reset;
+	}
+
+	retval = reflash_erase_app_firmware();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to erase app_firmware partition\n");
+		goto reset;
+	}
+
+	LOGN(tcm_hcd->pdev->dev.parent,
+			"app_firmware partition erased\n");
+
+	retval = reflash_write_app_firmware();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write app_firmware partition\n");
+		goto reset;
+	}
+
+	LOGN(tcm_hcd->pdev->dev.parent,
+			"app_firmware partition written\n");
+
+	retval = 0;
+
+reset:
+	if (tcm_hcd->reset_n_reinit(tcm_hcd, false, true) < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to do reset\n");
+	}
+
+#ifdef WATCHDOG_SW
+	tcm_hcd->update_watchdog(tcm_hcd, true);
+#endif
+
+	return retval;
+}
+
 
 static int reflash_do_reflash(void)
 {
@@ -1948,7 +2285,7 @@ static int reflash_do_reflash(void)
 
 	switch (update_area) {
 	case FIRMWARE_CONFIG:
-		retval = reflash_update_app_firmware(false);
+		retval = reflash_update_app_firmware();
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
 					"Failed to reflash application firmware\n");
@@ -1956,7 +2293,7 @@ static int reflash_do_reflash(void)
 		}
 		memset(&tcm_hcd->app_info, 0x00, sizeof(tcm_hcd->app_info));
 		if (tcm_hcd->features.dual_firmware) {
-			retval = reflash_update_prod_test_firmware(false);
+			retval = reflash_update_prod_test_firmware();
 			if (retval < 0) {
 				LOGE(tcm_hcd->pdev->dev.parent,
 						"Failed to reflash production test firmware\n");
@@ -2045,8 +2382,12 @@ static void reflash_startup_work(struct work_struct *work)
 
 static int reflash_init(struct syna_tcm_hcd *tcm_hcd)
 {
-	int retval;
+	int retval = 0;
 	int idx;
+
+	reflash_hcd = NULL;
+	if (tcm_hcd->in_hdl_mode)
+		return 0;
 
 	reflash_hcd = kzalloc(sizeof(*reflash_hcd), GFP_KERNEL);
 	if (!reflash_hcd) {
@@ -2079,8 +2420,8 @@ static int reflash_init(struct syna_tcm_hcd *tcm_hcd)
 	queue_work(reflash_hcd->workqueue, &reflash_hcd->work);
 #endif
 
-	if (ENABLE_SYSFS_INTERFACE == false)
-		return 0;
+	if (ENABLE_SYS_REFLASH == false)
+		goto init_finished;
 
 	reflash_hcd->sysfs_dir = kobject_create_and_add(SYSFS_DIR_NAME,
 			tcm_hcd->sysfs_dir);
@@ -2127,6 +2468,7 @@ static int reflash_init(struct syna_tcm_hcd *tcm_hcd)
 		}
 	}
 
+init_finished:
 	tcm_hcd->read_flash_data = reflash_read_data;
 
 	return 0;
@@ -2172,7 +2514,7 @@ static int reflash_remove(struct syna_tcm_hcd *tcm_hcd)
 
 	tcm_hcd->read_flash_data = NULL;
 
-	if (ENABLE_SYSFS_INTERFACE == true) {
+	if (ENABLE_SYS_REFLASH == true) {
 		for (idx = 1; idx < ARRAY_SIZE(bin_attrs); idx++) {
 			sysfs_remove_bin_file(reflash_hcd->custom_dir,
 					&bin_attrs[idx]);
@@ -2211,11 +2553,11 @@ exit:
 	return 0;
 }
 
-static int reflash_reset(struct syna_tcm_hcd *tcm_hcd)
+static int reflash_reinit(struct syna_tcm_hcd *tcm_hcd)
 {
 	int retval;
 
-	if (!reflash_hcd) {
+	if (!reflash_hcd && !(tcm_hcd->in_hdl_mode)) {
 		retval = reflash_init(tcm_hcd);
 		return retval;
 	}
@@ -2228,8 +2570,10 @@ static struct syna_tcm_module_cb reflash_module = {
 	.init = reflash_init,
 	.remove = reflash_remove,
 	.syncbox = NULL,
+#ifdef REPORT_NOTIFIER
 	.asyncbox = NULL,
-	.reset = reflash_reset,
+#endif
+	.reinit = reflash_reinit,
 	.suspend = NULL,
 	.resume = NULL,
 	.early_suspend = NULL,
