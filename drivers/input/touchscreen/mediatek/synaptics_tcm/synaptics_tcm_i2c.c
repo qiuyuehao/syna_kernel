@@ -35,9 +35,9 @@
  */
 
 #include <linux/i2c.h>
-#include <linux/of_gpio.h>
+#include "tpd.h"
 #include "synaptics_tcm_core.h"
-
+#include <linux/of_gpio.h>
 #define XFER_ATTEMPTS 10
 
 static unsigned char *buf;
@@ -478,10 +478,14 @@ static const struct i2c_device_id syna_tcm_id_table[] = {
 };
 MODULE_DEVICE_TABLE(i2c, syna_tcm_id_table);
 
+unsigned short force[] = {0, 0x20, I2C_CLIENT_END, I2C_CLIENT_END};
+
+static const unsigned short * const forces[] = { force, NULL };
+
 #ifdef CONFIG_OF
 static struct of_device_id syna_tcm_of_match_table[] = {
 	{
-		.compatible = "synaptics,tcm-i2c",
+		.compatible = "mediatek,cap_touch",
 	},
 	{},
 };
@@ -491,6 +495,7 @@ MODULE_DEVICE_TABLE(of, syna_tcm_of_match_table);
 #endif
 
 static struct i2c_driver syna_tcm_i2c_driver = {
+	.driver.name = I2C_MODULE_NAME,
 	.driver = {
 		.name = I2C_MODULE_NAME,
 		.owner = THIS_MODULE,
@@ -499,16 +504,26 @@ static struct i2c_driver syna_tcm_i2c_driver = {
 	.probe = syna_tcm_i2c_probe,
 	.remove = syna_tcm_i2c_remove,
 	.id_table = syna_tcm_id_table,
+	.address_list = (const unsigned short*) forces,
 };
 
 int syna_tcm_bus_init(void)
 {
+	pr_info("%s: entry\n", __func__);
+
+#ifdef CONFIG_MTK_BOOT
+	if (RECOVERY_BOOT == get_boot_mode())
+		return 0;
+#endif
+
 	return i2c_add_driver(&syna_tcm_i2c_driver);
 }
 EXPORT_SYMBOL(syna_tcm_bus_init);
 
 void syna_tcm_bus_exit(void)
 {
+	pr_info("%s: entry\n", __func__);
+
 	kfree(buf);
 
 	i2c_del_driver(&syna_tcm_i2c_driver);
