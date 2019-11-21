@@ -779,7 +779,8 @@ static int touch_set_input_params(void)
 {
 	struct syna_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd;
 
-	if (!tpd_register_flag) {
+//	if (!tpd_register_flag) {
+	if(0){
 		printk("syna mtk input device not register yet\n");
 		return -ENOMEM;
 	} else {
@@ -872,21 +873,24 @@ static int touch_get_input_params(void)
 static int touch_set_input_dev(void)
 {
 	int retval;
-	struct syna_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd;
+	//struct syna_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd;
 
-	if ((tpd != NULL) && (tpd->dev != NULL)) {
+	if ((tpd != NULL) && (tpd->dev != NULL))
+	 {
 		touch_hcd->input_dev = tpd->dev;
 		printk("syna input device point to tpd dev\n");
 	} else {
 		touch_hcd->input_dev = NULL;
 		return -1;
 	}
-	touch_hcd->input_dev = input_allocate_device();
+#if 0
+
+	/*touch_hcd->input_dev = input_allocate_device();
 	if (touch_hcd->input_dev == NULL) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to allocate input device\n");
 		return -ENODEV;
-	}
+	}*/
 /*
 	touch_hcd->input_dev->name = TOUCH_INPUT_NAME;
 	touch_hcd->input_dev->phys = TOUCH_INPUT_PHYS_PATH;
@@ -909,7 +913,9 @@ static int touch_set_input_dev(void)
 	input_set_capability(touch_hcd->input_dev, EV_KEY, KEY_WAKEUP);
 #endif
 */
+#endif
 	retval = touch_set_input_params();
+#if 0
 	/* if (retval < 0) { */
 		/* LOGE(tcm_hcd->pdev->dev.parent, */
 				/* "Failed to set input parameters\n"); */
@@ -926,7 +932,7 @@ static int touch_set_input_dev(void)
 		/* touch_hcd->input_dev = NULL; */
 		/* return retval; */
 	/* } */
-
+#endif
 	return 0;
 }
 

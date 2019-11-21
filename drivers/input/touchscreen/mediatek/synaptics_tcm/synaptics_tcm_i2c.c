@@ -511,10 +511,10 @@ int syna_tcm_bus_init(void)
 {
 	pr_info("%s: entry\n", __func__);
 
-#ifdef CONFIG_MTK_BOOT
+/*#ifdef CONFIG_MTK_BOOT
 	if (RECOVERY_BOOT == get_boot_mode())
 		return 0;
-#endif
+#endif*/
 
 	return i2c_add_driver(&syna_tcm_i2c_driver);
 }

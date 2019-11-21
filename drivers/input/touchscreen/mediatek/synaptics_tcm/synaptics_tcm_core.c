@@ -42,6 +42,13 @@
 #include "tpd.h"
 #include "synaptics_tcm_core.h"
 
+#include <linux/of.h>
+#include <linux/of_irq.h>
+#include <linux/of_address.h>
+#include <linux/of_device.h>
+#include <linux/of_gpio.h>
+
+
 /* #define RESET_ON_RESUME */
 
 /* #define RESUME_EARLY_UNBLANK */
@@ -155,6 +162,8 @@ DECLARE_COMPLETION(response_complete);
 static struct kobject *sysfs_dir;
 
 static struct syna_tcm_module_pool mod_pool;
+
+static struct syna_tcm_hcd *g_tcm_hcd;
 
 SHOW_PROTOTYPE(syna_tcm, info)
 SHOW_PROTOTYPE(syna_tcm, info_appfw)
@@ -1982,10 +1991,10 @@ static irqreturn_t syna_tcm_isr(int irq, void *data)
 {
 	int retval;
 	struct syna_tcm_hcd *tcm_hcd = data;
-	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
+	//const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
-	if (unlikely(gpio_get_value(bdata->irq_gpio) != bdata->irq_on_state))
-		goto exit;
+	//if (unlikely(gpio_get_value(bdata->irq_gpio) != bdata->irq_on_state))
+	//	goto exit;
 
 	tcm_hcd->isr_pid = current->pid;
 
@@ -2000,14 +2009,53 @@ static irqreturn_t syna_tcm_isr(int irq, void *data)
 				"Failed to read message\n");
 	}
 
-exit:
+//exit:
 	return IRQ_HANDLED;
+}
+
+
+static int syna_tcm_tpd_irq_registration(struct syna_tcm_hcd *tcm_hcd)
+{
+	struct device_node *node = NULL;
+	int retval = 0;
+	unsigned int ints[2] = { 0, 0 };
+
+	LOGN(tcm_hcd->pdev->dev.parent, "entry\n");
+
+	node = of_find_matching_node(node, touch_of_match);
+	if (node) {
+
+		of_property_read_u32_array(node, "debounce", ints, ARRAY_SIZE(ints));
+		gpio_set_debounce(ints[0], ints[1]);
+
+		tcm_hcd->irq = irq_of_parse_and_map(node, 0);
+/*
+		retval = request_irq(tcm_hcd->irq, (irq_handler_t)syna_tcm_isr,
+					IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+					PLATFORM_DRIVER_NAME, tcm_hcd);
+*/
+        retval = request_threaded_irq(tcm_hcd->irq, NULL,
+                syna_tcm_isr, IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+                PLATFORM_DRIVER_NAME, tcm_hcd);
+
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to request irq\n");
+			return retval;
+		}
+	} else {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to find touch eint device node\n");
+		return -ENODEV;
+	}
+
+	return retval;
 }
 
 static int syna_tcm_enable_irq(struct syna_tcm_hcd *tcm_hcd, bool en, bool ns)
 {
 	int retval;
-	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
+	//const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 	static bool irq_freed = true;
 
 	mutex_lock(&tcm_hcd->irq_en_mutex);
@@ -2019,19 +2067,22 @@ static int syna_tcm_enable_irq(struct syna_tcm_hcd *tcm_hcd, bool en, bool ns)
 			retval = 0;
 			goto exit;
 		}
-
+/*
 		if (bdata->irq_gpio < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
 					"Invalid IRQ GPIO\n");
 			retval = -EINVAL;
 			goto queue_polling_work;
 		}
-
+*/
 		if (irq_freed) {
+/*
 			retval = request_threaded_irq(tcm_hcd->irq, NULL,
-					syna_tcm_isr, bdata->irq_flags,
+					syna_tcm_isr, IRQF_TRIGGER_LOW | IRQF_ONESHOT,
 					PLATFORM_DRIVER_NAME, tcm_hcd);
-			if (retval < 0) {
+*/
+            retval = syna_tcm_tpd_irq_registration(tcm_hcd);
+            if (retval < 0) {
 				LOGE(tcm_hcd->pdev->dev.parent,
 						"Failed to create interrupt thread\n");
 			}
@@ -2040,7 +2091,7 @@ static int syna_tcm_enable_irq(struct syna_tcm_hcd *tcm_hcd, bool en, bool ns)
 			retval = 0;
 		}
 
-queue_polling_work:
+//queue_polling_work:
 		if (retval < 0) {
 #ifdef FALL_BACK_ON_POLLING
 			queue_delayed_work(tcm_hcd->polling_workqueue,
@@ -2063,7 +2114,8 @@ queue_polling_work:
 			goto exit;
 		}
 
-		if (bdata->irq_gpio >= 0) {
+		//if (bdata->irq_gpio >= 0) {
+		if (1) {
 			if (ns) {
 				disable_irq_nosync(tcm_hcd->irq);
 			} else {
@@ -2132,7 +2184,7 @@ static int syna_tcm_set_gpio(struct syna_tcm_hcd *tcm_hcd, int gpio,
 
 	return 0;
 }
-
+/*
 static int syna_tcm_config_gpio(struct syna_tcm_hcd *tcm_hcd)
 {
 	int retval;
@@ -2284,7 +2336,7 @@ regulator_put:
 
 	return retval;
 }
-
+*/
 static int syna_tcm_get_app_info(struct syna_tcm_hcd *tcm_hcd)
 {
 	int retval;
@@ -3301,7 +3353,8 @@ static int syna_tcm_resume(struct device *dev)
 {
 	int retval;
 	struct syna_tcm_module_handler *mod_handler;
-	struct syna_tcm_hcd *tcm_hcd = dev_get_drvdata(dev);
+	//struct syna_tcm_hcd *tcm_hcd = dev_get_drvdata(dev);
+    struct syna_tcm_hcd *tcm_hcd = g_tcm_hcd;
 
 	if (!tcm_hcd->in_suspend)
 		return 0;
@@ -3403,7 +3456,8 @@ static void syna_mtk_tcm_resume(struct device *dev)
 static int syna_tcm_suspend(struct device *dev)
 {
 	struct syna_tcm_module_handler *mod_handler;
-	struct syna_tcm_hcd *tcm_hcd = dev_get_drvdata(dev);
+	//struct syna_tcm_hcd *tcm_hcd = dev_get_drvdata(dev);
+    struct syna_tcm_hcd *tcm_hcd = g_tcm_hcd;
 
 	if (tcm_hcd->in_suspend)
 		return 0;
@@ -3443,7 +3497,8 @@ static int syna_tcm_early_suspend(struct device *dev)
 {
 	int retval;
 	struct syna_tcm_module_handler *mod_handler;
-	struct syna_tcm_hcd *tcm_hcd = dev_get_drvdata(dev);
+	//struct syna_tcm_hcd *tcm_hcd = dev_get_drvdata(dev);
+    struct syna_tcm_hcd *tcm_hcd = g_tcm_hcd;
 
 	if (tcm_hcd->in_suspend)
 		return 0;
@@ -3689,7 +3744,7 @@ static int syna_tcm_probe(struct platform_device *pdev)
 	int retval;
 	int idx;
 	struct syna_tcm_hcd *tcm_hcd;
-	const struct syna_tcm_board_data *bdata;
+	struct syna_tcm_board_data *bdata;
 	const struct syna_tcm_hw_interface *hw_if;
 
 	hw_if = pdev->dev.platform_data;
@@ -3706,7 +3761,36 @@ static int syna_tcm_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
+	bdata->irq_on_state = IRQ_ON_STATE;
+
+	bdata->pwr_reg_name = NULL;
+	bdata->bus_reg_name = NULL;
+
+	bdata->power_gpio = -1;
+	bdata->power_on_state = POWER_ON_STATE;
+	bdata->power_delay_ms = POWER_DELAY_MS;
+
+	bdata->reset_on_state = RESET_ON_STATE;
+	bdata->reset_active_ms = RESET_ACTIVE_MS;
+	bdata->reset_delay_ms = RESET_DELAY_MS;
+	bdata->tpio_reset_gpio = TP_2ND_RESET_GPIO;
+
+	bdata->x_flip = REPORT_POSITION_X_FLIP;
+	bdata->y_flip = REPORT_POSITION_Y_FLIP;
+	bdata->swap_axes = REPORT_POSITION_SWAP_AXES;
+
+	bdata->ubl_i2c_addr = UBL_I2C_ADDR;
+
+	bdata->byte_delay_us = SPI_BYTE_DELAY_US;
+	bdata->ubl_byte_delay_us = SPI_UBL_BYTE_DELAY_US;
+	bdata->ubl_max_freq = SPI_UBL_MAX_FREQ;
+	bdata->block_delay_us = SPI_BLOCK_DELAY_US;
+
+
+
 	tcm_hcd = kzalloc(sizeof(*tcm_hcd), GFP_KERNEL);
+    g_tcm_hcd = tcm_hcd;
+
 	if (!tcm_hcd) {
 		LOGE(&pdev->dev,
 				"Failed to allocate memory for tcm_hcd\n");
@@ -3795,7 +3879,7 @@ static int syna_tcm_probe(struct platform_device *pdev)
 		INIT_LIST_HEAD(&mod_pool.list);
 		mod_pool.initialized = true;
 	}
-
+/*
 	retval = syna_tcm_get_regulator(tcm_hcd, true);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -3816,7 +3900,7 @@ static int syna_tcm_probe(struct platform_device *pdev)
 				"Failed to configure GPIO's\n");
 		goto err_config_gpio;
 	}
-
+*/
 	/* detect the type of touch controller */
 	retval = syna_tcm_sensor_detection(tcm_hcd);
 	if (retval < 0) {
@@ -3995,7 +4079,7 @@ err_sysfs_create_dir:
 
 	if (bdata->reset_gpio >= 0)
 		syna_tcm_set_gpio(tcm_hcd, bdata->reset_gpio, false, 0, 0);
-
+/*
 err_config_gpio:
 	syna_tcm_enable_regulator(tcm_hcd, false);
 
@@ -4004,7 +4088,7 @@ err_enable_regulator:
 
 err_get_regulator:
 	device_init_wakeup(&pdev->dev, 0);
-
+*/
 err_alloc_mem:
 	RELEASE_BUFFER(tcm_hcd->report.buffer);
 	RELEASE_BUFFER(tcm_hcd->config);
@@ -4097,10 +4181,11 @@ static int syna_tcm_remove(struct platform_device *pdev)
 	if (bdata->reset_gpio >= 0)
 		syna_tcm_set_gpio(tcm_hcd, bdata->reset_gpio, false, 0, 0);
 
-	syna_tcm_enable_regulator(tcm_hcd, false);
+/*
+    syna_tcm_enable_regulator(tcm_hcd, false);
 
 	syna_tcm_get_regulator(tcm_hcd, false);
-
+*/
 	device_init_wakeup(&pdev->dev, 0);
 
 	RELEASE_BUFFER(tcm_hcd->report.buffer);
@@ -4144,11 +4229,41 @@ static struct platform_driver syna_tcm_driver = {
 	.shutdown = syna_tcm_shutdown,
 };
 
+extern struct tpd_device *tpd;
 static int tpd_local_init(void)
 {
-	int retval;
+    int retval;
+
+    pr_info("%s: entry\n", __func__);
+
+    /* setup the regulator */
+    tpd->reg = regulator_get(tpd->tpd_dev, "vtouch");
+#if !defined(CONFIG_MTK_LEGACY)
+    retval = regulator_enable(tpd->reg);
+    if (retval < 0) {
+        pr_err("%s: Failed to enable power regulator\n", __func__);
+        return retval;
+    }
+#endif
+
+    /* call mtk tpd to setup reset pin to high */
+    tpd_gpio_output(GTP_RST_PORT, 1);
+    msleep(RESET_ACTIVE_MS);
+#ifdef STARTUP_HW_RESET
+    /* set reset pin to low */
+    tpd_gpio_output(GTP_RST_PORT, 0);
+    msleep(RESET_ACTIVE_MS);
+    /* set reset pin to high */
+    tpd_gpio_output(GTP_RST_PORT, 1);
+    msleep(RESET_DELAY_MS);
+#endif
+
+    /* call mtk tpd to setup eint as an interrupt */
+    tpd_gpio_as_int(GTP_INT_PORT);
+
 
 	printk("syna tpd_local_init\n");
+
 	retval = syna_tcm_bus_init();
 	if (retval < 0)
 		return retval;

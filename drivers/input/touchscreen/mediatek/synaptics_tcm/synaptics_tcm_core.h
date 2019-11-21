@@ -78,6 +78,38 @@
 /*
 #define WATCHDOG_SW
 */
+#define STARTUP_HW_RESET
+
+#define IRQ_ON_STATE (0)
+
+#define POWER_ON_STATE (1)
+
+#define POWER_DELAY_MS (200)
+
+#define RESET_ACTIVE_MS (20)
+
+#define RESET_DELAY_MS (200)
+
+#define RESET_ON_STATE (0)
+
+#define TP_2ND_RESET_GPIO (-1)
+
+#define UBL_I2C_ADDR (0x2c)
+
+#define REPORT_POSITION_X_FLIP (false)
+
+#define REPORT_POSITION_Y_FLIP (false)
+
+#define REPORT_POSITION_SWAP_AXES (false)
+
+#define SPI_BYTE_DELAY_US (0)
+
+#define SPI_BLOCK_DELAY_US (0)
+
+#define SPI_UBL_BYTE_DELAY_US (20)
+
+#define SPI_UBL_MAX_FREQ (5000000)
+
 #ifdef WATCHDOG_SW
 #define RUN_WATCHDOG false
 #define WATCHDOG_TRIGGER_COUNT 2
