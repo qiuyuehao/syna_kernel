@@ -65,7 +65,7 @@
 
 #define POLLING_DELAY_MS 5
 
-#define RUN_WATCHDOG true
+#define RUN_WATCHDOG false
 
 #define WATCHDOG_TRIGGER_COUNT 2
 
@@ -205,6 +205,7 @@ static struct device_attribute *dynamic_config_attrs[] = {
 };
 
 static int syna_tcm_get_app_info(struct syna_tcm_hcd *tcm_hcd);
+extern int tpd_load_status;	/* 0: failed, 1: success */
 
 static ssize_t syna_tcm_sysfs_info_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -3307,6 +3308,10 @@ exit:
 	return retval;
 }
 
+static void syna_mtk_tcm_resume(struct device *dev)
+{
+	syna_tcm_resume(dev);
+}
 static int syna_tcm_suspend(struct device *dev)
 {
 	struct syna_tcm_module_handler *mod_handler;
@@ -3337,6 +3342,11 @@ static int syna_tcm_suspend(struct device *dev)
 	return 0;
 }
 #endif
+
+static void syna_mtk_tcm_suspend(struct device *dev)
+{
+	syna_tcm_suspend(dev);
+}
 
 #ifdef CONFIG_FB
 static int syna_tcm_early_suspend(struct device *dev)
@@ -3609,12 +3619,14 @@ static int syna_tcm_probe(struct platform_device *pdev)
 	}
 
 #ifdef CONFIG_FB
+if (0) {
 	tcm_hcd->fb_notifier.notifier_call = syna_tcm_fb_notifier_cb;
 	retval = fb_register_client(&tcm_hcd->fb_notifier);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to register FB notifier client\n");
 	}
+}
 #endif
 
 	tcm_hcd->notifier_thread = kthread_run(syna_tcm_report_notifier,
@@ -3644,7 +3656,7 @@ static int syna_tcm_probe(struct platform_device *pdev)
 				"Failed to enable interrupt\n");
 		goto err_enable_irq;
 	}
-
+/*
 	retval = tcm_hcd->reset(tcm_hcd, false, false);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -3660,7 +3672,7 @@ static int syna_tcm_probe(struct platform_device *pdev)
 		tcm_hcd->init_okay = true;
 		tcm_hcd->update_watchdog(tcm_hcd, true);
 	}
-
+*/
 	mod_pool.workqueue =
 			create_singlethread_workqueue("syna_tcm_module");
 	INIT_WORK(&mod_pool.work, syna_tcm_module_work);
@@ -3875,18 +3887,45 @@ static struct platform_driver syna_tcm_driver = {
 	.shutdown = syna_tcm_shutdown,
 };
 
-static int __init syna_tcm_module_init(void)
+static int tpd_local_init(void)
 {
 	int retval;
-	printk("%s \n", __func__);
 
+	printk("syna tpd_local_init\n");
 	retval = syna_tcm_bus_init();
 	if (retval < 0)
 		return retval;
-
+#if 0
+	boot_mode = get_boot_mode();
+	if (boot_mode == 3) {
+		boot_mode = NORMAL_BOOT;
+	}
+#endif
+	printk("syna platform_driver_register, set tpd_load_status = 1\n");
+	tpd_load_status = 1;
 	return platform_driver_register(&syna_tcm_driver);
-		printk("%s --\n", __func__);
+}
 
+struct tpd_driver_t synaptics_mtk_driver = {
+	.tpd_device_name = "synaptics_tcm",
+	.tpd_local_init = tpd_local_init,
+	.suspend = syna_mtk_tcm_suspend,
+	.resume = syna_mtk_tcm_resume,
+	.tpd_have_button = 0,
+};
+
+static int __init syna_tcm_module_init(void)
+{
+	printk("syna module init\n");
+
+	tpd_get_dts_info();
+
+	if(tpd_driver_add(&synaptics_mtk_driver) < 0){
+		pr_err("Fail to add syna tpd driver\n");
+		return -ENODEV;
+	}
+
+	return 0;
 }
 
 static void __exit syna_tcm_module_exit(void)

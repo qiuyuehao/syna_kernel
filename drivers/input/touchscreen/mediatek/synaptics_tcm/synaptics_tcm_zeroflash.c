@@ -747,10 +747,6 @@ static int zeroflash_download_app_config(void)
 				zeroflash_hcd->fw_status.hdl_version);
 		goto unlock_out;
 	}
-	LOGE(tcm_hcd->pdev->dev.parent,
-				"HDL version (%d)\n",
-				zeroflash_hcd->fw_status.hdl_version);
-	zeroflash_hcd->out.buf[0] = 1;
 
 	zeroflash_hcd->out.buf[1] = HDL_TOUCH_CONFIG;
 
@@ -769,7 +765,7 @@ static int zeroflash_download_app_config(void)
 	zeroflash_hcd->out.data_length += padding;
 
 	LOCK_BUFFER(zeroflash_hcd->resp);
-retry_app_config_download:
+
 	retval = tcm_hcd->write_message(tcm_hcd,
 			CMD_DOWNLOAD_CONFIG,
 			zeroflash_hcd->out.buf,
@@ -783,15 +779,11 @@ retry_app_config_download:
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to write command %s\n",
 				STR(CMD_DOWNLOAD_CONFIG));
-		//if (response_code != STATUS_ERROR)
-		if ((response_code != STATUS_ERROR) && (response_code != STATUS_RECEIVE_BUFFER_OVERFLOW))
+		if (response_code != STATUS_ERROR)
 			goto unlock_resp;
 		retry_count++;
-		if (DOWNLOAD_RETRY_COUNT && retry_count > DOWNLOAD_RETRY_COUNT) {
+		if (DOWNLOAD_RETRY_COUNT && retry_count > DOWNLOAD_RETRY_COUNT)
 			goto unlock_resp;
-		} else {
-			goto retry_app_config_download;
-		}
 	} else {
 		retry_count = 0;
 	}
@@ -813,7 +805,6 @@ retry_app_config_download:
 	retval = 0;
 
 unlock_resp:
-	retry_count = 0;
 	UNLOCK_BUFFER(zeroflash_hcd->resp);
 
 unlock_out:

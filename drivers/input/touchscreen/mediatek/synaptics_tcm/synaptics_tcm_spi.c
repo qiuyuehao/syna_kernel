@@ -34,6 +34,9 @@
 #include <linux/of_gpio.h>
 #include "synaptics_tcm_core.h"
 
+
+#define SPI_XFER_SPEED 6000000
+
 static unsigned char *buf;
 
 static unsigned int buf_size;
@@ -60,7 +63,7 @@ printk("%s \n",  __func__);
 		bdata->irq_gpio = of_get_named_gpio_flags(np,
 				"synaptics,irq-gpio", 0,
 				(enum of_gpio_flags *)&bdata->irq_flags);
-		printk("%s irq_gpio:%d, bdata->irq_flags:%d\n",  __func__, bdata->irq_gpio, bdata->irq_flags);
+		printk("%s irq_gpio:%d, bdata->irq_flags:%d\n",  __func__, bdata->irq_gpio, (unsigned int)bdata->irq_flags);
 
 	} else {
 		bdata->irq_gpio = -1;
@@ -127,7 +130,7 @@ printk("%s \n",  __func__);
 		bdata->reset_gpio = of_get_named_gpio_flags(np,
 				"synaptics,reset-gpio", 0, NULL);
 		printk("%s reset_gpio:%d\n",  __func__, bdata->reset_gpio);
-		
+
 	} else {
 		bdata->reset_gpio = -1;
 	}
@@ -332,8 +335,7 @@ static int syna_tcm_spi_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 	buf[0] = (unsigned char)(addr >> 8) | 0x80;
 	buf[1] = (unsigned char)addr;
 
-	//if (bdata->ubl_byte_delay_us == 0) {
-	if (1) {
+	if (bdata->ubl_byte_delay_us == 0) {
 		xfer[0].len = 2;
 		xfer[0].tx_buf = buf;
 		xfer[0].speed_hz = bdata->ubl_max_freq;
@@ -356,8 +358,7 @@ static int syna_tcm_spi_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 				xfer[idx].tx_buf = &buf[2];
 				xfer[idx].rx_buf = &data[idx - 2];
 			}
-			//xfer[idx].delay_usecs = bdata->ubl_byte_delay_us;
-			xfer[idx].delay_usecs = 20;
+			xfer[idx].delay_usecs = bdata->ubl_byte_delay_us;
 			if (bdata->block_delay_us && (idx == byte_count - 1))
 				xfer[idx].delay_usecs = bdata->block_delay_us;
 			xfer[idx].speed_hz = bdata->ubl_max_freq;
@@ -422,7 +423,7 @@ static int syna_tcm_spi_rmi_write(struct syna_tcm_hcd *tcm_hcd,
 	}
 
 	xfer[0].len = byte_count;
-	xfer[0].speed_hz = 6000000;
+	xfer[0].speed_hz = SPI_XFER_SPEED;
 	xfer[0].tx_buf = buf;
 	if (bdata->block_delay_us)
 		xfer[0].delay_usecs = bdata->block_delay_us;
@@ -475,8 +476,8 @@ static int syna_tcm_spi_read(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
 		memset(buf, 0xff, length);
 		xfer[0].len = length;
 		xfer[0].tx_buf = buf;
-		xfer[0].rx_buf = data;		
-		xfer[0].speed_hz = 6000000;
+		xfer[0].rx_buf = data;
+		xfer[0].speed_hz = SPI_XFER_SPEED;
 		if (bdata->block_delay_us)
 			xfer[0].delay_usecs = bdata->block_delay_us;
 		spi_message_add_tail(&xfer[0], &msg);
@@ -486,7 +487,7 @@ static int syna_tcm_spi_read(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
 			xfer[idx].len = 1;
 			xfer[idx].tx_buf = buf;
 			xfer[idx].rx_buf = &data[idx];
-			xfer[idx].speed_hz = 6000000;
+			xfer[idx].speed_hz = SPI_XFER_SPEED;
 			xfer[idx].delay_usecs = bdata->byte_delay_us;
 			if (bdata->block_delay_us && (idx == length - 1))
 				xfer[idx].delay_usecs = bdata->block_delay_us;
@@ -535,7 +536,7 @@ static int syna_tcm_spi_write(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
 	if (bdata->byte_delay_us == 0) {
 		xfer[0].len = length;
 		xfer[0].tx_buf = data;
-		xfer[0].speed_hz = 6000000;
+		xfer[0].speed_hz = SPI_XFER_SPEED;
 		if (bdata->block_delay_us)
 			xfer[0].delay_usecs = bdata->block_delay_us;
 		spi_message_add_tail(&xfer[0], &msg);
@@ -544,7 +545,7 @@ static int syna_tcm_spi_write(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
 			xfer[idx].len = 1;
 			xfer[idx].tx_buf = &data[idx];
 			xfer[idx].delay_usecs = bdata->byte_delay_us;
-			xfer[idx].speed_hz = 6000000;
+			xfer[idx].speed_hz = SPI_XFER_SPEED;
 			if (bdata->block_delay_us && (idx == length - 1))
 				xfer[idx].delay_usecs = bdata->block_delay_us;
 			spi_message_add_tail(&xfer[idx], &msg);

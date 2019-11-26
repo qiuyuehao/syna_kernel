@@ -40,6 +40,9 @@
 
 #define TOUCH_REPORT_CONFIG_SIZE 128
 
+#include "tpd.h"
+extern struct tpd_device *tpd;
+
 enum touch_status {
 	LIFT = 0,
 	FINGER = 1,
@@ -736,6 +739,9 @@ exit:
  * retrieved from the application information packet. In addition, set up an
  * array for tracking the status of touch objects.
  */
+extern struct tpd_device *tpd;
+extern int tpd_register_flag;
+
 static int touch_set_input_params(void)
 {
 	struct syna_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd;
@@ -826,53 +832,61 @@ static int touch_get_input_params(void)
 static int touch_set_input_dev(void)
 {
 	int retval;
-	struct syna_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd;
+	/* struct syna_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd; */
 
-	touch_hcd->input_dev = input_allocate_device();
-	if (touch_hcd->input_dev == NULL) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to allocate input device\n");
-		return -ENODEV;
+	if ((tpd != NULL) && (tpd->dev != NULL)) {
+		touch_hcd->input_dev = tpd->dev;
+		printk("syna input device point to tpd dev\n");
+	} else {
+		touch_hcd->input_dev = NULL;
+		return -1;
 	}
 
-	touch_hcd->input_dev->name = TOUCH_INPUT_NAME;
-	touch_hcd->input_dev->phys = TOUCH_INPUT_PHYS_PATH;
-	touch_hcd->input_dev->id.product = SYNAPTICS_TCM_ID_PRODUCT;
-	touch_hcd->input_dev->id.version = SYNAPTICS_TCM_ID_VERSION;
-	touch_hcd->input_dev->dev.parent = tcm_hcd->pdev->dev.parent;
-	input_set_drvdata(touch_hcd->input_dev, tcm_hcd);
+	/* touch_hcd->input_dev = input_allocate_device(); */
+	/* if (touch_hcd->input_dev == NULL) { */
+		/* LOGE(tcm_hcd->pdev->dev.parent, */
+				/* "Failed to allocate input device\n"); */
+		/* return -ENODEV; */
+	/* } */
 
-	set_bit(EV_SYN, touch_hcd->input_dev->evbit);
-	set_bit(EV_KEY, touch_hcd->input_dev->evbit);
-	set_bit(EV_ABS, touch_hcd->input_dev->evbit);
-	set_bit(BTN_TOUCH, touch_hcd->input_dev->keybit);
-	set_bit(BTN_TOOL_FINGER, touch_hcd->input_dev->keybit);
-#ifdef INPUT_PROP_DIRECT
-	set_bit(INPUT_PROP_DIRECT, touch_hcd->input_dev->propbit);
-#endif
+	/* touch_hcd->input_dev->name = TOUCH_INPUT_NAME; */
+	/* touch_hcd->input_dev->phys = TOUCH_INPUT_PHYS_PATH; */
+	/* touch_hcd->input_dev->id.product = SYNAPTICS_TCM_ID_PRODUCT; */
+	/* touch_hcd->input_dev->id.version = SYNAPTICS_TCM_ID_VERSION; */
+	/* touch_hcd->input_dev->dev.parent = tcm_hcd->pdev->dev.parent; */
+	/* input_set_drvdata(touch_hcd->input_dev, tcm_hcd); */
 
-#ifdef WAKEUP_GESTURE
-	set_bit(KEY_WAKEUP, touch_hcd->input_dev->keybit);
-	input_set_capability(touch_hcd->input_dev, EV_KEY, KEY_WAKEUP);
-#endif
+	/* set_bit(EV_SYN, touch_hcd->input_dev->evbit); */
+	/* set_bit(EV_KEY, touch_hcd->input_dev->evbit); */
+	/* set_bit(EV_ABS, touch_hcd->input_dev->evbit); */
+	/* set_bit(BTN_TOUCH, touch_hcd->input_dev->keybit); */
+	/* set_bit(BTN_TOOL_FINGER, touch_hcd->input_dev->keybit); */
+/* #ifdef INPUT_PROP_DIRECT */
+	/* set_bit(INPUT_PROP_DIRECT, touch_hcd->input_dev->propbit); */
+/* #endif */
+
+/* #ifdef WAKEUP_GESTURE */
+	/* set_bit(KEY_WAKEUP, touch_hcd->input_dev->keybit); */
+	/* input_set_capability(touch_hcd->input_dev, EV_KEY, KEY_WAKEUP); */
+/* #endif */
 
 	retval = touch_set_input_params();
-	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to set input parameters\n");
-		input_free_device(touch_hcd->input_dev);
-		touch_hcd->input_dev = NULL;
-		return retval;
-	}
+	/* if (retval < 0) { */
+		/* LOGE(tcm_hcd->pdev->dev.parent, */
+				/* "Failed to set input parameters\n"); */
+		/* input_free_device(touch_hcd->input_dev); */
+		/* touch_hcd->input_dev = NULL; */
+		/* return retval; */
+	/* } */
 
-	retval = input_register_device(touch_hcd->input_dev);
-	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to register input device\n");
-		input_free_device(touch_hcd->input_dev);
-		touch_hcd->input_dev = NULL;
-		return retval;
-	}
+	/* retval = input_register_device(touch_hcd->input_dev); */
+	/* if (retval < 0) { */
+		/* LOGE(tcm_hcd->pdev->dev.parent, */
+				/* "Failed to register input device\n"); */
+		/* input_free_device(touch_hcd->input_dev); */
+		/* touch_hcd->input_dev = NULL; */
+		/* return retval; */
+	/* } */
 
 	return 0;
 }
