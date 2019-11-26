@@ -4,10 +4,6 @@
  * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
  *
  * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
- * Copyright (C) 2018-2019 Ian Su <ian.su@tw.synaptics.com>
- * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@synaptics.com>
- * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@synaptics.com>
- * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -254,7 +250,7 @@ static int device_ioctl(struct inode *inp, struct file *filp, unsigned int cmd,
 
 	switch (cmd) {
 	case DEVICE_IOC_RESET:
-		retval = tcm_hcd->reset_n_reinit(tcm_hcd, false, true);
+		retval = tcm_hcd->reset(tcm_hcd, false, true);
 		break;
 	case DEVICE_IOC_IRQ:
 		if (arg == 0)
@@ -265,14 +261,11 @@ static int device_ioctl(struct inode *inp, struct file *filp, unsigned int cmd,
 	case DEVICE_IOC_RAW:
 		if (arg == 0) {
 			device_hcd->raw_mode = false;
-#ifdef WATCHDOG_SW
 			tcm_hcd->update_watchdog(tcm_hcd, true);
-#endif
-		} else if (arg == 1) {
+		}
+		else if (arg == 1) {
 			device_hcd->raw_mode = true;
-#ifdef WATCHDOG_SW
 			tcm_hcd->update_watchdog(tcm_hcd, false);
-#endif
 		}
 		break;
 	case DEVICE_IOC_CONCURRENT:
@@ -613,13 +606,13 @@ static int device_init(struct syna_tcm_hcd *tcm_hcd)
 		retval = gpio_export(bdata->irq_gpio, false);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to export GPIO\n");
+					"Failed to export GPIO, error:%d\n", retval);
 		} else {
 			retval = gpio_export_link(&tcm_hcd->pdev->dev,
 					"attn", bdata->irq_gpio);
 			if (retval < 0) {
 				LOGE(tcm_hcd->pdev->dev.parent,
-						"Failed to export GPIO link\n");
+						"Failed to export GPIO link, err:%d\n", retval);
 			}
 		}
 	}
@@ -673,7 +666,7 @@ exit:
 	return 0;
 }
 
-static int device_reinit(struct syna_tcm_hcd *tcm_hcd)
+static int device_reset(struct syna_tcm_hcd *tcm_hcd)
 {
 	int retval;
 
@@ -690,10 +683,8 @@ static struct syna_tcm_module_cb device_module = {
 	.init = device_init,
 	.remove = device_remove,
 	.syncbox = NULL,
-#ifdef REPORT_NOTIFIER
 	.asyncbox = NULL,
-#endif
-	.reinit = device_reinit,
+	.reset = device_reset,
 	.suspend = NULL,
 	.resume = NULL,
 	.early_suspend = NULL,

@@ -34,6 +34,17 @@ config TOUCHSCREEN_SYNAPTICS_TCM_CORE
 	  To compile this driver as a module, choose M here: the
 	  module will be called synaptics_tcm_core.
 
+config TOUCHSCREEN_SYNAPTICS_TCM_TOUCH
+	tristate "Synaptics TCM touch module"
+	depends on TOUCHSCREEN_SYNAPTICS_TCM_CORE
+	help
+	  Say Y here to enable support for touch reporting.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called synaptics_tcm_touch.
+
 config TOUCHSCREEN_SYNAPTICS_TCM_DEVICE
 	tristate "Synaptics TCM device module"
 	depends on TOUCHSCREEN_SYNAPTICS_TCM_CORE
@@ -99,4 +110,16 @@ config TOUCHSCREEN_SYNAPTICS_TCM_DIAGNOSTICS
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called synaptics_tcm_diagnostics.
+
+config TOUCHSCREEN_SYNAPTICS_TCM_ROMBOOT
+	tristate "Synaptics TCM romboot module"
+	depends on TOUCHSCREEN_SYNAPTICS_TCM_ZEROFLASH
+	help
+	  Say Y here to enable support for romboot functionality.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called synaptics_tcm_diagnostics.
+
 endif

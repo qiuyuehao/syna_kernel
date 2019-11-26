@@ -4,10 +4,6 @@
  * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
  *
  * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
- * Copyright (C) 2018-2019 Ian Su <ian.su@tw.synaptics.com>
- * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@synaptics.com>
- * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@synaptics.com>
- * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -58,12 +54,14 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 	struct property *prop;
 	struct device_node *np = dev->of_node;
 	const char *name;
-
+printk("%s \n",  __func__);
 	prop = of_find_property(np, "synaptics,irq-gpio", NULL);
 	if (prop && prop->length) {
 		bdata->irq_gpio = of_get_named_gpio_flags(np,
 				"synaptics,irq-gpio", 0,
 				(enum of_gpio_flags *)&bdata->irq_flags);
+		printk("%s irq_gpio:%d, bdata->irq_flags:%d\n",  __func__, bdata->irq_gpio, bdata->irq_flags);
+
 	} else {
 		bdata->irq_gpio = -1;
 	}
@@ -128,6 +126,8 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 	if (prop && prop->length) {
 		bdata->reset_gpio = of_get_named_gpio_flags(np,
 				"synaptics,reset-gpio", 0, NULL);
+		printk("%s reset_gpio:%d\n",  __func__, bdata->reset_gpio);
+		
 	} else {
 		bdata->reset_gpio = -1;
 	}
@@ -159,7 +159,7 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 			bdata->reset_active_ms = value;
 		}
 	} else {
-		bdata->reset_active_ms = 0;
+		bdata->reset_active_ms = 10;
 	}
 
 	prop = of_find_property(np, "synaptics,reset-delay-ms", NULL);
@@ -174,15 +174,7 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 			bdata->reset_delay_ms = value;
 		}
 	} else {
-		bdata->reset_delay_ms = 0;
-	}
-
-	prop = of_find_property(np, "synaptics,tpio-reset-gpio", NULL);
-	if (prop && prop->length) {
-		bdata->tpio_reset_gpio = of_get_named_gpio_flags(np,
-				"synaptics,tpio-reset-gpio", 0, NULL);
-	} else {
-		bdata->tpio_reset_gpio = -1;
+		bdata->reset_delay_ms = 20;
 	}
 
 	prop = of_find_property(np, "synaptics,x-flip", NULL);
@@ -268,6 +260,7 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 	} else {
 		bdata->ubl_byte_delay_us = 0;
 	}
+printk("%s --\n",  __func__);
 
 	return 0;
 }
@@ -339,7 +332,8 @@ static int syna_tcm_spi_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 	buf[0] = (unsigned char)(addr >> 8) | 0x80;
 	buf[1] = (unsigned char)addr;
 
-	if (bdata->ubl_byte_delay_us == 0) {
+	//if (bdata->ubl_byte_delay_us == 0) {
+	if (1) {
 		xfer[0].len = 2;
 		xfer[0].tx_buf = buf;
 		xfer[0].speed_hz = bdata->ubl_max_freq;
@@ -362,7 +356,8 @@ static int syna_tcm_spi_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 				xfer[idx].tx_buf = &buf[2];
 				xfer[idx].rx_buf = &data[idx - 2];
 			}
-			xfer[idx].delay_usecs = bdata->ubl_byte_delay_us;
+			//xfer[idx].delay_usecs = bdata->ubl_byte_delay_us;
+			xfer[idx].delay_usecs = 20;
 			if (bdata->block_delay_us && (idx == byte_count - 1))
 				xfer[idx].delay_usecs = bdata->block_delay_us;
 			xfer[idx].speed_hz = bdata->ubl_max_freq;
@@ -427,6 +422,7 @@ static int syna_tcm_spi_rmi_write(struct syna_tcm_hcd *tcm_hcd,
 	}
 
 	xfer[0].len = byte_count;
+	xfer[0].speed_hz = 6000000;
 	xfer[0].tx_buf = buf;
 	if (bdata->block_delay_us)
 		xfer[0].delay_usecs = bdata->block_delay_us;
@@ -479,7 +475,8 @@ static int syna_tcm_spi_read(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
 		memset(buf, 0xff, length);
 		xfer[0].len = length;
 		xfer[0].tx_buf = buf;
-		xfer[0].rx_buf = data;
+		xfer[0].rx_buf = data;		
+		xfer[0].speed_hz = 6000000;
 		if (bdata->block_delay_us)
 			xfer[0].delay_usecs = bdata->block_delay_us;
 		spi_message_add_tail(&xfer[0], &msg);
@@ -489,6 +486,7 @@ static int syna_tcm_spi_read(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
 			xfer[idx].len = 1;
 			xfer[idx].tx_buf = buf;
 			xfer[idx].rx_buf = &data[idx];
+			xfer[idx].speed_hz = 6000000;
 			xfer[idx].delay_usecs = bdata->byte_delay_us;
 			if (bdata->block_delay_us && (idx == length - 1))
 				xfer[idx].delay_usecs = bdata->block_delay_us;
@@ -537,6 +535,7 @@ static int syna_tcm_spi_write(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
 	if (bdata->byte_delay_us == 0) {
 		xfer[0].len = length;
 		xfer[0].tx_buf = data;
+		xfer[0].speed_hz = 6000000;
 		if (bdata->block_delay_us)
 			xfer[0].delay_usecs = bdata->block_delay_us;
 		spi_message_add_tail(&xfer[0], &msg);
@@ -545,6 +544,7 @@ static int syna_tcm_spi_write(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
 			xfer[idx].len = 1;
 			xfer[idx].tx_buf = &data[idx];
 			xfer[idx].delay_usecs = bdata->byte_delay_us;
+			xfer[idx].speed_hz = 6000000;
 			if (bdata->block_delay_us && (idx == length - 1))
 				xfer[idx].delay_usecs = bdata->block_delay_us;
 			spi_message_add_tail(&xfer[idx], &msg);
@@ -570,6 +570,7 @@ static int syna_tcm_spi_probe(struct spi_device *spi)
 {
 	int retval;
 
+	printk("%s \n", __func__);
 	if (spi->master->flags & SPI_MASTER_HALF_DUPLEX) {
 		LOGE(&spi->dev,
 				"Full duplex not supported by host\n");
@@ -636,6 +637,7 @@ static int syna_tcm_spi_probe(struct spi_device *spi)
 				"Failed to add platform device\n");
 		return retval;
 	}
+	printk("%s --\n", __func__);
 
 	return 0;
 }
