@@ -34,8 +34,15 @@
 #include <linux/kthread.h>
 #include <linux/interrupt.h>
 #include <linux/regulator/consumer.h>
-#include "synaptics_tcm_core.h"
+#include <linux/fb.h>
 #include "tpd.h"
+#include "synaptics_tcm_core.h"
+
+#include <linux/of.h>
+#include <linux/of_irq.h>
+#include <linux/of_address.h>
+#include <linux/of_device.h>
+#include <linux/of_gpio.h>
 
 /* #define RESET_ON_RESUME */
 
@@ -1982,10 +1989,49 @@ exit:
 	return IRQ_HANDLED;
 }
 
+
+static int syna_tcm_tpd_irq_registration(struct syna_tcm_hcd *tcm_hcd)
+{
+	struct device_node *node = NULL;
+	int retval = 0;
+	unsigned int ints[2] = { 0, 0 };
+
+	LOGN(tcm_hcd->pdev->dev.parent, "entry\n");
+
+	node = of_find_matching_node(node, touch_of_match);
+	if (node) {
+
+		of_property_read_u32_array(node, "debounce", ints, ARRAY_SIZE(ints));
+		gpio_set_debounce(ints[0], ints[1]);
+
+		tcm_hcd->irq = irq_of_parse_and_map(node, 0);
+/*
+		retval = request_irq(tcm_hcd->irq, (irq_handler_t)syna_tcm_isr,
+					IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+					PLATFORM_DRIVER_NAME, tcm_hcd);
+*/
+        retval = request_threaded_irq(tcm_hcd->irq, NULL,
+                syna_tcm_isr, IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+                PLATFORM_DRIVER_NAME, tcm_hcd);
+
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to request irq\n");
+			return retval;
+		}
+	} else {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to find touch eint device node\n");
+		return -ENODEV;
+	}
+
+	return retval;
+}
+
 static int syna_tcm_enable_irq(struct syna_tcm_hcd *tcm_hcd, bool en, bool ns)
 {
 	int retval;
-	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
+	//const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 	static bool irq_freed = true;
 
 	mutex_lock(&tcm_hcd->irq_en_mutex);
@@ -1997,30 +2043,31 @@ static int syna_tcm_enable_irq(struct syna_tcm_hcd *tcm_hcd, bool en, bool ns)
 			retval = 0;
 			goto exit;
 		}
-
+/*
 		if (bdata->irq_gpio < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
 					"Invalid IRQ GPIO\n");
 			retval = -EINVAL;
 			goto queue_polling_work;
 		}
-
+*/
 		if (irq_freed) {
+/*
 			retval = request_threaded_irq(tcm_hcd->irq, NULL,
-					syna_tcm_isr, bdata->irq_flags,
+					syna_tcm_isr, IRQF_TRIGGER_LOW | IRQF_ONESHOT,
 					PLATFORM_DRIVER_NAME, tcm_hcd);
-			if (retval < 0) {
+*/
+            retval = syna_tcm_tpd_irq_registration(tcm_hcd);
+            if (retval < 0) {
 				LOGE(tcm_hcd->pdev->dev.parent,
-						"Failed to create interrupt thread, err:%d\n", retval);
+						"Failed to create interrupt thread\n");
 			}
 		} else {
 			enable_irq(tcm_hcd->irq);
 			retval = 0;
 		}
 
-		//tpd_gpio_as_int(1);
-
-queue_polling_work:
+//queue_polling_work:
 		if (retval < 0) {
 #ifdef FALL_BACK_ON_POLLING
 			queue_delayed_work(tcm_hcd->polling_workqueue,
@@ -2043,7 +2090,8 @@ queue_polling_work:
 			goto exit;
 		}
 
-		if (bdata->irq_gpio >= 0) {
+		//if (bdata->irq_gpio >= 0) {
+		if (1) {
 			if (ns) {
 				disable_irq_nosync(tcm_hcd->irq);
 			} else {
@@ -3889,9 +3937,38 @@ static struct platform_driver syna_tcm_driver = {
 	.shutdown = syna_tcm_shutdown,
 };
 
+extern struct tpd_device *tpd;
 static int tpd_local_init(void)
 {
 	int retval;
+
+    pr_info("%s: entry\n", __func__);
+
+    /* setup the regulator */
+    tpd->reg = regulator_get(tpd->tpd_dev, "vtouch");
+#if !defined(CONFIG_MTK_LEGACY)
+    retval = regulator_enable(tpd->reg);
+    if (retval < 0) {
+        pr_err("%s: Failed to enable power regulator\n", __func__);
+        return retval;
+    }
+#endif
+
+    /* call mtk tpd to setup reset pin to high */
+    tpd_gpio_output(GTP_RST_PORT, 1);
+    msleep(RESET_ACTIVE_MS);
+#ifdef STARTUP_HW_RESET
+    /* set reset pin to low */
+    tpd_gpio_output(GTP_RST_PORT, 0);
+    msleep(RESET_ACTIVE_MS);
+    /* set reset pin to high */
+    tpd_gpio_output(GTP_RST_PORT, 1);
+    msleep(RESET_DELAY_MS);
+#endif
+
+    /* call mtk tpd to setup eint as an interrupt */
+    tpd_gpio_as_int(GTP_INT_PORT);
+
 
 	printk("syna tpd_local_init\n");
 	retval = syna_tcm_bus_init();

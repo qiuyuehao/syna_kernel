@@ -31,6 +31,7 @@
  */
 
 #include <linux/i2c.h>
+#include "tpd.h"
 #include <linux/of_gpio.h>
 #include "synaptics_tcm_core.h"
 
@@ -171,6 +172,14 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 		}
 	} else {
 		bdata->reset_delay_ms = 0;
+	}
+
+	prop = of_find_property(np, "synaptics,tpio-reset-gpio", NULL);
+	if (prop && prop->length) {
+		bdata->tpio_reset_gpio = of_get_named_gpio_flags(np,
+				"synaptics,tpio-reset-gpio", 0, NULL);
+	} else {
+		bdata->tpio_reset_gpio = -1;
 	}
 
 	prop = of_find_property(np, "synaptics,x-flip", NULL);
@@ -466,10 +475,14 @@ static const struct i2c_device_id syna_tcm_id_table[] = {
 };
 MODULE_DEVICE_TABLE(i2c, syna_tcm_id_table);
 
+unsigned short force[] = {0, 0x20, I2C_CLIENT_END, I2C_CLIENT_END};
+
+static const unsigned short * const forces[] = { force, NULL };
+
 #ifdef CONFIG_OF
 static struct of_device_id syna_tcm_of_match_table[] = {
 	{
-		.compatible = "synaptics,tcm-i2c",
+		.compatible = "mediatek,cap_touch",
 	},
 	{},
 };
@@ -479,6 +492,7 @@ MODULE_DEVICE_TABLE(of, syna_tcm_of_match_table);
 #endif
 
 static struct i2c_driver syna_tcm_i2c_driver = {
+	.driver.name = I2C_MODULE_NAME,
 	.driver = {
 		.name = I2C_MODULE_NAME,
 		.owner = THIS_MODULE,
@@ -487,6 +501,7 @@ static struct i2c_driver syna_tcm_i2c_driver = {
 	.probe = syna_tcm_i2c_probe,
 	.remove = syna_tcm_i2c_remove,
 	.id_table = syna_tcm_id_table,
+	.address_list = (const unsigned short*) forces,
 };
 
 int syna_tcm_bus_init(void)
