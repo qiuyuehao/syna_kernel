@@ -160,6 +160,7 @@ DECLARE_COMPLETION(response_complete);
 static struct kobject *sysfs_dir;
 
 static struct syna_tcm_module_pool mod_pool;
+static struct syna_tcm_hcd *g_tcm_hcd;
 
 SHOW_PROTOTYPE(syna_tcm, info)
 SHOW_PROTOTYPE(syna_tcm, appinfo)
@@ -2016,7 +2017,7 @@ static int syna_tcm_enable_irq(struct syna_tcm_hcd *tcm_hcd, bool en, bool ns)
 			enable_irq(tcm_hcd->irq);
 			retval = 0;
 		}
-		
+
 		//tpd_gpio_as_int(1);
 
 queue_polling_work:
@@ -2945,7 +2946,7 @@ void syna_tcm_reset_syc_lcd(int en)
 	}
 
 	return;
-	
+
 }
 EXPORT_SYMBOL(syna_tcm_reset_syc_lcd);
 
@@ -3209,7 +3210,7 @@ static int syna_tcm_resume(struct device *dev)
 {
 	int retval;
 	struct syna_tcm_module_handler *mod_handler;
-	struct syna_tcm_hcd *tcm_hcd = dev_get_drvdata(dev);
+	struct syna_tcm_hcd *tcm_hcd = g_tcm_hcd;
 
 	if (!tcm_hcd->in_suspend)
 		return 0;
@@ -3315,7 +3316,7 @@ static void syna_mtk_tcm_resume(struct device *dev)
 static int syna_tcm_suspend(struct device *dev)
 {
 	struct syna_tcm_module_handler *mod_handler;
-	struct syna_tcm_hcd *tcm_hcd = dev_get_drvdata(dev);
+	struct syna_tcm_hcd *tcm_hcd = g_tcm_hcd;
 
 	if (tcm_hcd->in_suspend)
 		return 0;
@@ -3504,6 +3505,7 @@ static int syna_tcm_probe(struct platform_device *pdev)
 
 	tcm_hcd->watchdog.run = RUN_WATCHDOG;
 	tcm_hcd->update_watchdog = syna_tcm_update_watchdog;
+    g_tcm_hcd = tcm_hcd;
 
 	if (bdata->irq_gpio >= 0)
 		tcm_hcd->irq = gpio_to_irq(bdata->irq_gpio);
@@ -3546,7 +3548,7 @@ static int syna_tcm_probe(struct platform_device *pdev)
 	device_init_wakeup(&pdev->dev, 1);
 
 	init_waitqueue_head(&tcm_hcd->hdl_wq);
-	
+
 	init_waitqueue_head(&tcm_hcd->reflash_wq);
 	atomic_set(&tcm_hcd->firmware_flashing, 0);
 
