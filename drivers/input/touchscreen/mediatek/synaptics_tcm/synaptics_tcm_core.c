@@ -3951,12 +3951,14 @@ static int syna_tcm_probe(struct platform_device *pdev)
 	}
 
 #ifdef CONFIG_FB
-	tcm_hcd->fb_notifier.notifier_call = syna_tcm_fb_notifier_cb;
-	retval = fb_register_client(&tcm_hcd->fb_notifier);
-	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to register FB notifier client\n");
-	}
+    if (0) {
+    	tcm_hcd->fb_notifier.notifier_call = syna_tcm_fb_notifier_cb;
+    	retval = fb_register_client(&tcm_hcd->fb_notifier);
+    	if (retval < 0) {
+    		LOGE(tcm_hcd->pdev->dev.parent,
+    				"Failed to register FB notifier client\n");
+    	}
+    }
 #endif
 
 
