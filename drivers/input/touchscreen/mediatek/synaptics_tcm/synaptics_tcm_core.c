@@ -34,10 +34,10 @@
 #include <linux/kthread.h>
 #include <linux/interrupt.h>
 #include <linux/regulator/consumer.h>
-#include <linux/fb.h>
-#include "tpd.h"
 #include "synaptics_tcm_core.h"
+#include "tpd.h"
 
+#include <linux/fb.h>
 #include <linux/of.h>
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
@@ -2010,9 +2010,9 @@ static int syna_tcm_tpd_irq_registration(struct syna_tcm_hcd *tcm_hcd)
 					IRQF_TRIGGER_LOW | IRQF_ONESHOT,
 					PLATFORM_DRIVER_NAME, tcm_hcd);
 */
-        retval = request_threaded_irq(tcm_hcd->irq, NULL,
-                syna_tcm_isr, IRQF_TRIGGER_LOW | IRQF_ONESHOT,
-                PLATFORM_DRIVER_NAME, tcm_hcd);
+		retval = request_threaded_irq(tcm_hcd->irq, NULL,
+					syna_tcm_isr, IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+					PLATFORM_DRIVER_NAME, tcm_hcd);
 
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
@@ -2057,8 +2057,8 @@ static int syna_tcm_enable_irq(struct syna_tcm_hcd *tcm_hcd, bool en, bool ns)
 					syna_tcm_isr, IRQF_TRIGGER_LOW | IRQF_ONESHOT,
 					PLATFORM_DRIVER_NAME, tcm_hcd);
 */
-            retval = syna_tcm_tpd_irq_registration(tcm_hcd);
-            if (retval < 0) {
+			retval = syna_tcm_tpd_irq_registration(tcm_hcd);
+			if (retval < 0) {
 				LOGE(tcm_hcd->pdev->dev.parent,
 						"Failed to create interrupt thread\n");
 			}
@@ -2090,16 +2090,13 @@ static int syna_tcm_enable_irq(struct syna_tcm_hcd *tcm_hcd, bool en, bool ns)
 			goto exit;
 		}
 
-		//if (bdata->irq_gpio >= 0) {
-		if (1) {
-			if (ns) {
-				disable_irq_nosync(tcm_hcd->irq);
-			} else {
-				disable_irq(tcm_hcd->irq);
-				free_irq(tcm_hcd->irq, tcm_hcd);
-			}
-			irq_freed = !ns;
+		if (ns) {
+			disable_irq_nosync(tcm_hcd->irq);
+		} else {
+			disable_irq(tcm_hcd->irq);
+			free_irq(tcm_hcd->irq, tcm_hcd);
 		}
+		irq_freed = !ns;
 
 		if (ns) {
 			cancel_delayed_work(&tcm_hcd->polling_work);
@@ -2994,7 +2991,7 @@ void syna_tcm_reset_syc_lcd(int en)
 	}
 
 	return;
-
+	
 }
 EXPORT_SYMBOL(syna_tcm_reset_syc_lcd);
 
@@ -3553,8 +3550,8 @@ static int syna_tcm_probe(struct platform_device *pdev)
 
 	tcm_hcd->watchdog.run = RUN_WATCHDOG;
 	tcm_hcd->update_watchdog = syna_tcm_update_watchdog;
-    g_tcm_hcd = tcm_hcd;
-
+	g_tcm_hcd = tcm_hcd;
+	tpd_load_status = 1;
 	if (bdata->irq_gpio >= 0)
 		tcm_hcd->irq = gpio_to_irq(bdata->irq_gpio);
 	else
@@ -3596,7 +3593,7 @@ static int syna_tcm_probe(struct platform_device *pdev)
 	device_init_wakeup(&pdev->dev, 1);
 
 	init_waitqueue_head(&tcm_hcd->hdl_wq);
-
+	
 	init_waitqueue_head(&tcm_hcd->reflash_wq);
 	atomic_set(&tcm_hcd->firmware_flashing, 0);
 
@@ -3956,14 +3953,14 @@ static int tpd_local_init(void)
 
     /* call mtk tpd to setup reset pin to high */
     tpd_gpio_output(GTP_RST_PORT, 1);
-    msleep(RESET_ACTIVE_MS);
+    msleep(10);
 #ifdef STARTUP_HW_RESET
     /* set reset pin to low */
     tpd_gpio_output(GTP_RST_PORT, 0);
-    msleep(RESET_ACTIVE_MS);
+    msleep(1);
     /* set reset pin to high */
     tpd_gpio_output(GTP_RST_PORT, 1);
-    msleep(RESET_DELAY_MS);
+    msleep(10);
 #endif
 
     /* call mtk tpd to setup eint as an interrupt */
@@ -3981,7 +3978,6 @@ static int tpd_local_init(void)
 	}
 #endif
 	printk("syna platform_driver_register, set tpd_load_status = 1\n");
-	tpd_load_status = 1;
 	return platform_driver_register(&syna_tcm_driver);
 }
 

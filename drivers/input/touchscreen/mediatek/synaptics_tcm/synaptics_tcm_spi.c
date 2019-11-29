@@ -130,7 +130,7 @@ printk("%s \n",  __func__);
 		bdata->reset_gpio = of_get_named_gpio_flags(np,
 				"synaptics,reset-gpio", 0, NULL);
 		printk("%s reset_gpio:%d\n",  __func__, bdata->reset_gpio);
-
+		
 	} else {
 		bdata->reset_gpio = -1;
 	}
@@ -661,7 +661,7 @@ MODULE_DEVICE_TABLE(spi, syna_tcm_id_table);
 #ifdef CONFIG_OF
 static struct of_device_id syna_tcm_of_match_table[] = {
 	{
-		.compatible = "synaptics,tcm-spi",
+		.compatible = "mediatek,cap_touch",
 	},
 	{},
 };

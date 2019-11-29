@@ -519,7 +519,7 @@ exit:
 		release_firmware(reflash_hcd->fw_entry);
 		reflash_hcd->fw_entry = NULL;
 	}
-
+	
 	reflash_hcd->reflash_by_manual = false;
 	reflash_hcd->image = NULL;
 	reflash_hcd->image_size = 0;
@@ -1001,16 +1001,16 @@ static int reflash_get_fw_image(void)
 						FW_IMAGE_NAME_MANUAL);
 				return retval;
 			}
-
+			
 			LOGD(tcm_hcd->pdev->dev.parent,
 					"Firmware image size = %d\n",
 					(unsigned int)reflash_hcd->fw_entry->size);
-
+			
 			reflash_hcd->image = reflash_hcd->fw_entry->data;
 			reflash_hcd->image_size = reflash_hcd->fw_entry->size;
 		}
 	}
-
+	
 	retval = reflash_parse_fw_image();
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
