@@ -76,6 +76,10 @@
 
 #define BOOT_CONFIG_SLOTS 16
 
+#define BOOT_CONFIG_TOTAL_SIZE 240
+#define BOOT_CONFIG_ONE_RECORD_SIZE 16
+#define BOOT_CONFIG_SKIP_RECORD_CNT 0
+
 #define IMAGE_BUF_SIZE (512 * 1024)
 
 #define ERASE_FLASH_DELAY_MS 500
@@ -225,6 +229,9 @@ static int reflash_update_app_config(bool reset);
 static int reflash_update_disp_config(bool reset);
 
 static int reflash_do_reflash(void);
+static int reflash_get_boot_config_valid_record(unsigned char *buf, int length);
+static unsigned char boot_config_data[BOOT_CONFIG_TOTAL_SIZE];
+
 
 STORE_PROTOTYPE(reflash, reflash)
 
@@ -257,6 +264,9 @@ static ssize_t reflash_sysfs_oem_show(struct file *data_file,
 		char *buf, loff_t pos, size_t count);
 
 static ssize_t reflash_sysfs_oem_store(struct file *data_file,
+		struct kobject *kobj, struct bin_attribute *attributes,
+		char *buf, loff_t pos, size_t count);
+static ssize_t reflash_sysfs_boot_config_store(struct file *data_file,
 		struct kobject *kobj, struct bin_attribute *attributes,
 		char *buf, loff_t pos, size_t count);
 
@@ -303,10 +313,11 @@ static struct bin_attribute bin_attrs[] = {
 	{
 		.attr = {
 			.name = "customer_serialization",
-			.mode = (S_IRUGO | S_IRUSR | S_IRGRP),
+			.mode = (S_IRUGO | S_IWUSR | S_IWGRP),
 		},
 		.size = 0,
 		.read = reflash_sysfs_cs_show,
+		.write = reflash_sysfs_boot_config_store,
 	},
 };
 
@@ -631,6 +642,39 @@ exit:
 
 	return retval;
 }
+static int reflash_update_boot_config_customer(char *buf, int length);
+
+static ssize_t reflash_sysfs_boot_config_store(struct file *data_file,
+		struct kobject *kobj, struct bin_attribute *attributes,
+		char *buf, loff_t pos, size_t count)
+{
+	int retval;
+	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
+
+	mutex_lock(&tcm_hcd->extif_mutex);
+
+	pm_stay_awake(&tcm_hcd->pdev->dev);
+
+	mutex_lock(&reflash_hcd->reflash_mutex);
+
+	retval = reflash_update_boot_config_customer(buf, count);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to update custom OEM data\n");
+		goto exit;
+	}
+
+	retval = count;
+
+exit:
+	mutex_unlock(&reflash_hcd->reflash_mutex);
+
+	pm_relax(&tcm_hcd->pdev->dev);
+
+	mutex_unlock(&tcm_hcd->extif_mutex);
+
+	return retval;
+}
 
 static ssize_t reflash_sysfs_cs_show(struct file *data_file,
 		struct kobject *kobj, struct bin_attribute *attributes,
@@ -638,6 +682,7 @@ static ssize_t reflash_sysfs_cs_show(struct file *data_file,
 {
 	int retval;
 	unsigned int readlen;
+	unsigned char tmpdata[BOOT_CONFIG_ONE_RECORD_SIZE + 1] = {0};
 	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
 
 	mutex_lock(&tcm_hcd->extif_mutex);
@@ -650,8 +695,18 @@ static ssize_t reflash_sysfs_cs_show(struct file *data_file,
 				"Failed to read OEM data\n");
 		goto exit;
 	}
+	LOCK_BUFFER(reflash_hcd->read);
+
+	memcpy((void *)boot_config_data,
+			(const void *)reflash_hcd->read.buf,
+			BOOT_CONFIG_TOTAL_SIZE);
+
+	UNLOCK_BUFFER(reflash_hcd->read);
 
 	reflash_show_data();
+	
+	reflash_get_boot_config_valid_record(tmpdata, BOOT_CONFIG_ONE_RECORD_SIZE);
+	printk("syna find boot config valid data:%s\n", tmpdata);
 
 exit:
 	mutex_unlock(&reflash_hcd->reflash_mutex);
@@ -713,6 +768,38 @@ static int reflash_set_up_flash_access(void)
 	return 0;
 }
 
+static int array_all_zero(unsigned char *buf, int length)
+{
+	int i = 0;
+	for (i = 0; i < length; i++) {
+		if (buf[i] != 0) {
+			return false;
+		}
+	}
+	return true;
+}
+static int reflash_get_boot_config_valid_record(unsigned char *buf, int length)
+{
+	int i;
+	int valid_index;
+	int record_length = BOOT_CONFIG_TOTAL_SIZE / BOOT_CONFIG_ONE_RECORD_SIZE;
+	for (i = BOOT_CONFIG_SKIP_RECORD_CNT; i < record_length; i++) {
+		if (array_all_zero(&boot_config_data[i * BOOT_CONFIG_ONE_RECORD_SIZE], record_length)) {
+			if (i == BOOT_CONFIG_SKIP_RECORD_CNT) {
+				printk("no valid record in the boot config area\n");
+				return -1;
+			} else {
+				valid_index = i - 1;
+				break;
+			}
+		}
+	}
+	if (i == record_length) {
+		valid_index = i - 1;
+	}
+	secure_memcpy(buf, length, &boot_config_data[valid_index * BOOT_CONFIG_ONE_RECORD_SIZE], BOOT_CONFIG_ONE_RECORD_SIZE, length);
+	return 0;
+}
 static int reflash_parse_fw_image(void)
 {
 	unsigned int idx;
@@ -987,6 +1074,7 @@ static int reflash_read_flash(unsigned int address, unsigned char *data,
 		unsigned int datalen)
 {
 	int retval;
+	int i;
 	unsigned int length_words;
 	unsigned int flash_addr_words;
 	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
@@ -1014,6 +1102,10 @@ static int reflash_read_flash(unsigned int address, unsigned char *data,
 	reflash_hcd->out.buf[5] = (unsigned char)(length_words >> 8);
 
 	LOCK_BUFFER(reflash_hcd->resp);
+	LOGE(tcm_hcd->pdev->dev.parent,
+			"command %s out buf: %x, %x, %x, %x, %x, %x\n",
+			STR(CMD_READ_FLASH), reflash_hcd->out.buf[0], reflash_hcd->out.buf[1], reflash_hcd->out.buf[2],
+			reflash_hcd->out.buf[3], reflash_hcd->out.buf[4], reflash_hcd->out.buf[5]);
 
 	retval = tcm_hcd->write_message(tcm_hcd,
 			CMD_READ_FLASH,
@@ -1034,6 +1126,8 @@ static int reflash_read_flash(unsigned int address, unsigned char *data,
 	}
 
 	UNLOCK_BUFFER(reflash_hcd->out);
+	LOGE(tcm_hcd->pdev->dev.parent,
+			"response data length:%d\n", reflash_hcd->resp.data_length);
 
 	if (reflash_hcd->resp.data_length != datalen) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -1041,7 +1135,12 @@ static int reflash_read_flash(unsigned int address, unsigned char *data,
 		UNLOCK_BUFFER(reflash_hcd->resp);
 		return -EIO;
 	}
-
+	for (i = 0; i < datalen;) {
+		printk("syna data: %x, %x, %x, %x, %x, %x, %x, %x\n", reflash_hcd->resp.buf[i], reflash_hcd->resp.buf[i + 1],
+			reflash_hcd->resp.buf[i + 2], reflash_hcd->resp.buf[i + 3], reflash_hcd->resp.buf[i + 4], reflash_hcd->resp.buf[i + 5],
+			reflash_hcd->resp.buf[i + 6], reflash_hcd->resp.buf[i + 7]);
+		i = i + 8;
+	}
 	retval = secure_memcpy(data,
 			datalen,
 			reflash_hcd->resp.buf,
@@ -1087,7 +1186,8 @@ static int reflash_read_data(enum flash_area area, bool run_app_firmware,
 	default:
 		break;
 	}
-
+	LOGE(tcm_hcd->pdev->dev.parent,
+				"get data location addr:%x, length:%x\n", addr, length);
 	retval = reflash_set_up_flash_access();
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -1102,7 +1202,7 @@ static int reflash_read_data(enum flash_area area, bool run_app_firmware,
 	case BOOT_CONFIG:
 		temp = le2_to_uint(boot_info->boot_config_start_block);
 		addr = temp * reflash_hcd->write_block_size;
-		length = BOOT_CONFIG_SIZE * BOOT_CONFIG_SLOTS;
+		length = BOOT_CONFIG_TOTAL_SIZE;
 		break;
 	case APP_CONFIG:
 		temp = le2_to_uint(app_info->app_config_start_write_block);
@@ -1133,6 +1233,8 @@ static int reflash_read_data(enum flash_area area, bool run_app_firmware,
 		retval = -EINVAL;
 		goto run_app_firmware;
 	}
+	LOGE(tcm_hcd->pdev->dev.parent,
+				"after *write_block_size:%x, length:%x\n", addr, length);
 
 	if (addr == 0 || length == 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -1203,6 +1305,33 @@ run_app_firmware:
 	}
 
 exit:
+	return retval;
+}
+int reflash_wrapper_read_oem_data(unsigned char *output_data,
+		unsigned int buffer_len)
+{
+	int retval;
+	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
+
+	mutex_lock(&reflash_hcd->reflash_mutex);
+
+	retval = reflash_read_data(BOOT_CONFIG, true, NULL);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to read BOOT_CONFIG data\n");
+		return -1;
+	}
+	LOCK_BUFFER(reflash_hcd->read);
+
+	memcpy((void *)boot_config_data,
+			(const void *)reflash_hcd->read.buf,
+			BOOT_CONFIG_TOTAL_SIZE);
+
+	UNLOCK_BUFFER(reflash_hcd->read);
+
+	mutex_unlock(&reflash_hcd->reflash_mutex);
+	retval = reflash_get_boot_config_valid_record(output_data, buffer_len);
+
 	return retval;
 }
 
@@ -1543,6 +1672,9 @@ static int reflash_erase_flash(unsigned int page_start, unsigned int page_count)
 	}
 
 	LOCK_BUFFER(reflash_hcd->resp);
+	LOGE(tcm_hcd->pdev->dev.parent,
+			"command %s, out buf:%x, %x, %x, %x\n",
+			STR(CMD_ERASE_FLASH), out_buf[0], out_buf[1], out_buf[2], out_buf[3]);
 
 	retval = tcm_hcd->write_message(tcm_hcd,
 			CMD_ERASE_FLASH,
@@ -1884,6 +2016,9 @@ static int reflash_update_custom_oem(const unsigned char *data,
 
 		page_count = ceil_div(length, reflash_hcd->page_size);
 
+		LOGE(tcm_hcd->pdev->dev.parent,
+			"syna before erase, page size:%d, page_start:%d page_count:%d, addr:%d, length:%d\n", reflash_hcd->page_size, page_start, page_count, addr, length);
+
 		retval = reflash_erase_flash(page_start, page_count);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
@@ -1990,6 +2125,135 @@ static int reflash_update_boot_config(bool lock)
 	retval = reflash_write_flash(addr,
 			reflash_hcd->image_info.boot_config.data,
 			BOOT_CONFIG_SIZE);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write to flash\n");
+		goto reset;
+	}
+
+	LOGN(tcm_hcd->pdev->dev.parent,
+			"Slot %d updated with new boot config\n",
+			idx);
+
+	retval = 0;
+
+reset:
+	if (tcm_hcd->reset(tcm_hcd) < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to do reset\n");
+	}
+
+#ifdef WATCHDOG_SW
+	tcm_hcd->update_watchdog(tcm_hcd, true);
+#endif
+
+	return retval;
+}
+static int find_boot_config_write_index(void)
+{
+	int i;
+	int record_length = BOOT_CONFIG_TOTAL_SIZE / BOOT_CONFIG_ONE_RECORD_SIZE;
+	for (i = BOOT_CONFIG_SKIP_RECORD_CNT; i < BOOT_CONFIG_TOTAL_SIZE / BOOT_CONFIG_ONE_RECORD_SIZE; i++) {
+		if (array_all_zero(&boot_config_data[i * BOOT_CONFIG_ONE_RECORD_SIZE], record_length)) {
+			return i;
+		}
+	}
+	return i;
+}
+static int reflash_update_boot_config_customer(char *buf, int length)
+{
+	int retval;
+	unsigned char slot_used;
+	unsigned int idx = 0;
+	unsigned int addr;
+	int temp, device_addr;
+	struct boot_config *data;
+	struct boot_config *last_slot;
+	struct syna_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
+	
+	temp = le2_to_uint(tcm_hcd->boot_info.boot_config_start_block);
+	device_addr = temp * reflash_hcd->write_block_size;
+	addr = device_addr;
+
+	retval = reflash_set_up_flash_access();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to set up flash access\n");
+		return retval;
+	}
+
+#ifdef WATCHDOG_SW
+	tcm_hcd->update_watchdog(tcm_hcd, false);
+#endif
+if (0) {
+	retval = reflash_check_boot_config();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed boot_config partition check\n");
+		goto reset;
+	}
+}
+	retval = reflash_read_data(BOOT_CONFIG, false, NULL);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to read boot config\n");
+		goto reset;
+	}
+	
+	LOCK_BUFFER(reflash_hcd->read);
+
+	memcpy((void *)boot_config_data,
+			(const void *)reflash_hcd->read.buf,
+			BOOT_CONFIG_TOTAL_SIZE);
+
+	UNLOCK_BUFFER(reflash_hcd->read);
+if (0) {
+	LOCK_BUFFER(reflash_hcd->read);
+
+	data = (struct boot_config *)reflash_hcd->read.buf;
+	last_slot = data + (BOOT_CONFIG_SLOTS - 1);
+	slot_used = tcm_hcd->id_info.mode == MODE_TDDI_BOOTLOADER ? 0 : 1;
+
+	if (last_slot->used == slot_used) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Boot config already locked down\n");
+		UNLOCK_BUFFER(reflash_hcd->read);
+		goto reset;
+	}
+#if 0
+	if (lock) {
+		idx = BOOT_CONFIG_SLOTS - 1;
+	} else {
+		for (idx = 0; idx < BOOT_CONFIG_SLOTS; idx++) {
+			if (data->used == slot_used) {
+				data++;
+				continue;
+			} else {
+				break;
+			}
+		}
+	}
+#endif
+	UNLOCK_BUFFER(reflash_hcd->read);
+
+
+	if (idx == BOOT_CONFIG_SLOTS) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"No free boot config slot available\n");
+		goto reset;
+	}
+}
+	idx = find_boot_config_write_index();
+	if (idx == BOOT_CONFIG_TOTAL_SIZE / BOOT_CONFIG_ONE_RECORD_SIZE) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+				"record reach max cnt, can not write any more\n");
+			goto reset;
+	}
+	addr += idx * BOOT_CONFIG_ONE_RECORD_SIZE;
+
+	retval = reflash_write_flash(addr,
+			buf,
+			length);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to write to flash\n");
