@@ -99,16 +99,4 @@ config TOUCHSCREEN_SYNAPTICS_TCM_DIAGNOSTICS
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called synaptics_tcm_diagnostics.
-
-config TOUCHSCREEN_SYNAPTICS_TCM_VIVO_INTERFACE
-	tristate "Synaptics TCM VIVO interface module"
-	depends on TOUCHSCREEN_SYNAPTICS_TCM_CORE
-	help
-	  Say Y here to enable support for vivo interface functionality.
-
-	  If unsure, say N.
-
-	  To compile this driver as a module, choose M here: the
-	  module will be called synaptics_tcm_vivo_interface.
-	  
 endif

@@ -30,29 +30,34 @@
  * DOLLARS.
  */
 
-&i2c_1 {
-	status = "ok";
-	synaptics_tcm@4b {
-		compatible = "synaptics,tcm-i2c";
-		reg = <0x4b>;
-		interrupt-parent = <&msm_gpio>;
-		interrupts = <65 0x2008>;
-		vdd-supply = <&pm8994_lvs2>;
-		avdd-supply = <&pm8994_l22>;
-		pinctrl-names = "pmx_ts_active", "pmx_ts_suspend";
-		pinctrl-0 = <&ts_active>;
-		pinctrl-1 = <&ts_suspend>;
-		synaptics,bus-reg-name = "vdd";
-		synaptics,pwr-reg-name = "avdd";
-		synaptics,irq-gpio = <&msm_gpio 65 0x2008>; /* IRQF_ONESHOT | IRQF_TRIGGER_LOW */
-		synaptics,irq-on-state = <0>;
-		synaptics,reset-gpio = <&msm_gpio 102 0x0000>;
-		synaptics,reset-on-state = <0>;
-		synaptics,reset-active-ms = <20>;
-		synaptics,reset-delay-ms = <200>;
-		synaptics,power-delay-ms = <200>;
-		synaptics,ubl-i2c-addr = <0x20>;
-		synaptics,display-reset-gpio = <&msm_gpio 78 0>;
-		synaptics,y-flip = <1>;
-	};
+#ifndef _SYNAPTICS_TCM_H_
+#define _SYNAPTICS_TCM_H_
+
+#define I2C_MODULE_NAME "synaptics_tcm_i2c"
+#define SPI_MODULE_NAME "synaptics_tcm_spi"
+
+struct syna_tcm_board_data {
+	bool x_flip;
+	bool y_flip;
+	bool swap_axes;
+	int irq_gpio;
+	int irq_on_state;
+	int power_gpio;
+	int power_on_state;
+	int reset_gpio;
+	int reset_on_state;
+	unsigned int spi_mode;
+	unsigned int power_delay_ms;
+	unsigned int reset_delay_ms;
+	unsigned int reset_active_ms;
+	unsigned int byte_delay_us;
+	unsigned int block_delay_us;
+	unsigned int ubl_i2c_addr;
+	unsigned int ubl_max_freq;
+	unsigned int ubl_byte_delay_us;
+	unsigned long irq_flags;
+	const char *pwr_reg_name;
+	const char *bus_reg_name;
 };
+
+#endif

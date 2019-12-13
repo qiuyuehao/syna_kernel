@@ -1,13 +1,9 @@
 /*
  * Synaptics TCM touchscreen driver
  *
- * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017 Synaptics Incorporated. All rights reserved.
  *
- * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
- * Copyright (C) 2018-2019 Ian Su <ian.su@tw.synaptics.com>
- * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@synaptics.com>
- * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@synaptics.com>
- * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.synaptics.com>
+ * Copyright (C) 2017 Scott Lin <scott.lin@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -173,7 +169,6 @@ static int device_capture_touch_report_config(unsigned int count)
 {
 	int retval;
 	unsigned int size;
-	unsigned int buf_size;
 	unsigned char *data;
 	struct syna_tcm_hcd *tcm_hcd = device_hcd->tcm_hcd;
 
@@ -196,7 +191,6 @@ static int device_capture_touch_report_config(unsigned int count)
 			return 0;
 
 		data = &device_hcd->out.buf[3];
-		buf_size = device_hcd->out.buf_size - 3;
 	} else {
 		size = count - 1;
 
@@ -204,7 +198,6 @@ static int device_capture_touch_report_config(unsigned int count)
 			return 0;
 
 		data = &device_hcd->out.buf[1];
-		buf_size = device_hcd->out.buf_size - 1;
 	}
 
 	LOCK_BUFFER(tcm_hcd->config);
@@ -222,7 +215,7 @@ static int device_capture_touch_report_config(unsigned int count)
 	retval = secure_memcpy(tcm_hcd->config.buf,
 			tcm_hcd->config.buf_size,
 			data,
-			buf_size,
+			size,
 			size);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -254,26 +247,19 @@ static int device_ioctl(struct inode *inp, struct file *filp, unsigned int cmd,
 
 	switch (cmd) {
 	case DEVICE_IOC_RESET:
-		retval = tcm_hcd->reset_n_reinit(tcm_hcd, false, true);
+		retval = tcm_hcd->reset(tcm_hcd, false);
 		break;
 	case DEVICE_IOC_IRQ:
 		if (arg == 0)
-			retval = tcm_hcd->enable_irq(tcm_hcd, false, false);
+			retval = tcm_hcd->enable_irq(tcm_hcd, false);
 		else if (arg == 1)
-			retval = tcm_hcd->enable_irq(tcm_hcd, true, NULL);
+			retval = tcm_hcd->enable_irq(tcm_hcd, true);
 		break;
 	case DEVICE_IOC_RAW:
-		if (arg == 0) {
+		if (arg == 0)
 			device_hcd->raw_mode = false;
-#ifdef WATCHDOG_SW
-			tcm_hcd->update_watchdog(tcm_hcd, true);
-#endif
-		} else if (arg == 1) {
+		else if (arg == 1)
 			device_hcd->raw_mode = true;
-#ifdef WATCHDOG_SW
-			tcm_hcd->update_watchdog(tcm_hcd, false);
-#endif
-		}
 		break;
 	case DEVICE_IOC_CONCURRENT:
 		if (arg == 0)
@@ -411,7 +397,6 @@ static ssize_t device_write(struct file *filp, const char __user *buf,
 				NULL,
 				NULL,
 				NULL,
-				NULL,
 				0);
 	} else {
 		mutex_lock(&tcm_hcd->reset_mutex);
@@ -422,7 +407,6 @@ static ssize_t device_write(struct file *filp, const char __user *buf,
 				&device_hcd->resp.buf,
 				&device_hcd->resp.buf_size,
 				&device_hcd->resp.data_length,
-				NULL,
 				0);
 		mutex_unlock(&tcm_hcd->reset_mutex);
 	}
@@ -673,7 +657,7 @@ exit:
 	return 0;
 }
 
-static int device_reinit(struct syna_tcm_hcd *tcm_hcd)
+static int device_reset(struct syna_tcm_hcd *tcm_hcd)
 {
 	int retval;
 
@@ -690,13 +674,10 @@ static struct syna_tcm_module_cb device_module = {
 	.init = device_init,
 	.remove = device_remove,
 	.syncbox = NULL,
-#ifdef REPORT_NOTIFIER
 	.asyncbox = NULL,
-#endif
-	.reinit = device_reinit,
+	.reset = device_reset,
 	.suspend = NULL,
 	.resume = NULL,
-	.early_suspend = NULL,
 };
 
 static int __init device_module_init(void)

@@ -1,13 +1,9 @@
 /*
  * Synaptics TCM touchscreen driver
  *
- * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017 Synaptics Incorporated. All rights reserved.
  *
- * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
- * Copyright (C) 2018-2019 Ian Su <ian.su@tw.synaptics.com>
- * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@synaptics.com>
- * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@synaptics.com>
- * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.synaptics.com>
+ * Copyright (C) 2017 Scott Lin <scott.lin@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,8 +37,6 @@
 #define XFER_ATTEMPTS 10
 
 static unsigned char *buf;
-
-static unsigned int buf_size;
 
 static struct syna_tcm_bus_io bus_io;
 
@@ -177,14 +171,6 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 		bdata->reset_delay_ms = 0;
 	}
 
-	prop = of_find_property(np, "synaptics,tpio-reset-gpio", NULL);
-	if (prop && prop->length) {
-		bdata->tpio_reset_gpio = of_get_named_gpio_flags(np,
-				"synaptics,tpio-reset-gpio", 0, NULL);
-	} else {
-		bdata->tpio_reset_gpio = -1;
-	}
-
 	prop = of_find_property(np, "synaptics,x-flip", NULL);
 	bdata->x_flip = prop > 0 ? true : false;
 
@@ -216,6 +202,7 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 static int syna_tcm_i2c_alloc_mem(struct syna_tcm_hcd *tcm_hcd,
 		unsigned int size)
 {
+	static unsigned int buf_size;
 	struct i2c_client *i2c = to_i2c_client(tcm_hcd->pdev->dev.parent);
 
 	if (size > buf_size) {
@@ -304,7 +291,7 @@ static int syna_tcm_i2c_rmi_write(struct syna_tcm_hcd *tcm_hcd,
 
 	buf[0] = (unsigned char)addr;
 	retval = secure_memcpy(&buf[1],
-			buf_size - 1,
+			length,
 			data,
 			length,
 			length);
