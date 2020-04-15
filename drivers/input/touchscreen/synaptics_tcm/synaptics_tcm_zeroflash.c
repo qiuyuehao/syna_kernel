@@ -163,7 +163,8 @@ struct firmware_status {
 	unsigned short invalid_static_config:1;
 	unsigned short need_disp_config:1;
 	unsigned short need_app_config:1;
-	unsigned short reserved:13;
+    	unsigned short hdl_version:4;
+	unsigned short reserved:9;
 } __packed;
 
 struct zeroflash_hcd {
@@ -450,7 +451,7 @@ static void zeroflash_download_config(void)
 	if (!fw_status->need_app_config && !fw_status->need_disp_config) {
 		if (atomic_read(&tcm_hcd->helper.task) == HELP_NONE) {
 			atomic_set(&tcm_hcd->helper.task,
-					HELP_SEND_RESET_NOTIFICATION);
+					HELP_SEND_REINIT_NOTIFICATION);
 			queue_work(tcm_hcd->helper.workqueue,
 					&tcm_hcd->helper.work);
 		}
@@ -501,7 +502,22 @@ static int zeroflash_download_disp_config(void)
 		goto unlock_out;
 	}
 
-	zeroflash_hcd->out.buf[0] = 1;
+	switch (zeroflash_hcd->fw_status.hdl_version) {
+    	case 0:
+    	case 1:
+    		zeroflash_hcd->out.buf[0] = 1;
+    		break;
+    	case 2:
+    		zeroflash_hcd->out.buf[0] = 2;
+    		break;
+    	default:
+    		retval = -EINVAL;
+    		LOGE(tcm_hcd->pdev->dev.parent,
+    				"Invalid HDL version (%d)\n",
+    				zeroflash_hcd->fw_status.hdl_version);
+    		goto unlock_out;
+	}
+
 	zeroflash_hcd->out.buf[1] = HDL_DISPLAY_CONFIG_TO_PMEM;
 
 	retval = secure_memcpy(&zeroflash_hcd->out.buf[2],
@@ -601,7 +617,21 @@ static int zeroflash_download_app_config(void)
 		goto unlock_out;
 	}
 
-	zeroflash_hcd->out.buf[0] = 1;
+    switch (zeroflash_hcd->fw_status.hdl_version) {
+    	case 0:
+    	case 1:
+    		zeroflash_hcd->out.buf[0] = 1;
+    		break;
+    	case 2:
+    		zeroflash_hcd->out.buf[0] = 2;
+    		break;
+    	default:
+    		retval = -EINVAL;
+    		LOGE(tcm_hcd->pdev->dev.parent,
+    				"Invalid HDL version (%d)\n",
+    				zeroflash_hcd->fw_status.hdl_version);
+    		goto unlock_out;
+	}
 	zeroflash_hcd->out.buf[1] = HDL_TOUCH_CONFIG_TO_PMEM;
 
 	retval = secure_memcpy(&zeroflash_hcd->out.buf[2],

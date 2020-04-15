@@ -77,6 +77,14 @@ enum touch_report_code {
 	TOUCH_TUNING_GAUSSIAN_WIDTHS = 0x80,
 	TOUCH_TUNING_SMALL_OBJECT_PARAMS,
 	TOUCH_TUNING_0D_BUTTONS_VARIANCE,
+	TOUCH_GESTURE_SWIPE = 0xC1,
+	TOUCH_GESTURE_CIRCLE = 0xC2,
+	TOUCH_GESTURE_UNICODE = 0xC3,
+	TOUCH_GESTURE_VEE = 0xC4,
+	TOUCH_GESTURE_TRIANGLE = 0xC5,
+	TOUCH_GESTURE_ID = 0xC6,
+	TOUCH_GESTURE_COORDINATE = 0xC7,
+	TOUCH_PALM_DETECTED = 0xc8,
 };
 
 struct object_data {
@@ -966,11 +974,16 @@ static int touch_set_input_reporting(void)
 {
 	int retval;
 	struct syna_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd;
-
+/*
 	if (tcm_hcd->id_info.mode != MODE_APPLICATION ||
 			tcm_hcd->app_status != APP_STATUS_OK) {
 		LOGN(tcm_hcd->pdev->dev.parent,
 				"Application firmware not running\n");
+		return 0;
+	}*/
+	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) || tcm_hcd->app_status != APP_STATUS_OK) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Identifying mode = 0x%02x\n", tcm_hcd->id_info.mode);
 		return 0;
 	}
 
@@ -1142,6 +1155,38 @@ static int touch_asyncbox(struct syna_tcm_hcd *tcm_hcd)
 	return 0;
 }
 
+int touch_reinit(struct syna_tcm_hcd *tcm_hcd)
+{
+	int retval = 0;
+
+	if (!touch_hcd) {
+		retval = touch_init(tcm_hcd);
+		return retval;
+	}
+
+	touch_free_objects();
+
+	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode)) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Application mode is not running (firmware mode = %d)\n",
+				tcm_hcd->id_info.mode);
+		return 0;
+	}
+
+	retval = tcm_hcd->identify(tcm_hcd, false);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent, "Failed to do identification\n");
+		return retval;
+	}
+
+	retval = touch_set_input_reporting();
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent, "Failed to set up input reporting\n");
+	}
+
+	return retval;
+}
+
 static int touch_reset(struct syna_tcm_hcd *tcm_hcd)
 {
 	int retval;
@@ -1151,7 +1196,7 @@ static int touch_reset(struct syna_tcm_hcd *tcm_hcd)
 		return retval;
 	}
 
-	if (tcm_hcd->id_info.mode == MODE_APPLICATION) {
+	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode)) {
 		retval = touch_set_input_reporting();
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,

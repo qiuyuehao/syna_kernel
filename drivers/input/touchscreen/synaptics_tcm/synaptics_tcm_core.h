@@ -57,7 +57,7 @@
 //#define WAKEUP_GESTURE
 
 #define RD_CHUNK_SIZE 512 /* read length limit in bytes, 0 = unlimited */
-#define WR_CHUNK_SIZE 512 /* write length limit in bytes, 0 = unlimited */
+#define WR_CHUNK_SIZE 513 /* write length limit in bytes, 0 = unlimited */
 
 #define MESSAGE_HEADER_SIZE 4
 #define MESSAGE_MARKER 0xa5
@@ -148,16 +148,25 @@ enum module_type {
 	TCM_RECOVERY = 4,
 	TCM_ZEROFLASH = 5,
 	TCM_DIAGNOSTICS = 6,
+	TCM_VIVO_INTERFACE = 7,  /* to support vivo interface */
+	TCM_ROMBOOT = 8,
 	TCM_LAST,
 };
 
 enum boot_mode {
 	MODE_APPLICATION = 0x01,
 	MODE_HOST_DOWNLOAD = 0x02,
+	MODE_ROMBOOTLOADER = 0x04,
 	MODE_BOOTLOADER = 0x0b,
 	MODE_TDDI_BOOTLOADER = 0x0c,
 	MODE_PRODUCTION_TEST = 0x0e,
 };
+
+#define IS_NOT_FW_MODE(mode) \
+	((mode != MODE_APPLICATION) && (mode != MODE_HOST_DOWNLOAD))
+
+#define IS_FW_MODE(mode) \
+	((mode == MODE_APPLICATION) || (mode == MODE_HOST_DOWNLOAD))
 
 enum boot_status {
 	BOOT_STATUS_OK = 0x00,
@@ -196,6 +205,8 @@ enum dynamic_config_id {
 	DC_GRIP_SUPPRESSION_ENABLED,
 	DC_ENABLE_THICK_GLOVE,
 	DC_ENABLE_GLOVE,
+	DC_ROTATE_OR_HORIZONTAL = 0xc3,
+	DC_DAKZONE_ENABLE_BIT = 0xc4,
 };
 
 enum command {
@@ -232,6 +243,12 @@ enum command {
 	CMD_DOWNLOAD_CONFIG = 0x30,
 	CMD_ENTER_PRODUCTION_TEST_MODE = 0x31,
 	CMD_GET_FEATURES = 0x32,
+	CMD_GET_ROMBOOT_INFO = 0x40,
+	CMD_WRITE_PROGRAM_RAM = 0x41,
+	CMD_ROMBOOT_RUN_BOOTLOADER_FIRMWARE = 0x42,
+	CMD_SPI_MASTER_WRITE_THEN_READ_EXTENDED = 0x43,
+	CMD_ENTER_IO_BRIDGE_MODE = 0x44,
+	CMD_ROMBOOT_DOWNLOAD = 0x45,
 };
 
 enum status_code {
@@ -254,6 +271,7 @@ enum report_type {
 	REPORT_RAW = 0x13,
 	REPORT_STATUS = 0x1b,
 	REPORT_PRINTF = 0x82,
+	REPORT_ROMBOOT = 0xfd,
 	REPORT_HDL = 0xfe,
 };
 
@@ -285,6 +303,16 @@ enum helper_task {
 	HELP_NONE = 0,
 	HELP_RUN_APPLICATION_FIRMWARE,
 	HELP_SEND_RESET_NOTIFICATION,
+	HELP_SEND_REINIT_NOTIFICATION,
+};
+
+enum gesture_config_length {
+	GESTURE_CFG_DOUBLE_TAP_LEN = 8,
+	GESTURE_CFG_SWIPE_LEN = 8,
+	GESTURE_CFG_CIRCLE_LEN = 8,
+	GESTURE_CFG_UNICODE_LEN = 8,
+	GESTURE_CFG_ID_LEN = 8,
+	GESTURE_CFG_COORDINATE_LEN = 192,
 };
 
 struct syna_tcm_helper {
@@ -509,6 +537,8 @@ struct syna_tcm_hw_interface {
 int syna_tcm_bus_init(void);
 
 void syna_tcm_bus_exit(void);
+
+int touch_reinit(struct syna_tcm_hcd *tcm_hcd);
 
 int syna_tcm_add_module(struct syna_tcm_module_cb *mod_cb, bool insert);
 

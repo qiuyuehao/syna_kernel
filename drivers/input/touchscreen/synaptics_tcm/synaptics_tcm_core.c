@@ -50,7 +50,7 @@
 
 #define NOTIFIER_PRIORITY 2
 
-#define RESPONSE_TIMEOUT_MS 5000
+#define RESPONSE_TIMEOUT_MS 8000
 
 #define APP_STATUS_POLL_TIMEOUT_MS 1000
 
@@ -781,6 +781,7 @@ static void syna_tcm_dispatch_message(struct syna_tcm_hcd *tcm_hcd)
 			case CMD_RUN_BOOTLOADER_FIRMWARE:
 			case CMD_RUN_APPLICATION_FIRMWARE:
 			case CMD_ENTER_PRODUCTION_TEST_MODE:
+			case CMD_ROMBOOT_RUN_BOOTLOADER_FIRMWARE:
 				tcm_hcd->response_code = STATUS_OK;
 				atomic_set(&tcm_hcd->command_status, CMD_IDLE);
 				complete(&response_complete);
@@ -801,7 +802,8 @@ static void syna_tcm_dispatch_message(struct syna_tcm_hcd *tcm_hcd)
 
 #ifdef FORCE_RUN_APPLICATION_FIRMWARE
 		if (tcm_hcd->id_info.mode != MODE_APPLICATION &&
-				!mutex_is_locked(&tcm_hcd->reset_mutex)) {
+				!mutex_is_locked(&tcm_hcd->reset_mutex) && 
+				tcm_hcd->id_info.mode != MODE_ROMBOOTLOADER) {
 			if (atomic_read(&tcm_hcd->helper.task) == HELP_NONE) {
 				atomic_set(&tcm_hcd->helper.task,
 						HELP_RUN_APPLICATION_FIRMWARE);
@@ -2086,6 +2088,10 @@ get_app_info:
 		}
 	}
 
+	LOGE(tcm_hcd->pdev->dev.parent, "config version %02X%02X%02X%02X\n",
+		tcm_hcd->app_info.customer_config_id[0], tcm_hcd->app_info.customer_config_id[1],
+		tcm_hcd->app_info.customer_config_id[2], tcm_hcd->app_info.customer_config_id[3]);
+
 	retval = 0;
 
 exit:
@@ -2192,6 +2198,7 @@ static int syna_tcm_identify(struct syna_tcm_hcd *tcm_hcd, bool id)
 get_info:
 	switch (tcm_hcd->id_info.mode) {
 	case MODE_APPLICATION:
+	case MODE_HOST_DOWNLOAD:
 		retval = syna_tcm_get_app_info(tcm_hcd);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
@@ -2342,12 +2349,16 @@ static int syna_tcm_run_bootloader_firmware(struct syna_tcm_hcd *tcm_hcd)
 	unsigned char *resp_buf;
 	unsigned int resp_buf_size;
 	unsigned int resp_length;
+	unsigned char command;
 
 	resp_buf = NULL;
 	resp_buf_size = 0;
+	command = (tcm_hcd->id_info.mode == MODE_ROMBOOTLOADER) ?
+			CMD_ROMBOOT_RUN_BOOTLOADER_FIRMWARE :
+			CMD_RUN_BOOTLOADER_FIRMWARE;
 
 	retval = tcm_hcd->write_message(tcm_hcd,
-			CMD_RUN_BOOTLOADER_FIRMWARE,
+			command,
 			NULL,
 			0,
 			&resp_buf,
@@ -2356,26 +2367,32 @@ static int syna_tcm_run_bootloader_firmware(struct syna_tcm_hcd *tcm_hcd)
 			NULL,
 			MODE_SWITCH_DELAY_MS);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		if (tcm_hcd->id_info.mode == MODE_ROMBOOTLOADER) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write command %s\n",
+				STR(CMD_ROMBOOT_RUN_BOOTLOADER_FIRMWARE));
+		} else {
+			LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to write command %s\n",
 				STR(CMD_RUN_BOOTLOADER_FIRMWARE));
+		}
 		goto exit;
 	}
+    if (command != CMD_ROMBOOT_RUN_BOOTLOADER_FIRMWARE) {
+    	retval = tcm_hcd->identify(tcm_hcd, false);
+    	if (retval < 0) {
+    		LOGE(tcm_hcd->pdev->dev.parent,
+    				"Failed to do identification\n");
+    		goto exit;
+    	}
 
-	retval = tcm_hcd->identify(tcm_hcd, false);
-	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to do identification\n");
-		goto exit;
-	}
-
-	if (tcm_hcd->id_info.mode == MODE_APPLICATION) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to enter bootloader mode\n");
-		retval = -EINVAL;
-		goto exit;
-	}
-
+    	if (tcm_hcd->id_info.mode == MODE_APPLICATION) {
+    		LOGE(tcm_hcd->pdev->dev.parent,
+    				"Failed to enter bootloader mode\n");
+    		retval = -EINVAL;
+    		goto exit;
+    	}
+    }
 	retval = 0;
 
 exit:
@@ -2864,6 +2881,28 @@ static void syna_tcm_helper_work(struct work_struct *work)
 		}
 		mutex_unlock(&mod_pool.mutex);
 		mutex_unlock(&tcm_hcd->reset_mutex);
+		break;
+	case HELP_SEND_REINIT_NOTIFICATION:
+		mutex_lock(&tcm_hcd->reset_mutex);
+
+		/* do identify to ensure application firmware is running */
+		retval = tcm_hcd->identify(tcm_hcd, true);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent, "Application firmware is not running\n");
+			mutex_unlock(&tcm_hcd->reset_mutex);
+			break;
+		}
+
+		/* init the touch reporting here */
+		/* since the HDL is completed */
+		retval = touch_reinit(tcm_hcd);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent, "Failed to initialze touch reporting\n");
+			mutex_unlock(&tcm_hcd->reset_mutex);
+			break;
+		}
+		mutex_unlock(&tcm_hcd->reset_mutex);
+		wake_up_interruptible(&tcm_hcd->hdl_wq);
 		break;
 	default:
 		break;
