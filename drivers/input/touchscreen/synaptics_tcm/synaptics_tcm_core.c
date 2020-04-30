@@ -83,21 +83,16 @@
 #define HOST_DOWNLOAD_TIMEOUT_MS 1000
 
 #define DYNAMIC_CONFIG_SYSFS_DIR_NAME "dynamic_config"
-
+static struct syna_tcm_hcd *g_tcm_hcd;
 #define dynamic_config_sysfs(c_name, id) \
 static ssize_t syna_tcm_sysfs_##c_name##_show(struct device *dev, \
 		struct device_attribute *attr, char *buf) \
 { \
 	int retval; \
 	unsigned short value; \
-	struct device *p_dev; \
-	struct kobject *p_kobj; \
 	struct syna_tcm_hcd *tcm_hcd; \
 \
-	p_kobj = sysfs_dir->parent; \
-	p_dev = container_of(p_kobj, struct device, kobj); \
-	tcm_hcd = dev_get_drvdata(p_dev); \
-\
+    tcm_hcd = g_tcm_hcd;\
 	mutex_lock(&tcm_hcd->extif_mutex); \
 \
 	retval = tcm_hcd->get_dynamic_config(tcm_hcd, id, &value); \
@@ -120,13 +115,9 @@ static ssize_t syna_tcm_sysfs_##c_name##_store(struct device *dev, \
 { \
 	int retval; \
 	unsigned int input; \
-	struct device *p_dev; \
-	struct kobject *p_kobj; \
 	struct syna_tcm_hcd *tcm_hcd; \
 \
-	p_kobj = sysfs_dir->parent; \
-	p_dev = container_of(p_kobj, struct device, kobj); \
-	tcm_hcd = dev_get_drvdata(p_dev); \
+	tcm_hcd = g_tcm_hcd;\
 \
 	if (sscanf(buf, "%u", &input) != 1) \
 		return -EINVAL; \
@@ -210,13 +201,11 @@ static ssize_t syna_tcm_sysfs_info_show(struct device *dev,
 {
 	int retval = 0;
 	unsigned int count;
-	struct device *p_dev;
-	struct kobject *p_kobj;
+	/* struct device *p_dev; */
+	/* struct kobject *p_kobj; */
 	struct syna_tcm_hcd *tcm_hcd;
 
-	p_kobj = sysfs_dir->parent;
-	p_dev = container_of(p_kobj, struct device, kobj);
-	tcm_hcd = dev_get_drvdata(p_dev);
+	tcm_hcd = g_tcm_hcd;
 if (1) {
 	mutex_lock(&tcm_hcd->extif_mutex);
 
@@ -344,13 +333,11 @@ static ssize_t syna_tcm_sysfs_irq_en_store(struct device *dev,
 {
 	int retval;
 	unsigned int input;
-	struct device *p_dev;
-	struct kobject *p_kobj;
+	/* struct device *p_dev; */
+	/* struct kobject *p_kobj; */
 	struct syna_tcm_hcd *tcm_hcd;
 
-	p_kobj = sysfs_dir->parent;
-	p_dev = container_of(p_kobj, struct device, kobj);
-	tcm_hcd = dev_get_drvdata(p_dev);
+	tcm_hcd = g_tcm_hcd;
 
 	if (sscanf(buf, "%u", &input) != 1)
 		return -EINVAL;
@@ -390,14 +377,11 @@ static ssize_t syna_tcm_sysfs_reset_store(struct device *dev,
 	int retval;
 	bool hw_reset;
 	unsigned int input;
-	struct device *p_dev;
-	struct kobject *p_kobj;
+	/* struct device *p_dev; */
+	/* struct kobject *p_kobj; */
 	struct syna_tcm_hcd *tcm_hcd;
 
-	p_kobj = sysfs_dir->parent;
-	p_dev = container_of(p_kobj, struct device, kobj);
-	tcm_hcd = dev_get_drvdata(p_dev);
-
+    tcm_hcd = g_tcm_hcd;
 	if (sscanf(buf, "%u", &input) != 1)
 		return -EINVAL;
 
@@ -444,13 +428,11 @@ static ssize_t syna_tcm_sysfs_watchdog_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	unsigned int input;
-	struct device *p_dev;
-	struct kobject *p_kobj;
+	/* struct device *p_dev; */
+	/* struct kobject *p_kobj; */
 	struct syna_tcm_hcd *tcm_hcd;
 
-	p_kobj = sysfs_dir->parent;
-	p_dev = container_of(p_kobj, struct device, kobj);
-	tcm_hcd = dev_get_drvdata(p_dev);
+	tcm_hcd = g_tcm_hcd;
 
 	if (sscanf(buf, "%u", &input) != 1)
 		return -EINVAL;
@@ -3103,7 +3085,7 @@ static int syna_tcm_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, tcm_hcd);
-
+    g_tcm_hcd = tcm_hcd;
 	tcm_hcd->pdev = pdev;
 	tcm_hcd->hw_if = hw_if;
 	tcm_hcd->reset = syna_tcm_reset;
@@ -3198,8 +3180,8 @@ static int syna_tcm_probe(struct platform_device *pdev)
 		goto err_config_gpio;
 	}
 
-	sysfs_dir = kobject_create_and_add(PLATFORM_DRIVER_NAME,
-			&pdev->dev.kobj);
+	sysfs_dir = kobject_create_and_add("synaptics_core",
+			NULL);
 	if (!sysfs_dir) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to create sysfs directory\n");
@@ -3207,10 +3189,10 @@ static int syna_tcm_probe(struct platform_device *pdev)
 		goto err_sysfs_create_dir;
 	}
 
-	tcm_hcd->sysfs_dir = sysfs_dir;
+    tcm_hcd->sysfs_dir = NULL;
 
 	for (idx = 0; idx < ARRAY_SIZE(attrs); idx++) {
-		retval = sysfs_create_file(tcm_hcd->sysfs_dir,
+		retval = sysfs_create_file(sysfs_dir,
 				&(*attrs[idx]).attr);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
@@ -3337,9 +3319,9 @@ err_sysfs_create_dynamic_config_file:
 err_sysfs_create_dynamic_config_dir:
 err_sysfs_create_file:
 	for (idx--; idx >= 0; idx--)
-		sysfs_remove_file(tcm_hcd->sysfs_dir, &(*attrs[idx]).attr);
+		sysfs_remove_file(sysfs_dir, &(*attrs[idx]).attr);
 
-	kobject_put(tcm_hcd->sysfs_dir);
+	kobject_put(sysfs_dir);
 
 err_sysfs_create_dir:
 	if (bdata->irq_gpio >= 0)
