@@ -61,11 +61,15 @@
 
 #define F35_WRITE_FW_TO_PMEM_COMMAND 4
 
-#define RESET_TO_HDL_DELAY_MS 0 
+#define RESET_TO_HDL_DELAY_MS 12
 
 #define DOWNLOAD_APP_FAST_RETRY 10
 
 #define DOWNLOAD_RETRY_COUNT 10
+
+#define ZEROFLASH_HOST_DOWNLOAD_WAIT_MS 300
+
+#define ZEROFLASH_HOST_DOWNLOAD_TIMEOUT_MS 1000
 
 enum f35_error_code {
 	SUCCESS = 0,
@@ -86,8 +90,8 @@ enum f35_error_code {
 
 enum config_download {
 	HDL_INVALID = 0,
-	HDL_TOUCH_CONFIG_TO_PMEM,
-	HDL_DISPLAY_CONFIG_TO_PMEM,
+	HDL_TOUCH_CONFIG,
+	HDL_DISPLAY_CONFIG,
 	HDL_DISPLAY_CONFIG_TO_RAM,
 };
 
@@ -163,7 +167,8 @@ struct firmware_status {
 	unsigned short invalid_static_config:1;
 	unsigned short need_disp_config:1;
 	unsigned short need_app_config:1;
-	unsigned short reserved:13;
+	unsigned short hdl_version:4;
+	unsigned short reserved:9;
 } __packed;
 
 struct zeroflash_hcd {
@@ -210,11 +215,14 @@ static int zeroflash_check_f35(void)
 int zeroflash_check_uboot(void)
 {
 	int retval;
+	unsigned int retry_times = 3;
 	unsigned char fn_number;
+	unsigned char tmp_data;
 	struct rmi_f35_query query;
-	struct rmi_pdt_entry p_entry;
+	//struct rmi_pdt_entry p_entry;
 	struct syna_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
 
+retry:
 	retval = syna_tcm_rmi_read(tcm_hcd,
 			PDT_END_ADDR,
 			&fn_number,
@@ -232,12 +240,13 @@ int zeroflash_check_uboot(void)
 	if (fn_number != UBL_FN_NUMBER) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to find F$35\n");
+                if (retry_times --) {
+                    goto retry;
+                }
 		return -ENODEV;
 	}
 
-	if (zeroflash_hcd->f35_ready)
-		return 0;
-
+/*
 	retval = syna_tcm_rmi_read(tcm_hcd,
 			PDT_START_ADDR,
 			(unsigned char *)&p_entry,
@@ -247,12 +256,37 @@ int zeroflash_check_uboot(void)
 				"Failed to read PDT entry\n");
 		return retval;
 	}
+*/
+	retval = syna_tcm_rmi_read(tcm_hcd,
+			PDT_START_ADDR,
+			&tmp_data,
+			sizeof(tmp_data));
+	zeroflash_hcd->f35_addr.query_base = tmp_data;
+	
+	retval = syna_tcm_rmi_read(tcm_hcd,
+			PDT_START_ADDR + 1,
+			&tmp_data,
+			sizeof(tmp_data));
+	zeroflash_hcd->f35_addr.command_base = tmp_data;
 
-	zeroflash_hcd->f35_addr.query_base = p_entry.query_base_addr;
-	zeroflash_hcd->f35_addr.command_base = p_entry.command_base_addr;
-	zeroflash_hcd->f35_addr.control_base = p_entry.control_base_addr;
-	zeroflash_hcd->f35_addr.data_base = p_entry.data_base_addr;
+	
+	retval = syna_tcm_rmi_read(tcm_hcd,
+			PDT_START_ADDR + 2,
+			&tmp_data,
+			sizeof(tmp_data));
+	zeroflash_hcd->f35_addr.control_base = tmp_data;
 
+	
+	retval = syna_tcm_rmi_read(tcm_hcd,
+			PDT_START_ADDR + 3,
+			&tmp_data,
+			sizeof(tmp_data));
+	zeroflash_hcd->f35_addr.data_base = tmp_data;
+
+
+	LOGE(tcm_hcd->pdev->dev.parent,
+			"query_base:%02x, %02x, %02x, %02x\n",zeroflash_hcd->f35_addr.query_base, zeroflash_hcd->f35_addr.command_base, zeroflash_hcd->f35_addr.control_base, zeroflash_hcd->f35_addr.data_base
+			);	
 	retval = syna_tcm_rmi_read(tcm_hcd,
 			zeroflash_hcd->f35_addr.query_base,
 			(unsigned char *)&query,
@@ -501,8 +535,23 @@ static int zeroflash_download_disp_config(void)
 		goto unlock_out;
 	}
 
-	zeroflash_hcd->out.buf[0] = 1;
-	zeroflash_hcd->out.buf[1] = HDL_DISPLAY_CONFIG_TO_PMEM;
+	switch (zeroflash_hcd->fw_status.hdl_version) {
+	case 0:
+	case 1:
+		zeroflash_hcd->out.buf[0] = 1;
+		break;
+	case 2:
+		zeroflash_hcd->out.buf[0] = 2;
+		break;
+	default:
+		retval = -EINVAL;
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Invalid HDL version (%d)\n",
+				zeroflash_hcd->fw_status.hdl_version);
+		goto unlock_out;
+	}
+
+	zeroflash_hcd->out.buf[1] = HDL_DISPLAY_CONFIG;
 
 	retval = secure_memcpy(&zeroflash_hcd->out.buf[2],
 			zeroflash_hcd->out.buf_size - 2,
@@ -601,8 +650,27 @@ static int zeroflash_download_app_config(void)
 		goto unlock_out;
 	}
 
+	switch (zeroflash_hcd->fw_status.hdl_version) {
+	case 0:
+	case 1:
+		zeroflash_hcd->out.buf[0] = 1;
+		break;
+	case 2:
+		zeroflash_hcd->out.buf[0] = 2;
+		break;
+	default:
+		retval = -EINVAL;
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Invalid HDL version (%d)\n",
+				zeroflash_hcd->fw_status.hdl_version);
+		goto unlock_out;
+	}
+	LOGE(tcm_hcd->pdev->dev.parent,
+				"HDL version (%d)\n",
+				zeroflash_hcd->fw_status.hdl_version);
 	zeroflash_hcd->out.buf[0] = 1;
-	zeroflash_hcd->out.buf[1] = HDL_TOUCH_CONFIG_TO_PMEM;
+
+	zeroflash_hcd->out.buf[1] = HDL_TOUCH_CONFIG;
 
 	retval = secure_memcpy(&zeroflash_hcd->out.buf[2],
 			zeroflash_hcd->out.buf_size - 2,
@@ -614,7 +682,7 @@ static int zeroflash_download_app_config(void)
 				"Failed to copy application config data\n");
 		goto unlock_out;
 	}
-
+	
 	zeroflash_hcd->out.data_length = image_info->app_config.size + 2;
 	zeroflash_hcd->out.data_length += padding;
 
