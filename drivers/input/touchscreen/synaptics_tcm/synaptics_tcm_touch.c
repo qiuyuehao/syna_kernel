@@ -1019,7 +1019,7 @@ static int touch_set_input_reporting(void)
 
 exit:
 	mutex_unlock(&touch_hcd->report_mutex);
-
+    touch_hcd->suspend_touch = false;
 	touch_hcd->report_touch = retval < 0 ? false : true;
 
 	return retval;
@@ -1104,6 +1104,11 @@ static int touch_syncbox(struct syna_tcm_hcd *tcm_hcd)
 		if (!touch_hcd->suspend_touch)
 			touch_report();
 		break;
+    case REPORT_FW_HOST_PRINTF:
+        tcm_hcd->report.buffer.buf[tcm_hcd->report.buffer.data_length - 1] = 0;
+        LOGE(tcm_hcd->pdev->dev.parent,
+					"fw log to host: %s\n", tcm_hcd->report.buffer.buf);
+        break;
 	default:
 		break;
 	}
