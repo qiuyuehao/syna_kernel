@@ -232,6 +232,7 @@ enum command {
 	CMD_DOWNLOAD_CONFIG = 0x30,
 	CMD_ENTER_PRODUCTION_TEST_MODE = 0x31,
 	CMD_GET_FEATURES = 0x32,
+	CMD_GET_FACE_AREA = 195,
 };
 
 enum status_code {

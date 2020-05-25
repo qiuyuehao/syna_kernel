@@ -76,6 +76,7 @@ enum test_code {
 	TEST_PT13 = 13,
 	TEST_DYNAMIC_RANGE_DOZE = 14,
 	TEST_NOISE_DOZE = 15,
+    TEST_FACE_DELTA = 195,
 };
 
 struct testing_hcd {
@@ -274,6 +275,7 @@ exit:
 	return retval;
 }
 
+static int syna_tcm_get_face_area(void);
 static ssize_t testing_sysfs_size_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -289,6 +291,9 @@ static ssize_t testing_sysfs_size_show(struct device *dev,
 			testing_hcd->output.data_length);
 
 	UNLOCK_BUFFER(testing_hcd->output);
+    if (1) {
+         syna_tcm_get_face_area();
+    }
 
 	mutex_unlock(&tcm_hcd->extif_mutex);
 
@@ -386,6 +391,106 @@ static int testing_run_prod_test_item(enum test_code test_code)
 	UNLOCK_BUFFER(testing_hcd->out);
 
 	return 0;
+}
+#define NOISE_DELTA_MAX 100
+static int syna_tcm_get_face_area(void)
+{
+	int retval;
+	unsigned char *resp_buf;
+	unsigned int resp_buf_size;
+	unsigned int resp_length;
+	unsigned char out_buf;
+    int row_start, row_end, col_start, col_end, rows, cols;
+    int r, c, idx;
+	struct syna_tcm_app_info *app_info;
+	struct syna_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+
+	app_info = &tcm_hcd->app_info;
+
+	rows = le2_to_uint(app_info->num_of_image_rows);
+	cols = le2_to_uint(app_info->num_of_image_cols);
+
+	resp_buf = NULL;
+	resp_buf_size = 0;
+
+	retval = tcm_hcd->write_message(tcm_hcd,
+			CMD_GET_FACE_AREA,
+			NULL,
+            0,
+			&resp_buf,
+			&resp_buf_size,
+			&resp_length,
+			NULL,
+			0);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write command %s\n",
+				STR(CMD_GET_FACE_AREA));
+		goto exit;
+	}
+
+	if (resp_length < 4) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Invalid data length\n");
+		retval = -EINVAL;
+		goto exit;
+	}
+
+    row_start = resp_buf[0];
+    row_end = resp_buf[1];
+    col_start = resp_buf[2];
+    col_end = resp_buf[3];
+
+    if ((row_start > row_end) || (row_end > rows)) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Invalid row parameter:%d %d %d %d\n", row_start, row_end, col_start, col_end);
+    }
+    if ((col_start > col_end) || (col_end > cols)) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Invalid cols parameter:%d %d %d %d\n", row_start, row_end, col_start, col_end);
+    }
+
+    out_buf = 195;
+	retval = tcm_hcd->write_message(tcm_hcd,
+			CMD_PRODUCTION_TEST,
+			&out_buf,
+            1,
+			&resp_buf,
+			&resp_buf_size,
+			&resp_length,
+			NULL,
+			0);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write command %s\n",
+				STR(CMD_PRODUCTION_TEST));
+		goto exit;
+	}
+
+	if (resp_length != rows * cols * 2) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Invalid face delta length:%d\n", resp_length);
+		retval = -EINVAL;
+		goto exit;
+	}
+    idx = row_start * cols + col_start;
+    for (r = row_start; r <= row_end; r++) {
+      for (c = col_start; c <= col_end; c++) {
+            int data;
+            data = (short)le2_to_uint(&resp_buf[idx * 2]);
+            if (data > NOISE_DELTA_MAX) {
+                retval = -EINVAL;
+                goto exit;
+            }
+            idx++;
+      }
+
+    }
+    retval = 0;
+exit:
+	kfree(resp_buf);
+
+	return retval;
 }
 
 static int testing_collect_reports(enum report_type report_type,

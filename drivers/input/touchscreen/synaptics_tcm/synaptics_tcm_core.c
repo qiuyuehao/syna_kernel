@@ -188,12 +188,12 @@ static struct device_attribute *dynamic_config_attrs[] = {
 
 void syna_log_data(unsigned char *data, int length)
 {
-	int i;
-	pr_err("syna data begin\n");
-	for (i = 0; i < length; i++) {
-		pr_err("syna data[%d]:%x, ", i, data[i]);	
-	}
-	pr_err("syna data end\n");
+	/* int i; */
+	/* pr_err("syna data begin\n"); */
+	/* for (i = 0; i < length; i++) { */
+		/* pr_err("syna data[%d]:%x, ", i, data[i]);	 */
+	/* } */
+	/* pr_err("syna data end\n"); */
 }
 static void syna_tcm_check_hdl(struct syna_tcm_hcd *tcm_hcd);
 static ssize_t syna_tcm_sysfs_info_show(struct device *dev,
