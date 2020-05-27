@@ -1104,7 +1104,15 @@ static int touch_syncbox(struct syna_tcm_hcd *tcm_hcd)
 		if (!touch_hcd->suspend_touch)
 			touch_report();
 		break;
-	default:
+    case REPORT_FW_PRINTF:
+        {
+            unsigned char fw_log[256] = {0};
+            secure_memcpy(fw_log, 255, tcm_hcd->report.buffer.buf, tcm_hcd->report.buffer.buf_size, tcm_hcd->report.buffer.data_length);
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"TouchFWLog: %s\n", fw_log);
+        }
+        break;
+    default:
 		break;
 	}
 

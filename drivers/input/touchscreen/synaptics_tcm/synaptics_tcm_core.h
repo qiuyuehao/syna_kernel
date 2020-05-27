@@ -255,6 +255,7 @@ enum report_type {
 	REPORT_RAW = 0x13,
 	REPORT_STATUS = 0x1b,
 	REPORT_PRINTF = 0x82,
+    REPORT_FW_PRINTF = 0x84,
 	REPORT_HDL = 0xfe,
 };
 
