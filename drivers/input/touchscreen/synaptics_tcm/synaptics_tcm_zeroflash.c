@@ -489,6 +489,9 @@ static void zeroflash_download_config(void)
 					&tcm_hcd->helper.work);
 		}
 		atomic_set(&tcm_hcd->host_downloading, 0);
+		release_firmware(zeroflash_hcd->fw_entry);
+		zeroflash_hcd->fw_entry = NULL;
+		zeroflash_hcd->image = NULL;
 		wake_up_interruptible(&tcm_hcd->hdl_wq);
 		return;
 	}
