@@ -856,19 +856,19 @@ static int touch_set_input_dev(void)
 	/* touch_hcd->input_dev->dev.parent = tcm_hcd->pdev->dev.parent; */
 	/* input_set_drvdata(touch_hcd->input_dev, tcm_hcd); */
 
-	/* set_bit(EV_SYN, touch_hcd->input_dev->evbit); */
-	/* set_bit(EV_KEY, touch_hcd->input_dev->evbit); */
-	/* set_bit(EV_ABS, touch_hcd->input_dev->evbit); */
+    set_bit(EV_SYN, touch_hcd->input_dev->evbit);
+    set_bit(EV_KEY, touch_hcd->input_dev->evbit);
+    set_bit(EV_ABS, touch_hcd->input_dev->evbit);
 	/* set_bit(BTN_TOUCH, touch_hcd->input_dev->keybit); */
 	/* set_bit(BTN_TOOL_FINGER, touch_hcd->input_dev->keybit); */
 /* #ifdef INPUT_PROP_DIRECT */
 	/* set_bit(INPUT_PROP_DIRECT, touch_hcd->input_dev->propbit); */
 /* #endif */
 
-/* #ifdef WAKEUP_GESTURE */
-	/* set_bit(KEY_WAKEUP, touch_hcd->input_dev->keybit); */
-	/* input_set_capability(touch_hcd->input_dev, EV_KEY, KEY_WAKEUP); */
-/* #endif */
+#ifdef WAKEUP_GESTURE
+    set_bit(KEY_WAKEUP, touch_hcd->input_dev->keybit);
+    input_set_capability(touch_hcd->input_dev, EV_KEY, KEY_WAKEUP);
+#endif
 
 	retval = touch_set_input_params();
 	/* if (retval < 0) { */

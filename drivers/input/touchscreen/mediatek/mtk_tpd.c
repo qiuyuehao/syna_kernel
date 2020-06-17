@@ -645,6 +645,8 @@ static int tpd_probe(struct platform_device *pdev)
 	set_bit(ABS_X, tpd->dev->absbit);
 	set_bit(ABS_Y, tpd->dev->absbit);
 	set_bit(ABS_PRESSURE, tpd->dev->absbit);
+    set_bit(KEY_WAKEUP, tpd->dev->keybit);
+    input_set_capability(tpd->dev, EV_KEY, KEY_WAKEUP);
 #if !defined(CONFIG_MTK_S3320) && !defined(CONFIG_MTK_S3320_47)\
 	&& !defined(CONFIG_MTK_S3320_50) && !defined(CONFIG_MTK_MIT200) \
 	&& !defined(CONFIG_TOUCHSCREEN_SYNAPTICS_S3528) \
