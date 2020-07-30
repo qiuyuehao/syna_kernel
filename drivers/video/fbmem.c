@@ -1045,7 +1045,7 @@ fb_set_var(struct fb_info *info, struct fb_var_screeninfo *var)
 
 int
 fb_blank(struct fb_info *info, int blank)
-{	
+{
 	struct fb_event event;
 	int ret = -EINVAL, early_ret;
 
@@ -1054,14 +1054,20 @@ fb_blank(struct fb_info *info, int blank)
 
 	event.info = info;
 	event.data = &blank;
-
+       printk("yuehao call %s before FB_EARLY_EVENT_BLANK\n", __func__);
 	early_ret = fb_notifier_call_chain(FB_EARLY_EVENT_BLANK, &event);
+    printk("yuehao call %s after FB_EARLY_EVENT_BLANK\n", __func__);
 
 	if (info->fbops->fb_blank)
  		ret = info->fbops->fb_blank(blank, info);
 
-	if (!ret)
+    printk("yuehao call %s before FB_EVENT_BLANK\n", __func__);
+
+	if (!ret) {
 		fb_notifier_call_chain(FB_EVENT_BLANK, &event);
+        
+        printk("yuehao call %s after FB_EVENT_BLANK\n", __func__);
+    }
 	else {
 		/*
 		 * if fb_blank is failed then revert effects of
