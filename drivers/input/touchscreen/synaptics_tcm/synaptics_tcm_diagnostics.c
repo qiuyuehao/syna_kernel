@@ -411,9 +411,21 @@ static void diag_report(void)
 		state = PING;
 	}
 
+	mutex_lock(&tcm_hcd->extif_mutex);
+	if (diag_hcd->pid) {
+		diag_hcd->task = pid_task(find_vpid(diag_hcd->pid),
+				PIDTYPE_PID);
+		if (!diag_hcd->task) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to locate task\n");
+			retval = -EINVAL;
+			goto exit;
+		}
+	}
 	if (diag_hcd->pid)
 		send_sig_info(SIGIO, &diag_hcd->sigio, diag_hcd->task);
-
+exit:
+	mutex_unlock(&tcm_hcd->extif_mutex);
 	return;
 }
 

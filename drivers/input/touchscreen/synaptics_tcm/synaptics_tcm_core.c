@@ -3038,12 +3038,13 @@ static int syna_tcm_fb_notifier_cb(struct notifier_block *nb,
 	if (evdata && evdata->data && tcm_hcd) {
 		transition = evdata->data;
 		if (action == FB_EARLY_EVENT_BLANK &&
-				*transition == FB_BLANK_POWERDOWN)
+				*transition == FB_BLANK_POWERDOWN) {
 			retval = syna_tcm_early_suspend(&tcm_hcd->pdev->dev);
-		else if (action == FB_EVENT_BLANK) {
+            /* retval = syna_tcm_suspend(&tcm_hcd->pdev->dev); */
+        } else if (action == FB_EVENT_BLANK) {
 			if (*transition == FB_BLANK_POWERDOWN) {
-				retval = syna_tcm_suspend(&tcm_hcd->pdev->dev);
-				tcm_hcd->fb_ready = 0;
+                retval = syna_tcm_suspend(&tcm_hcd->pdev->dev);
+                tcm_hcd->fb_ready = 0;
 			} else if (*transition == FB_BLANK_UNBLANK) {
 				retval = syna_tcm_resume(&tcm_hcd->pdev->dev);
 				tcm_hcd->fb_ready++;

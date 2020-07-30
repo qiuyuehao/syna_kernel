@@ -438,6 +438,10 @@ static int touch_parse_report(void)
 						"Failed to get gesture double tap\n");
 				return retval;
 			}
+            if (data) {
+                LOGE(tcm_hcd->pdev->dev.parent,
+						"detect double tap :%d\n", data);
+            }
 			touch_data->gesture_double_tap = data;
 			offset += bits;
 			break;
@@ -603,6 +607,8 @@ static void touch_report(void)
 
 #ifdef WAKEUP_GESTURE
 	if (touch_data->gesture_double_tap && tcm_hcd->in_suspend) {
+        LOGE(tcm_hcd->pdev->dev.parent,
+				"report wakeup key to system\n");
 		input_report_key(touch_hcd->input_dev, KEY_WAKEUP, 1);
 		input_sync(touch_hcd->input_dev);
 		input_report_key(touch_hcd->input_dev, KEY_WAKEUP, 0);
@@ -1106,8 +1112,9 @@ static int touch_syncbox(struct syna_tcm_hcd *tcm_hcd)
 		break;
     case REPORT_FW_PRINTF:
         {
-            unsigned char fw_log[256] = {0};
-            secure_memcpy(fw_log, 255, tcm_hcd->report.buffer.buf, tcm_hcd->report.buffer.buf_size, tcm_hcd->report.buffer.data_length);
+#define FW_LOG_BUFFER_SIZE 256
+            unsigned char fw_log[FW_LOG_BUFFER_SIZE] = {0};
+            secure_memcpy(fw_log, FW_LOG_BUFFER_SIZE - 1, tcm_hcd->report.buffer.buf, tcm_hcd->report.buffer.buf_size, (tcm_hcd->report.buffer.data_length >= FW_LOG_BUFFER_SIZE - 1)? (FW_LOG_BUFFER_SIZE - 1) : tcm_hcd->report.buffer.data_length);
 			LOGE(tcm_hcd->pdev->dev.parent,
 					"TouchFWLog: %s\n", fw_log);
         }
@@ -1173,11 +1180,10 @@ static int touch_reset(struct syna_tcm_hcd *tcm_hcd)
 
 static int touch_early_suspend(struct syna_tcm_hcd *tcm_hcd)
 {
-	if (!touch_hcd)
+    if (!touch_hcd)
 		return 0;
 
 	touch_hcd->suspend_touch = true;
-
 	touch_free_objects();
 
 	return 0;
@@ -1186,30 +1192,27 @@ static int touch_early_suspend(struct syna_tcm_hcd *tcm_hcd)
 static int touch_suspend(struct syna_tcm_hcd *tcm_hcd)
 {
 #ifdef WAKEUP_GESTURE
-	int retval;
+    int retval = 0;
 #endif
-
 	if (!touch_hcd)
 		return 0;
 
 	touch_hcd->suspend_touch = true;
-
 	touch_free_objects();
 
 #ifdef WAKEUP_GESTURE
-	if (!touch_hcd->irq_wake) {
+    if (!touch_hcd->irq_wake) {
 		enable_irq_wake(tcm_hcd->irq);
 		touch_hcd->irq_wake = true;
 	}
-
-	retval = tcm_hcd->set_dynamic_config(tcm_hcd,
-			DC_IN_WAKEUP_GESTURE_MODE,
-			1);
-	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to enable wakeup gesture mode\n");
-		return retval;
-	}
+    retval = tcm_hcd->set_dynamic_config(tcm_hcd,
+        DC_IN_WAKEUP_GESTURE_MODE,
+        1);
+    if (retval < 0) {
+        LOGE(tcm_hcd->pdev->dev.parent,
+                "Failed to enable wakeup gesture mode\n");
+        return retval;
+    }
 #endif
 
 	return 0;

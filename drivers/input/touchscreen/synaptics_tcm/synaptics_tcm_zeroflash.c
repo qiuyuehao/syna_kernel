@@ -438,8 +438,12 @@ static int zeroflash_get_fw_image(void)
 	int retval;
 	struct syna_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
 
-	if (zeroflash_hcd->fw_entry != NULL)
-		return 0;
+	if (zeroflash_hcd->fw_entry != NULL) {
+        release_firmware(zeroflash_hcd->fw_entry);
+		zeroflash_hcd->fw_entry = NULL;
+		zeroflash_hcd->image = NULL;
+    }
+		/* return 0; */
 
 	do {
 		retval = request_firmware(&zeroflash_hcd->fw_entry,
