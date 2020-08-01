@@ -259,7 +259,7 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 	} else {
 		bdata->ubl_byte_delay_us = 0;
 	}
-
+    bdata->ubl_byte_delay_us = 0;
 	return 0;
 }
 #endif

@@ -200,7 +200,8 @@ static ssize_t recovery_sysfs_ihex_store(struct file *data_file,
 	}
 
 	recovery_hcd->ihex_size = pos + count;
-
+    LOGE(tcm_hcd->pdev->dev.parent,
+				"recovery_hcd->ihex_size :%d\n", recovery_hcd->ihex_size);
 	retval = count;
 
 exit:

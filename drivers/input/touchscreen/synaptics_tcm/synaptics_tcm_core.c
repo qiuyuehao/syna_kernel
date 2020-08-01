@@ -396,7 +396,7 @@ static ssize_t syna_tcm_sysfs_reset_store(struct device *dev,
 		syna_tcm_check_hdl(tcm_hcd);
 		return count;
 	} else if (input == 4) {
-		int read_cnt = 30;
+		int read_cnt = 3;
 		while (read_cnt--) {
 			msleep(1000);
 			zeroflash_check_uboot();
@@ -795,6 +795,7 @@ static void syna_tcm_dispatch_message(struct syna_tcm_hcd *tcm_hcd)
 #endif
 	}
 
+    //return;
 	if (tcm_hcd->status_report_code >= REPORT_IDENTIFY)
 		syna_tcm_dispatch_report(tcm_hcd);
 	else
@@ -3258,8 +3259,8 @@ static int syna_tcm_probe(struct platform_device *pdev)
 		goto err_enable_irq;
 	}
 
-	retval = tcm_hcd->reset(tcm_hcd, false, false);
-	if (retval < 0) {
+	//retval = tcm_hcd->reset(tcm_hcd, false, false);
+	if (0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to do reset\n");
 		tcm_hcd->init_okay = false;

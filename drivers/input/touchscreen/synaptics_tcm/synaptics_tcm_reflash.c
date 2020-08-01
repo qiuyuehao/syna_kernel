@@ -46,7 +46,7 @@
 
 #define CUSTOM_DIR_NAME "custom"
 
-#define FW_IMAGE_NAME "synaptics/firmware.img"
+#define FW_IMAGE_NAME "synaptics/reflash.img"
 
 #define BOOT_CONFIG_ID "BOOT_CONFIG"
 
