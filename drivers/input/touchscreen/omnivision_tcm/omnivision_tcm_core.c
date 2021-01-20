@@ -78,7 +78,8 @@
 
 #define RMI_UBL_FN_NUMBER 0x35
 
-//static int ovt_tcm_driver_removing = 0;
+
+struct ovt_tcm_hcd *g_tcm_hcd;
 
 #define dynamic_config_sysfs(c_name, id) \
 static ssize_t ovt_tcm_sysfs_##c_name##_show(struct device *dev, \
@@ -86,13 +87,9 @@ static ssize_t ovt_tcm_sysfs_##c_name##_show(struct device *dev, \
 { \
 	int retval; \
 	unsigned short value; \
-	struct device *p_dev; \
-	struct kobject *p_kobj; \
 	struct ovt_tcm_hcd *tcm_hcd; \
 \
-	p_kobj = sysfs_dir->parent; \
-	p_dev = container_of(p_kobj, struct device, kobj); \
-	tcm_hcd = dev_get_drvdata(p_dev); \
+	tcm_hcd = g_tcm_hcd; \
 \
 	mutex_lock(&tcm_hcd->extif_mutex); \
 \
@@ -116,13 +113,9 @@ static ssize_t ovt_tcm_sysfs_##c_name##_store(struct device *dev, \
 { \
 	int retval; \
 	unsigned int input; \
-	struct device *p_dev; \
-	struct kobject *p_kobj; \
 	struct ovt_tcm_hcd *tcm_hcd; \
 \
-	p_kobj = sysfs_dir->parent; \
-	p_dev = container_of(p_kobj, struct device, kobj); \
-	tcm_hcd = dev_get_drvdata(p_dev); \
+	tcm_hcd = g_tcm_hcd; \
 \
 	if (sscanf(buf, "%u", &input) != 1) \
 		return -EINVAL; \
@@ -207,13 +200,9 @@ static ssize_t ovt_tcm_sysfs_info_show(struct device *dev,
 {
 	int retval;
 	unsigned int count;
-	struct device *p_dev;
-	struct kobject *p_kobj;
 	struct ovt_tcm_hcd *tcm_hcd;
 
-	p_kobj = sysfs_dir->parent;
-	p_dev = container_of(p_kobj, struct device, kobj);
-	tcm_hcd = dev_get_drvdata(p_dev);
+	tcm_hcd = g_tcm_hcd;
 
 	mutex_lock(&tcm_hcd->extif_mutex);
 
@@ -351,14 +340,10 @@ static ssize_t ovt_tcm_sysfs_info_appfw_show(struct device *dev,
 {
 	int retval;
 	unsigned int count;
-	struct device *p_dev;
-	struct kobject *p_kobj;
 	struct ovt_tcm_hcd *tcm_hcd;
 	int i;
 
-	p_kobj = sysfs_dir->parent;
-	p_dev = container_of(p_kobj, struct device, kobj);
-	tcm_hcd = dev_get_drvdata(p_dev);
+	tcm_hcd = g_tcm_hcd;
 
 	mutex_lock(&tcm_hcd->extif_mutex);
 
@@ -548,13 +533,9 @@ static ssize_t ovt_tcm_sysfs_irq_en_store(struct device *dev,
 {
 	int retval;
 	unsigned int input;
-	struct device *p_dev;
-	struct kobject *p_kobj;
 	struct ovt_tcm_hcd *tcm_hcd;
 
-	p_kobj = sysfs_dir->parent;
-	p_dev = container_of(p_kobj, struct device, kobj);
-	tcm_hcd = dev_get_drvdata(p_dev);
+	tcm_hcd = g_tcm_hcd;
 
 	if (sscanf(buf, "%u", &input) != 1)
 		return -EINVAL;
@@ -594,13 +575,9 @@ static ssize_t ovt_tcm_sysfs_reset_store(struct device *dev,
 	int retval;
 	bool hw_reset;
 	unsigned int input;
-	struct device *p_dev;
-	struct kobject *p_kobj;
 	struct ovt_tcm_hcd *tcm_hcd;
 
-	p_kobj = sysfs_dir->parent;
-	p_dev = container_of(p_kobj, struct device, kobj);
-	tcm_hcd = dev_get_drvdata(p_dev);
+	tcm_hcd = g_tcm_hcd;
 
 	if (sscanf(buf, "%u", &input) != 1)
 		return -EINVAL;
@@ -634,13 +611,9 @@ static ssize_t ovt_tcm_sysfs_watchdog_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	unsigned int input;
-	struct device *p_dev;
-	struct kobject *p_kobj;
 	struct ovt_tcm_hcd *tcm_hcd;
 
-	p_kobj = sysfs_dir->parent;
-	p_dev = container_of(p_kobj, struct device, kobj);
-	tcm_hcd = dev_get_drvdata(p_dev);
+	tcm_hcd = g_tcm_hcd;
 
 	if (sscanf(buf, "%u", &input) != 1)
 		return -EINVAL;
@@ -3735,6 +3708,8 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	}
 
 	tcm_hcd = kzalloc(sizeof(*tcm_hcd), GFP_KERNEL);
+	g_tcm_hcd = tcm_hcd;
+
 	if (!tcm_hcd) {
 		LOGE(&pdev->dev,
 				"Failed to allocate memory for tcm_hcd\n");
@@ -3854,7 +3829,7 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	}
 
 	sysfs_dir = kobject_create_and_add(PLATFORM_DRIVER_NAME,
-			&pdev->dev.kobj);
+			NULL); //&pdev->dev.kobj);  move to /sys
 	if (!sysfs_dir) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to create sysfs directory\n");
