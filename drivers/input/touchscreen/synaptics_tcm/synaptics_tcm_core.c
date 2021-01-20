@@ -3592,7 +3592,7 @@ f35_boot_recheck:
 				return -ENODEV;
 			}
 
-			LOGD(tcm_hcd->pdev->dev.parent,
+			LOGE(tcm_hcd->pdev->dev.parent,
 					"Found F$%02x\n",
 					fn_number);
 
@@ -3639,8 +3639,9 @@ static int syna_tcm_sensor_detection(struct syna_tcm_hcd *tcm_hcd)
 			retval = syna_tcm_check_f35(tcm_hcd);
 			if (retval < 0) {
 				LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to read TCM message\n");
-				return retval;
+					"Failed to read TCM message, default to F35\n");
+				retval = 0;
+				//return retval;
 			}
 			tcm_hcd->in_hdl_mode = true;
 			tcm_hcd->sensor_type = TYPE_F35;
