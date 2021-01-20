@@ -1,5 +1,5 @@
 /*
- * Omniision TCM touchscreen driver
+ * Omnivision TCM touchscreen driver
  *
  * Copyright (C) 2017-2018 OmniVision Incorporated. All rights reserved.
  *
@@ -74,10 +74,10 @@ struct ovt_tcm_board_data {
 #define OMNIVISION_TCM_ID_VERSION 0x0201
 #define OMNIVISION_TCM_ID_SUBVERSION 0
 
-#define PLATFORM_DRIVER_NAME "omniision_tcm"
+#define PLATFORM_DRIVER_NAME "omnivision_tcm"
 
-#define TOUCH_INPUT_NAME "omniision_tcm_touch"
-#define TOUCH_INPUT_PHYS_PATH "omniision_tcm/touch_input"
+#define TOUCH_INPUT_NAME "omnivision_tcm_touch"
+#define TOUCH_INPUT_PHYS_PATH "omnivision_tcm/touch_input"
 
 #define WAKEUP_GESTURE (0)
 
