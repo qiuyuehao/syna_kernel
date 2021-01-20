@@ -1,0 +1,62 @@
+/*
+ * omnivision TCM touchscreen driver
+ *
+ * Copyright (C) 2017-2018 omnivision Incorporated. All rights reserved.
+ *
+ * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.omnivision.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * INFORMATION CONTAINED IN THIS DOCUMENT IS PROVIDED "AS-IS," AND omnivision
+ * EXPRESSLY DISCLAIMS ALL EXPRESS AND IMPLIED WARRANTIES, INCLUDING ANY
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE,
+ * AND ANY WARRANTIES OF NON-INFRINGEMENT OF ANY INTELLECTUAL PROPERTY RIGHTS.
+ * IN NO EVENT SHALL omnivision BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION
+ * WITH THE USE OF THE INFORMATION CONTAINED IN THIS DOCUMENT, HOWEVER CAUSED
+ * AND BASED ON ANY THEORY OF LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * NEGLIGENCE OR OTHER TORTIOUS ACTION, AND EVEN IF omnivision WAS ADVISED OF
+ * THE POSSIBILITY OF SUCH DAMAGE. IF A TRIBUNAL OF COMPETENT JURISDICTION DOES
+ * NOT PERMIT THE DISCLAIMER OF DIRECT DAMAGES OR ANY OTHER DAMAGES, omnivision'
+ * TOTAL CUMULATIVE LIABILITY TO ANY PARTY SHALL NOT EXCEED ONE HUNDRED U.S.
+ * DOLLARS.
+ */
+
+&spi_0 {
+	status = "ok";
+	omnivision_tcm@0 {
+		compatible = "omnivision,tcm-spi";
+		reg = <0>;
+		spi-max-frequency = <3000000>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <65 0x2008>;
+		vdd-supply = <&pm8994_lvs2>;
+		avdd-supply = <&pm8994_l22>;
+		pinctrl-names = "pmx_ts_active", "pmx_ts_suspend";
+		pinctrl-0 = <&ts_active>;
+		pinctrl-1 = <&ts_suspend>;
+		omnivision,bus-reg-name = "vdd";
+		omnivision,pwr-reg-name = "avdd";
+		omnivision,irq-gpio = <&msm_gpio 65 0x2008>; /* IRQF_ONESHOT | IRQF_TRIGGER_LOW */
+		omnivision,irq-on-state = <0>;
+		omnivision,reset-gpio = <&msm_gpio 102 0x0000>;
+		omnivision,reset-on-state = <0>;
+		omnivision,reset-active-ms = <20>;
+		omnivision,reset-delay-ms = <200>;
+		omnivision,power-delay-ms = <200>;
+		omnivision,spi-mode = <3>;
+		omnivision,byte-delay-us = <0>;
+		omnivision,block-delay-us = <0>;
+		omnivision,ubl-max-freq = <3000000>;
+		omnivision,ubl-byte-delay-us = <20>;
+		omnivision,display-reset-gpio = <&msm_gpio 78 0>;
+	};
+};
