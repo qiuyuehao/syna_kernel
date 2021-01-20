@@ -4,6 +4,10 @@
  * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
  *
  * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2018-2019 Ian Su <ian.su@tw.synaptics.com>
+ * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@synaptics.com>
+ * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@synaptics.com>
+ * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -178,7 +182,7 @@ static ssize_t diag_sysfs_rows_show(struct device *dev,
 
 	mutex_lock(&tcm_hcd->extif_mutex);
 
-	if (tcm_hcd->id_info.mode != MODE_APPLICATION ||
+	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) ||
 			tcm_hcd->app_status != APP_STATUS_OK) {
 		retval = -ENODEV;
 		goto exit;
@@ -205,7 +209,7 @@ static ssize_t diag_sysfs_cols_show(struct device *dev,
 
 	mutex_lock(&tcm_hcd->extif_mutex);
 
-	if (tcm_hcd->id_info.mode != MODE_APPLICATION ||
+	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) ||
 			tcm_hcd->app_status != APP_STATUS_OK) {
 		retval = -ENODEV;
 		goto exit;
@@ -232,7 +236,7 @@ static ssize_t diag_sysfs_hybrid_show(struct device *dev,
 
 	mutex_lock(&tcm_hcd->extif_mutex);
 
-	if (tcm_hcd->id_info.mode != MODE_APPLICATION ||
+	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) ||
 			tcm_hcd->app_status != APP_STATUS_OK) {
 		retval = -ENODEV;
 		goto exit;
@@ -259,7 +263,7 @@ static ssize_t diag_sysfs_buttons_show(struct device *dev,
 
 	mutex_lock(&tcm_hcd->extif_mutex);
 
-	if (tcm_hcd->id_info.mode != MODE_APPLICATION ||
+	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) ||
 			tcm_hcd->app_status != APP_STATUS_OK) {
 		retval = -ENODEV;
 		goto exit;
@@ -411,21 +415,9 @@ static void diag_report(void)
 		state = PING;
 	}
 
-	mutex_lock(&tcm_hcd->extif_mutex);
-	if (diag_hcd->pid) {
-		diag_hcd->task = pid_task(find_vpid(diag_hcd->pid),
-				PIDTYPE_PID);
-		if (!diag_hcd->task) {
-			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to locate task\n");
-			retval = -EINVAL;
-			goto exit;
-		}
-	}
 	if (diag_hcd->pid)
 		send_sig_info(SIGIO, &diag_hcd->sigio, diag_hcd->task);
-exit:
-	mutex_unlock(&tcm_hcd->extif_mutex);
+
 	return;
 }
 
@@ -533,7 +525,7 @@ static int diag_syncbox(struct syna_tcm_hcd *tcm_hcd)
 	return 0;
 }
 
-static int diag_reset(struct syna_tcm_hcd *tcm_hcd)
+static int diag_reinit(struct syna_tcm_hcd *tcm_hcd)
 {
 	int retval;
 
@@ -550,8 +542,10 @@ static struct syna_tcm_module_cb diag_module = {
 	.init = diag_init,
 	.remove = diag_remove,
 	.syncbox = diag_syncbox,
+#ifdef REPORT_NOTIFIER
 	.asyncbox = NULL,
-	.reset = diag_reset,
+#endif
+	.reinit = diag_reinit,
 	.suspend = NULL,
 	.resume = NULL,
 	.early_suspend = NULL,

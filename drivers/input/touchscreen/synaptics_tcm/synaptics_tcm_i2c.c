@@ -4,6 +4,10 @@
  * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
  *
  * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2018-2019 Ian Su <ian.su@tw.synaptics.com>
+ * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@synaptics.com>
+ * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@synaptics.com>
+ * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -54,9 +58,6 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 	struct property *prop;
 	struct device_node *np = dev->of_node;
 	const char *name;
-
-	bdata->display_reset_gpio = of_get_named_gpio_flags(np,
-			"synaptics,display-reset-gpio", 0, NULL);
 
 	prop = of_find_property(np, "synaptics,irq-gpio", NULL);
 	if (prop && prop->length) {
@@ -174,6 +175,14 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 		}
 	} else {
 		bdata->reset_delay_ms = 0;
+	}
+
+	prop = of_find_property(np, "synaptics,tpio-reset-gpio", NULL);
+	if (prop && prop->length) {
+		bdata->tpio_reset_gpio = of_get_named_gpio_flags(np,
+				"synaptics,tpio-reset-gpio", 0, NULL);
+	} else {
+		bdata->tpio_reset_gpio = -1;
 	}
 
 	prop = of_find_property(np, "synaptics,x-flip", NULL);

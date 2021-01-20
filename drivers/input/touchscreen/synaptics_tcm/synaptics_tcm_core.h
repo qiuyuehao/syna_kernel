@@ -4,6 +4,10 @@
  * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
  *
  * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2018-2019 Ian Su <ian.su@tw.synaptics.com>
+ * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@synaptics.com>
+ * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@synaptics.com>
+ * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,14 +43,41 @@
 #include <linux/input.h>
 #include <linux/delay.h>
 #include <linux/platform_device.h>
-#include <linux/input/synaptics_tcm.h>
 #ifdef CONFIG_FB
 #include <linux/fb.h>
 #include <linux/notifier.h>
 #endif
 
+#define I2C_MODULE_NAME "synaptics_tcm_i2c"
+#define SPI_MODULE_NAME "synaptics_tcm_spi"
+
+struct syna_tcm_board_data {
+	bool x_flip;
+	bool y_flip;
+	bool swap_axes;
+	int irq_gpio;
+	int irq_on_state;
+	int power_gpio;
+	int power_on_state;
+	int reset_gpio;
+	int reset_on_state;
+	int tpio_reset_gpio;
+	unsigned int spi_mode;
+	unsigned int power_delay_ms;
+	unsigned int reset_delay_ms;
+	unsigned int reset_active_ms;
+	unsigned int byte_delay_us;
+	unsigned int block_delay_us;
+	unsigned int ubl_i2c_addr;
+	unsigned int ubl_max_freq;
+	unsigned int ubl_byte_delay_us;
+	unsigned long irq_flags;
+	const char *pwr_reg_name;
+	const char *bus_reg_name;
+};
+
 #define SYNAPTICS_TCM_ID_PRODUCT (1 << 0)
-#define SYNAPTICS_TCM_ID_VERSION 0x0100
+#define SYNAPTICS_TCM_ID_VERSION 0x0201
 #define SYNAPTICS_TCM_ID_SUBVERSION 0
 
 #define PLATFORM_DRIVER_NAME "synaptics_tcm"
@@ -54,20 +85,39 @@
 #define TOUCH_INPUT_NAME "synaptics_tcm_touch"
 #define TOUCH_INPUT_PHYS_PATH "synaptics_tcm/touch_input"
 
-#define WAKEUP_GESTURE
+#define WAKEUP_GESTURE (0)
 
-#define RD_CHUNK_SIZE 512 /* read length limit in bytes, 0 = unlimited */
-#define WR_CHUNK_SIZE 512 /* write length limit in bytes, 0 = unlimited */
+/* The chunk size RD_CHUNK_SIZE/WR_CHUNK_SIZE will not apply in HDL sensors */
+#define RD_CHUNK_SIZE 256 /* read length limit in bytes, 0 = unlimited */
+#define WR_CHUNK_SIZE 256 /* write length limit in bytes, 0 = unlimited */
+#define HDL_RD_CHUNK_SIZE 0 /* For HDL, 0 = unlimited */
+#define HDL_WR_CHUNK_SIZE 0 /* For HDL, 0 = unlimited */
 
 #define MESSAGE_HEADER_SIZE 4
 #define MESSAGE_MARKER 0xa5
 #define MESSAGE_PADDING 0x5a
 
+/*
+#define REPORT_NOTIFIER
+*/
+
+/*
+#define WATCHDOG_SW
+*/
+#ifdef WATCHDOG_SW
+#define RUN_WATCHDOG false
+#define WATCHDOG_TRIGGER_COUNT 2
+#define WATCHDOG_DELAY_MS 1000
+#endif
+
+#define HOST_DOWNLOAD_WAIT_MS 100
+#define HOST_DOWNLOAD_TIMEOUT_MS 5000
+
 #define LOGx(func, dev, log, ...) \
-	func(dev, "%s: " log, __func__, ##__VA_ARGS__)
+	func(dev, "%s info: " log, __func__, ##__VA_ARGS__)
 
 #define LOGy(func, dev, log, ...) \
-	func(dev, "%s (line %d): " log, __func__, __LINE__, ##__VA_ARGS__)
+	func(dev, "%s error: (line %d) " log, __func__, __LINE__, ##__VA_ARGS__)
 
 #define LOGD(dev, log, ...) LOGx(dev_dbg, dev, log, ##__VA_ARGS__)
 #define LOGI(dev, log, ...) LOGx(dev_info, dev, log, ##__VA_ARGS__)
@@ -108,6 +158,12 @@
 
 #define CONCAT(a, b) a##b
 
+#define IS_NOT_FW_MODE(mode) \
+	((mode != MODE_APPLICATION_FIRMWARE) && (mode != MODE_HOSTDOWNLOAD_FIRMWARE))
+
+#define IS_FW_MODE(mode) \
+	((mode == MODE_APPLICATION_FIRMWARE) || (mode == MODE_HOSTDOWNLOAD_FIRMWARE))
+
 #define SHOW_PROTOTYPE(m_name, a_name) \
 static ssize_t CONCAT(m_name##_sysfs, _##a_name##_show)(struct device *dev, \
 		struct device_attribute *attr, char *buf); \
@@ -141,22 +197,30 @@ static struct device_attribute dev_attr_##a_name = \
 #define ATTRIFY(a_name) (&dev_attr_##a_name)
 
 enum module_type {
-	TCM_TOUCH = 0,
-	TCM_DEVICE = 1,
-	TCM_TESTING = 2,
-	TCM_REFLASH = 3,
+	TCM_ZEROFLASH = 0,
+	TCM_REFLASH = 1,
+	TCM_DEVICE = 2,
+	TCM_TESTING = 3,
 	TCM_RECOVERY = 4,
-	TCM_ZEROFLASH = 5,
-	TCM_DIAGNOSTICS = 6,
+	TCM_DIAGNOSTICS = 5,
 	TCM_LAST,
 };
 
 enum boot_mode {
-	MODE_APPLICATION = 0x01,
-	MODE_HOST_DOWNLOAD = 0x02,
+	MODE_APPLICATION_FIRMWARE = 0x01,
+	MODE_HOSTDOWNLOAD_FIRMWARE = 0x02,
+	MODE_ROMBOOTLOADER = 0x04,
 	MODE_BOOTLOADER = 0x0b,
 	MODE_TDDI_BOOTLOADER = 0x0c,
-	MODE_PRODUCTION_TEST = 0x0e,
+	MODE_TDDI_HOSTDOWNLOAD_BOOTLOADER = 0x0d,
+	MODE_PRODUCTIONTEST_FIRMWARE = 0x0e,
+};
+
+enum sensor_types {
+	TYPE_UNKNOWN = 0,
+	TYPE_FLASH = 1,
+	TYPE_F35 = 2,
+	TYPE_ROMBOOT = 3,
 };
 
 enum boot_status {
@@ -232,7 +296,12 @@ enum command {
 	CMD_DOWNLOAD_CONFIG = 0x30,
 	CMD_ENTER_PRODUCTION_TEST_MODE = 0x31,
 	CMD_GET_FEATURES = 0x32,
-	CMD_GET_FACE_AREA = 195,
+	CMD_GET_ROMBOOT_INFO = 0x40,
+	CMD_WRITE_PROGRAM_RAM = 0x41,
+	CMD_ROMBOOT_RUN_BOOTLOADER_FIRMWARE = 0x42,
+	CMD_SPI_MASTER_WRITE_THEN_READ_EXTENDED = 0x43,
+	CMD_ENTER_IO_BRIDGE_MODE = 0x44,
+	CMD_ROMBOOT_DOWNLOAD = 0x45,
 };
 
 enum status_code {
@@ -255,8 +324,9 @@ enum report_type {
 	REPORT_RAW = 0x13,
 	REPORT_STATUS = 0x1b,
 	REPORT_PRINTF = 0x82,
-    REPORT_FW_PRINTF = 0x84,
-	REPORT_HDL = 0xfe,
+	REPORT_FW_PRINTF = 0x84,
+	REPORT_HDL_ROMBOOT = 0xfd,
+	REPORT_HDL_F35 = 0xfe,
 };
 
 enum command_status {
@@ -286,7 +356,9 @@ enum flash_data {
 enum helper_task {
 	HELP_NONE = 0,
 	HELP_RUN_APPLICATION_FIRMWARE,
-	HELP_SEND_RESET_NOTIFICATION,
+	HELP_SEND_REINIT_NOTIFICATION,
+	HELP_TOUCH_REINIT,
+	HELP_SEND_ROMBOOT_HDL,
 };
 
 struct syna_tcm_helper {
@@ -359,6 +431,17 @@ struct syna_tcm_app_info {
 	unsigned char num_of_image_rows[2];
 	unsigned char num_of_image_cols[2];
 	unsigned char has_hybrid_data[2];
+	unsigned char num_of_force_elecs[2];
+};
+
+struct syna_tcm_romboot_info {
+	unsigned char version;
+	unsigned char status;
+	unsigned char asic_id[2];
+	unsigned char write_block_size_words;
+	unsigned char max_write_payload_size[2];
+	unsigned char last_reset_reason;
+	unsigned char pc_at_time_of_last_reset[2];
 };
 
 struct syna_tcm_touch_info {
@@ -385,13 +468,18 @@ struct syna_tcm_hcd {
 	pid_t isr_pid;
 	atomic_t command_status;
 	atomic_t host_downloading;
+	atomic_t firmware_flashing;
 	wait_queue_head_t hdl_wq;
+	wait_queue_head_t reflash_wq;
 	int irq;
-	bool init_okay;
 	bool do_polling;
 	bool in_suspend;
 	bool irq_enabled;
-	bool host_download_mode;
+	bool in_hdl_mode;
+	bool is_detected;
+	bool wakeup_gesture_enabled;
+    bool syna_tcm_driver_removing;
+	unsigned char sensor_type;
 	unsigned char fb_ready;
 	unsigned char command;
 	unsigned char async_report_id;
@@ -429,13 +517,15 @@ struct syna_tcm_hcd {
 	struct syna_tcm_report report;
 	struct syna_tcm_app_info app_info;
 	struct syna_tcm_boot_info boot_info;
+	struct syna_tcm_romboot_info romboot_info;
 	struct syna_tcm_touch_info touch_info;
 	struct syna_tcm_identification id_info;
 	struct syna_tcm_helper helper;
 	struct syna_tcm_watchdog watchdog;
 	struct syna_tcm_features features;
 	const struct syna_tcm_hw_interface *hw_if;
-	int (*reset)(struct syna_tcm_hcd *tcm_hcd, bool hw, bool update_wd);
+	int (*reset)(struct syna_tcm_hcd *tcm_hcd);
+	int (*reset_n_reinit)(struct syna_tcm_hcd *tcm_hcd, bool hw, bool update_wd);
 	int (*sleep)(struct syna_tcm_hcd *tcm_hcd, bool en);
 	int (*identify)(struct syna_tcm_hcd *tcm_hcd, bool id);
 	int (*enable_irq)(struct syna_tcm_hcd *tcm_hcd, bool en, bool ns);
@@ -467,8 +557,10 @@ struct syna_tcm_module_cb {
 	int (*init)(struct syna_tcm_hcd *tcm_hcd);
 	int (*remove)(struct syna_tcm_hcd *tcm_hcd);
 	int (*syncbox)(struct syna_tcm_hcd *tcm_hcd);
+#ifdef REPORT_NOTIFIER
 	int (*asyncbox)(struct syna_tcm_hcd *tcm_hcd);
-	int (*reset)(struct syna_tcm_hcd *tcm_hcd);
+#endif
+	int (*reinit)(struct syna_tcm_hcd *tcm_hcd);
 	int (*suspend)(struct syna_tcm_hcd *tcm_hcd);
 	int (*resume)(struct syna_tcm_hcd *tcm_hcd);
 	int (*early_suspend)(struct syna_tcm_hcd *tcm_hcd);
@@ -513,6 +605,13 @@ int syna_tcm_bus_init(void);
 void syna_tcm_bus_exit(void);
 
 int syna_tcm_add_module(struct syna_tcm_module_cb *mod_cb, bool insert);
+
+int touch_init(struct syna_tcm_hcd *tcm_hcd);
+int touch_remove(struct syna_tcm_hcd *tcm_hcd);
+int touch_reinit(struct syna_tcm_hcd *tcm_hcd);
+int touch_early_suspend(struct syna_tcm_hcd *tcm_hcd);
+int touch_suspend(struct syna_tcm_hcd *tcm_hcd);
+int touch_resume(struct syna_tcm_hcd *tcm_hcd);
 
 static inline int syna_tcm_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 		unsigned short addr, unsigned char *data, unsigned int length)
@@ -660,8 +759,4 @@ static inline unsigned int ceil_div(unsigned int dividend, unsigned divisor)
 	return (dividend + divisor - 1) / divisor;
 }
 
-void syna_log_data(unsigned char *data, int length);
-int syna_tcm_raw_read(struct syna_tcm_hcd *tcm_hcd,
-		unsigned char *in_buf, unsigned int length);
-int zeroflash_check_uboot(void);
 #endif

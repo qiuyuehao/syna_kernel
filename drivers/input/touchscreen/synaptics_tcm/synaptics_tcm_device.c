@@ -4,6 +4,10 @@
  * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
  *
  * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
+ * Copyright (C) 2018-2019 Ian Su <ian.su@tw.synaptics.com>
+ * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@synaptics.com>
+ * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@synaptics.com>
+ * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -48,7 +52,6 @@
 struct device_hcd {
 	dev_t dev_num;
 	bool raw_mode;
-	bool rmi_read_mode;
 	bool concurrent;
 	unsigned int ref_count;
 	struct cdev char_dev;
@@ -251,29 +254,26 @@ static int device_ioctl(struct inode *inp, struct file *filp, unsigned int cmd,
 
 	switch (cmd) {
 	case DEVICE_IOC_RESET:
-		retval = tcm_hcd->reset(tcm_hcd, false, true);
-		LOGE(tcm_hcd->pdev->dev.parent,
-					"reset call\n");
+		retval = tcm_hcd->reset_n_reinit(tcm_hcd, false, true);
 		break;
 	case DEVICE_IOC_IRQ:
-		LOGE(tcm_hcd->pdev->dev.parent,
-					"irq call %d\n", (unsigned short)arg);
 		if (arg == 0)
 			retval = tcm_hcd->enable_irq(tcm_hcd, false, false);
 		else if (arg == 1)
 			retval = tcm_hcd->enable_irq(tcm_hcd, true, NULL);
 		break;
 	case DEVICE_IOC_RAW:
-		if (arg == 0)
+		if (arg == 0) {
 			device_hcd->raw_mode = false;
-		else if (arg == 1)
+#ifdef WATCHDOG_SW
+			tcm_hcd->update_watchdog(tcm_hcd, true);
+#endif
+		} else if (arg == 1) {
 			device_hcd->raw_mode = true;
-		else if (arg == 2)
-			device_hcd->rmi_read_mode = false;
-		else if (arg == 3)
-			device_hcd->rmi_read_mode = true;
-		/* LOGE(tcm_hcd->pdev->dev.parent, */
-					/* "raw mode:%d, rmi_read_mode:%d\n", device_hcd->raw_mode, device_hcd->rmi_read_mode); */
+#ifdef WATCHDOG_SW
+			tcm_hcd->update_watchdog(tcm_hcd, false);
+#endif
+		}
 		break;
 	case DEVICE_IOC_CONCURRENT:
 		if (arg == 0)
@@ -293,29 +293,9 @@ static int device_ioctl(struct inode *inp, struct file *filp, unsigned int cmd,
 
 static loff_t device_llseek(struct file *filp, loff_t off, int whence)
 {
-	loff_t newpos;
-
-
-	switch (whence) {
-	case SEEK_SET:
-		newpos = off;
-		break;
-	case SEEK_CUR:
-		//newpos = filp->f_pos + off;
-		break;
-	case SEEK_END:
-		//newpos = REG_ADDR_LIMIT + off;
-		break;
-	default:
-		newpos = -EINVAL;
-		break;
-	}
-
-	filp->f_pos = newpos;
-
-	return newpos;
+	return -EINVAL;
 }
-extern int zeroflash_check_uboot(void);
+
 static ssize_t device_read(struct file *filp, char __user *buf,
 		size_t count, loff_t *f_pos)
 {
@@ -339,27 +319,10 @@ static ssize_t device_read(struct file *filp, char __user *buf,
 			UNLOCK_BUFFER(device_hcd->resp);
 			goto exit;
 		}
-		if (device_hcd->rmi_read_mode) {
-			/* unsigned char testdata = 0; */
-			retval = syna_tcm_rmi_read(tcm_hcd, (unsigned short)*f_pos,
+
+		retval = tcm_hcd->read_message(tcm_hcd,
 				device_hcd->resp.buf,
 				count);
-			/* LOGE(tcm_hcd->pdev->dev.parent, "data, addr:%x, count:%d\n", (unsigned short)*f_pos,(unsigned short)count); */
-
-			/* retval = syna_tcm_rmi_read(tcm_hcd, 0x00ee, */
-				/* &testdata, */
-				/* 1); */
-
-			/* LOGE(tcm_hcd->pdev->dev.parent, */
-					/* "data read:%x\n", testdata); */
-			/* zeroflash_check_uboot(); */
-			/* LOGE(tcm_hcd->pdev->dev.parent, */
-					/* "check uboot here\n"); */
-		} else {
-			retval = tcm_hcd->read_message(tcm_hcd,
-				device_hcd->resp.buf,
-				count);
-		}
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
 					"Failed to read message\n");
@@ -416,8 +379,6 @@ static ssize_t device_write(struct file *filp, const char __user *buf,
 	if (count == 0)
 		return 0;
 
-	/* LOGE(tcm_hcd->pdev->dev.parent, */
-				/* "write count here is: %d\n..............",(unsigned int)count); */
 	mutex_lock(&tcm_hcd->extif_mutex);
 
 	LOCK_BUFFER(device_hcd->out);
@@ -443,13 +404,7 @@ static ssize_t device_write(struct file *filp, const char __user *buf,
 	LOCK_BUFFER(device_hcd->resp);
 
 	if (device_hcd->raw_mode) {
-		if (device_hcd->rmi_read_mode) {
-			retval = syna_tcm_rmi_write(tcm_hcd,
-				(unsigned short)*f_pos, device_hcd->out.buf,
-				count);
-			/* LOGE(tcm_hcd->pdev->dev.parent, "data, addr:%x, count:%d\n", (unsigned int)*f_pos,(unsigned int)count); */
-		} else {
-			retval = tcm_hcd->write_message(tcm_hcd,
+		retval = tcm_hcd->write_message(tcm_hcd,
 				device_hcd->out.buf[0],
 				&device_hcd->out.buf[1],
 				count - 1,
@@ -458,8 +413,6 @@ static ssize_t device_write(struct file *filp, const char __user *buf,
 				NULL,
 				NULL,
 				0);
-		}
-
 	} else {
 		mutex_lock(&tcm_hcd->reset_mutex);
 		retval = tcm_hcd->write_message(tcm_hcd,
@@ -720,7 +673,7 @@ exit:
 	return 0;
 }
 
-static int device_reset(struct syna_tcm_hcd *tcm_hcd)
+static int device_reinit(struct syna_tcm_hcd *tcm_hcd)
 {
 	int retval;
 
@@ -737,8 +690,10 @@ static struct syna_tcm_module_cb device_module = {
 	.init = device_init,
 	.remove = device_remove,
 	.syncbox = NULL,
+#ifdef REPORT_NOTIFIER
 	.asyncbox = NULL,
-	.reset = device_reset,
+#endif
+	.reinit = device_reinit,
 	.suspend = NULL,
 	.resume = NULL,
 	.early_suspend = NULL,
