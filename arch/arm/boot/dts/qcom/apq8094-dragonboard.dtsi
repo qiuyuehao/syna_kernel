@@ -58,7 +58,7 @@
 	};
 };
 */
-#include "synaptics-tcm-spi.dtsi"
+#include "omnivision-tcm-spi.dtsi"
 
 &tspp {
 	status = "disabled";
