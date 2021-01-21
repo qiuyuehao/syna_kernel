@@ -793,6 +793,10 @@ static int ovt_tcm_report_notifier(void *data)
  * report notifier thread is woken up for asynchronous notification of the
  * report occurrence.
  */
+
+#define FW_LOG_BUFFER_SIZE 2048
+static unsigned char fw_log[FW_LOG_BUFFER_SIZE];
+
 static void ovt_tcm_dispatch_report(struct ovt_tcm_hcd *tcm_hcd)
 {
 	struct ovt_tcm_module_handler *mod_handler;
@@ -815,10 +819,13 @@ static void ovt_tcm_dispatch_report(struct ovt_tcm_hcd *tcm_hcd)
 			tcm_hcd->report_touch();
 
 	} else if (tcm_hcd->report.id == REPORT_FW_PRINTF) {
-        #define FW_LOG_BUFFER_SIZE 256
-        unsigned char fw_log[FW_LOG_BUFFER_SIZE] = {0};
         int cpy_length;
-        cpy_length = (tcm_hcd->report.buffer.data_length >= FW_LOG_BUFFER_SIZE - 1)? (FW_LOG_BUFFER_SIZE - 1) : tcm_hcd->report.buffer.data_length;
+		if (tcm_hcd->report.buffer.data_length >= FW_LOG_BUFFER_SIZE - 1) {
+			cpy_length = FW_LOG_BUFFER_SIZE - 1;
+		} else {
+			cpy_length = tcm_hcd->report.buffer.data_length;
+		}
+		memset(fw_log, 0, sizeof(fw_log));
         secure_memcpy(fw_log, FW_LOG_BUFFER_SIZE - 1, tcm_hcd->report.buffer.buf, tcm_hcd->report.buffer.buf_size, cpy_length);
         LOGE(tcm_hcd->pdev->dev.parent,
 				"TouchFWLog: %s\n", fw_log);
