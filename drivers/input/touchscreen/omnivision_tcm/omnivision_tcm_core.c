@@ -1204,9 +1204,13 @@ static int ovt_tcm_raw_read(struct ovt_tcm_hcd *tcm_hcd,
 	unsigned int remaining_length;
 
 	if (length < 2) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Invalid length information\n");
-		return -EINVAL;
+		retval = ovt_tcm_read(tcm_hcd,
+				in_buf,
+				length);
+		if (retval < 0) {
+			return -EINVAL;
+		}
+		return retval;
 	}
 
 	/* minus header marker byte and header code byte */
