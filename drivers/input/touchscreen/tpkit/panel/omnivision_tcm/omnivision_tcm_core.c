@@ -1972,6 +1972,181 @@ exit:
 	return retval;
 }
 
+static int ovt_tcm_write_message_polling(struct ovt_tcm_hcd *tcm_hcd,
+		unsigned char command, unsigned char *payload,
+		unsigned int length, unsigned char *resp_buf,
+		unsigned int resp_buf_size, unsigned int *resp_length,
+		unsigned char *response_code, unsigned int polling_delay_ms)
+{
+	int retval;
+	unsigned int idx;
+	unsigned int chunks;
+	unsigned int chunk_space;
+	unsigned int xfer_length;
+	unsigned int remaining_length;
+	unsigned int command_status;
+	bool is_romboot_hdl = (command == CMD_ROMBOOT_DOWNLOAD) ? true : false;
+	bool is_hdl_reset = (command == CMD_RESET) && (tcm_hcd->in_hdl_mode);
+
+	if (response_code != NULL)
+		*response_code = STATUS_INVALID;
+
+	mutex_lock(&tcm_hcd->command_mutex);
+
+	mutex_lock(&tcm_hcd->rw_ctrl_mutex);
+
+	if (resp_buf == NULL) {
+		retval = ovt_tcm_raw_write(tcm_hcd, command, payload, length);
+		mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
+		goto exit;
+	}
+
+	atomic_set(&tcm_hcd->command_status, CMD_BUSY);
+
+	tcm_hcd->command = command;
+
+	/* adding two length bytes as part of payload */
+	remaining_length = length + 2;
+
+	/* available chunk space for payload = total chunk size minus command
+	 * byte */
+	if (tcm_hcd->wr_chunk_size == 0)
+		chunk_space = remaining_length;
+	else
+		chunk_space = tcm_hcd->wr_chunk_size - 1;
+
+	if (is_romboot_hdl) {
+		if (WR_CHUNK_SIZE) {
+			chunk_space = WR_CHUNK_SIZE - 1;
+			chunk_space = chunk_space -
+					(chunk_space % ROMBOOT_DOWNLOAD_UNIT);
+		} else {
+			chunk_space = remaining_length;
+		}
+	}
+
+	chunks = ceil_div(remaining_length, chunk_space);
+
+	chunks = chunks == 0 ? 1 : chunks;
+
+	LOGE(tcm_hcd->pdev->dev.parent,
+			"Command = 0x%02x\n",
+			command);
+
+	LOCK_BUFFER(tcm_hcd->out);
+
+	for (idx = 0; idx < chunks; idx++) {
+		if (remaining_length > chunk_space)
+			xfer_length = chunk_space;
+		else
+			xfer_length = remaining_length;
+
+		retval = ovt_tcm_alloc_mem(tcm_hcd,
+				&tcm_hcd->out,
+				xfer_length + 1);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to allocate memory for tcm_hcd->out.buf\n");
+			UNLOCK_BUFFER(tcm_hcd->out);
+			mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
+			goto exit;
+		}
+
+		if (idx == 0) {
+			tcm_hcd->out.buf[0] = command;
+			tcm_hcd->out.buf[1] = (unsigned char)length;
+			tcm_hcd->out.buf[2] = (unsigned char)(length >> 8);
+
+			if (xfer_length > 2) {
+				retval = secure_memcpy(&tcm_hcd->out.buf[3],
+						tcm_hcd->out.buf_size - 3,
+						payload,
+						remaining_length - 2,
+						xfer_length - 2);
+				if (retval < 0) {
+					LOGE(tcm_hcd->pdev->dev.parent,
+							"Failed to copy payload\n");
+					UNLOCK_BUFFER(tcm_hcd->out);
+					mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
+					goto exit;
+				}
+			}
+		} else {
+			tcm_hcd->out.buf[0] = CMD_CONTINUE_WRITE;
+
+			retval = secure_memcpy(&tcm_hcd->out.buf[1],
+					tcm_hcd->out.buf_size - 1,
+					&payload[idx * chunk_space - 2],
+					remaining_length,
+					xfer_length);
+			if (retval < 0) {
+				LOGE(tcm_hcd->pdev->dev.parent,
+						"Failed to copy payload\n");
+				UNLOCK_BUFFER(tcm_hcd->out);
+				mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
+				goto exit;
+			}
+		}
+
+		retval = ovt_tcm_write(tcm_hcd,
+				tcm_hcd->out.buf,
+				xfer_length + 1);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to write to device\n");
+			UNLOCK_BUFFER(tcm_hcd->out);
+			mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
+			goto exit;
+		}
+
+		remaining_length -= xfer_length;
+
+		if (chunks > 1)
+			usleep_range(WRITE_DELAY_US_MIN, WRITE_DELAY_US_MAX);
+	}
+
+	UNLOCK_BUFFER(tcm_hcd->out);
+
+	mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
+
+	if (is_hdl_reset)
+		goto exit;
+	msleep(polling_delay_ms);
+	mutex_lock(&tcm_hcd->rw_ctrl_mutex);
+	retval = ovt_tcm_read_one_message(tcm_hcd, resp_buf, resp_buf_size);
+	mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"error when get command response (command 0x%02x)\n",
+				tcm_hcd->command);
+		goto exit;	
+	}
+	
+	if (resp_buf[1] != STATUS_OK) {
+		if (retval) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Error code = 0x%02x (command 0x%02x)\n",
+					resp_buf[1], tcm_hcd->command);
+		}
+		retval = -EIO;
+	} else {
+		retval = 0;
+	}
+
+	if (response_code != NULL)
+		*response_code = resp_buf[1];
+
+exit:
+	tcm_hcd->command = CMD_NONE;
+
+	atomic_set(&tcm_hcd->command_status, CMD_IDLE);
+
+	mutex_unlock(&tcm_hcd->command_mutex);
+
+	return retval;
+}
+
+
 static int ovt_tcm_wait_hdl(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int retval;
