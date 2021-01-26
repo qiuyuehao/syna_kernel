@@ -71,7 +71,7 @@ struct ovt_tcm_board_data {
 };
 
 #define OMNIVISION_TCM_ID_PRODUCT (1 << 0)
-#define OMNIVISION_TCM_ID_VERSION 0x0201
+#define OMNIVISION_TCM_ID_VERSION 0x0300
 #define OMNIVISION_TCM_ID_SUBVERSION 0
 
 #define PLATFORM_DRIVER_NAME "omnivision_tcm"

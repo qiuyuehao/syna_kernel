@@ -1665,7 +1665,7 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 
 	chunks = chunks == 0 ? 1 : chunks;
 
-	LOGE(tcm_hcd->pdev->dev.parent,
+	LOGN(tcm_hcd->pdev->dev.parent,
 			"Command = 0x%02x\n",
 			command);
 
