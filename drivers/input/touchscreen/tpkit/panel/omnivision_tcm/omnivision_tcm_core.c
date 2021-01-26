@@ -1570,6 +1570,157 @@ exit:
 	return retval;
 }
 
+
+static int ovt_tcm_read_one_message(struct ovt_tcm_hcd *tcm_hcd,
+		unsigned char *in_buf, unsigned int length)
+{
+	int retval;
+	bool retry;
+	unsigned int total_length;
+	struct ovt_tcm_message_header *header;
+
+	mutex_lock(&tcm_hcd->rw_ctrl_mutex);
+
+	retry = true;
+
+retry:
+	LOCK_BUFFER(tcm_hcd->in);
+
+	retval = ovt_tcm_read(tcm_hcd,
+			tcm_hcd->in.buf,
+			tcm_hcd->read_length);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to read from device\n");
+		UNLOCK_BUFFER(tcm_hcd->in);
+		if (retry) {
+			usleep_range(READ_RETRY_US_MIN, READ_RETRY_US_MAX);
+			retry = false;
+			goto retry;
+		}
+		goto exit;
+	}
+
+	header = (struct ovt_tcm_message_header *)tcm_hcd->in.buf;
+
+
+	if (header->marker != MESSAGE_MARKER) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Incorrect header marker (0x%02x)\n",
+				header->marker);
+		UNLOCK_BUFFER(tcm_hcd->in);
+		retval = -ENXIO;
+		if (retry) {
+			usleep_range(READ_RETRY_US_MIN, READ_RETRY_US_MAX);
+			retry = false;
+			goto retry;
+		}
+		goto exit;
+	}
+
+	tcm_hcd->status_report_code = header->code;
+
+	tcm_hcd->payload_length = le2_to_uint(header->length);
+
+	LOGD(tcm_hcd->pdev->dev.parent,
+			"Status report code = 0x%02x\n",
+			tcm_hcd->status_report_code);
+
+	LOGD(tcm_hcd->pdev->dev.parent,
+			"Payload length = %d\n",
+			tcm_hcd->payload_length);
+
+	if (tcm_hcd->status_report_code <= STATUS_ERROR ||
+			tcm_hcd->status_report_code == STATUS_INVALID) {
+		switch (tcm_hcd->status_report_code) {
+		case STATUS_OK:
+			break;
+		case STATUS_CONTINUED_READ:
+			LOGD(tcm_hcd->pdev->dev.parent,
+					"Out-of-sync continued read\n");
+		case STATUS_IDLE:
+		case STATUS_BUSY:
+			tcm_hcd->payload_length = 0;
+			UNLOCK_BUFFER(tcm_hcd->in);
+			retval = 0;
+			goto exit;
+		default:
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Incorrect Status code (0x%02x)\n",
+					tcm_hcd->status_report_code);
+			if (tcm_hcd->status_report_code == STATUS_INVALID) {
+				if (retry) {
+					usleep_range(READ_RETRY_US_MIN,
+							READ_RETRY_US_MAX);
+					retry = false;
+					goto retry;
+				} else {
+					tcm_hcd->payload_length = 0;
+				}
+			}
+		}
+	}
+
+	total_length = MESSAGE_HEADER_SIZE + tcm_hcd->payload_length + 1;
+
+#ifdef PREDICTIVE_READING
+	if (total_length <= tcm_hcd->read_length) {
+		goto check_padding;
+	} else if (total_length - 1 == tcm_hcd->read_length) {
+		tcm_hcd->in.buf[total_length - 1] = MESSAGE_PADDING;
+		goto check_padding;
+	}
+#else
+	if (tcm_hcd->payload_length == 0) {
+		tcm_hcd->in.buf[total_length - 1] = MESSAGE_PADDING;
+		goto check_padding;
+	}
+#endif
+
+	UNLOCK_BUFFER(tcm_hcd->in);
+
+	retval = ovt_tcm_continued_read(tcm_hcd);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to do continued read\n");
+		goto exit;
+	};
+
+	LOCK_BUFFER(tcm_hcd->in);
+
+	tcm_hcd->in.buf[0] = MESSAGE_MARKER;
+	tcm_hcd->in.buf[1] = tcm_hcd->status_report_code;
+	tcm_hcd->in.buf[2] = (unsigned char)tcm_hcd->payload_length;
+	tcm_hcd->in.buf[3] = (unsigned char)(tcm_hcd->payload_length >> 8);
+
+check_padding:
+	if (tcm_hcd->in.buf[total_length - 1] != MESSAGE_PADDING) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Incorrect message padding byte (0x%02x)\n",
+				tcm_hcd->in.buf[total_length - 1]);
+		UNLOCK_BUFFER(tcm_hcd->in);
+		retval = -EIO;
+		goto exit;
+	}
+
+	UNLOCK_BUFFER(tcm_hcd->in);
+
+#ifdef PREDICTIVE_READING
+	total_length = MAX(total_length, MIN_READ_LENGTH);
+	tcm_hcd->read_length = MIN(total_length, tcm_hcd->rd_chunk_size);
+	if (tcm_hcd->rd_chunk_size == 0)
+		tcm_hcd->read_length = total_length;
+#endif
+
+	secure_memcpy(in_buf,length,tcm_hcd->in.buf,tcm_hcd->in.buf_size,total_length);
+	retval = total_length;
+
+exit:
+
+	mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
+
+	return retval;
+}
 /**
  * ovt_tcm_write_message() - write message to device and receive response
  *
