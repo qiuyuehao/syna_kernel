@@ -2101,7 +2101,7 @@ static int ts_creat_spi_client(void)
     struct spi_board_info board_info;
 
     memset(&board_info, 0, sizeof(struct spi_board_info));
-    board_info.max_speed_hz = 4000000;
+    board_info.max_speed_hz = 3000000;
     board_info.bus_num = 0;
     board_info.chip_select = 0;
     board_info.mode = SPI_MODE_3;
@@ -2118,7 +2118,9 @@ static int ts_creat_spi_client(void)
     {
         TS_LOG_ERR("spi_new_device failed\n");
         return -EIO;
-    }
+    } else {
+		TS_LOG_ERR("create spi client ok\n");
+	}
     g_ts_kit_platform_data.spi = client;
 	spi_set_drvdata(client, &g_ts_kit_platform_data);
 

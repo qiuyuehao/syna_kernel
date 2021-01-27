@@ -41,17 +41,17 @@
 #include <linux/fb.h>
 #include <linux/notifier.h>
 #endif
-
+#include "../../huawei_ts_kit.h"
 #define I2C_MODULE_NAME "omniVision_tcm_i2c"
 #define SPI_MODULE_NAME "omnivision_tcm_spi"
 
 
-typedef uint8 unsigned char;
-typedef uint16 unsigned short;
-typedef uint32 unsigned int;
-typedef int8 char;
-typedef int16 short;
-typedef int32 int;
+typedef unsigned char uint8;
+typedef unsigned short uint16;
+typedef unsigned int uint32;
+typedef char int8;
+typedef short int16;
+typedef int int32;
 struct ovt_tcm_board_data {
 	bool x_flip;
 	bool y_flip;
@@ -78,7 +78,7 @@ struct ovt_tcm_board_data {
 };
 
 #define OMNIVISION_TCM_ID_PRODUCT (1 << 0)
-#define OMNIVISION_TCM_ID_VERSION 0x0201
+#define OMNIVISION_TCM_ID_VERSION 0x0300
 #define OMNIVISION_TCM_ID_SUBVERSION 0
 
 #define PLATFORM_DRIVER_NAME "omnivision_tcm"
@@ -222,6 +222,7 @@ enum sensor_types {
 	TYPE_FLASH = 1,
 	TYPE_F35 = 2,
 	TYPE_ROMBOOT = 3,
+
 };
 
 enum boot_status {
@@ -494,6 +495,7 @@ struct ovt_tcm_hcd {
 	unsigned int app_status;
 	struct platform_device *pdev;
 	struct regulator *pwr_reg;
+	struct ts_kit_device_data *ovt_tcm_chip_data;
 	struct regulator *bus_reg;
 	struct kobject *sysfs_dir;
 	struct kobject *dynamnic_config_sysfs_dir;

@@ -33,14 +33,14 @@
 #include <linux/interrupt.h>
 #include <linux/regulator/consumer.h>
 #include "omnivision_tcm_core.h"
-
+#include "../../huawei_ts_kit.h"
 /* #define RESET_ON_RESUME */
 
 /* #define RESUME_EARLY_UNBLANK */
 
 #define RESET_ON_RESUME_DELAY_MS 50
 
-#define PREDICTIVE_READING
+//#define PREDICTIVE_READING
 
 #define MIN_READ_LENGTH 9
 
@@ -195,6 +195,12 @@ static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd);
 static void ovt_tcm_check_hdl(struct ovt_tcm_hcd *tcm_hcd,
 							unsigned char id);
 
+static int ovt_tcm_write_message_polling(struct ovt_tcm_hcd *tcm_hcd,
+		unsigned char command, unsigned char *payload,
+		unsigned int length, unsigned char *resp_buf,
+		unsigned int resp_buf_size, unsigned int *resp_length,
+		unsigned char *response_code, unsigned int polling_delay_ms);
+
 static ssize_t ovt_tcm_sysfs_info_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -325,7 +331,25 @@ static ssize_t ovt_tcm_sysfs_info_show(struct device *dev,
 	if (retval < 0)
 		goto exit;
 
-	ovt_tcm_enable_irq(tcm_hcd, false, true);
+	tcm_hcd->enable_irq(tcm_hcd, false, true);
+	{
+		uint8 error = -1;
+		uint8 cmd = CMD_GET_DYNAMIC_CONFIG;
+		uint8 payload[1] = {DC_IN_WAKEUP_GESTURE_MODE};
+		uint8 resp_buf[256] = {0};
+		uint8 resp_status_code = 0xf;
+		uint32 resp_length = 0;
+		error = ovt_tcm_write_message_polling(tcm_hcd, cmd, payload, sizeof(payload), resp_buf, sizeof(resp_buf), &resp_length,&resp_status_code, 50);
+		if (error < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to ovt_tcm_write_message_polling\n");
+		} else {
+			LOGE(tcm_hcd->pdev->dev.parent,
+				"ovt_tcm_write_message_polling error:%d %d %d\n",error, resp_length,resp_status_code);
+		}
+
+	}
+	tcm_hcd->enable_irq(tcm_hcd, true, true);
 	count += retval;
 
 	retval = count;
@@ -1589,7 +1613,7 @@ retry:
 
 	retval = ovt_tcm_read(tcm_hcd,
 			tcm_hcd->in.buf,
-			MESSAGE_HEADER_SIZE);
+			tcm_hcd->read_length);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to read from device\n");
@@ -1623,11 +1647,11 @@ retry:
 
 	tcm_hcd->payload_length = le2_to_uint(header->length);
 
-	LOGD(tcm_hcd->pdev->dev.parent,
+	LOGN(tcm_hcd->pdev->dev.parent,
 			"Status report code = 0x%02x\n",
 			tcm_hcd->status_report_code);
 
-	LOGD(tcm_hcd->pdev->dev.parent,
+	LOGN(tcm_hcd->pdev->dev.parent,
 			"Payload length = %d\n",
 			tcm_hcd->payload_length);
 
@@ -1821,7 +1845,7 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 
 	chunks = chunks == 0 ? 1 : chunks;
 
-	LOGE(tcm_hcd->pdev->dev.parent,
+	LOGN(tcm_hcd->pdev->dev.parent,
 			"Command = 0x%02x\n",
 			command);
 
@@ -1985,7 +2009,7 @@ static int ovt_tcm_write_message_polling(struct ovt_tcm_hcd *tcm_hcd,
 	unsigned int chunk_space;
 	unsigned int xfer_length;
 	unsigned int remaining_length;
-	unsigned int command_status;
+
 	bool is_romboot_hdl = (command == CMD_ROMBOOT_DOWNLOAD) ? true : false;
 	bool is_hdl_reset = (command == CMD_RESET) && (tcm_hcd->in_hdl_mode);
 
@@ -2030,7 +2054,7 @@ static int ovt_tcm_write_message_polling(struct ovt_tcm_hcd *tcm_hcd,
 
 	chunks = chunks == 0 ? 1 : chunks;
 
-	LOGE(tcm_hcd->pdev->dev.parent,
+	LOGN(tcm_hcd->pdev->dev.parent,
 			"Command = 0x%02x\n",
 			command);
 
@@ -2113,9 +2137,12 @@ static int ovt_tcm_write_message_polling(struct ovt_tcm_hcd *tcm_hcd,
 	if (is_hdl_reset)
 		goto exit;
 	msleep(polling_delay_ms);
-	mutex_lock(&tcm_hcd->rw_ctrl_mutex);
+	
+	LOGE(tcm_hcd->pdev->dev.parent,
+				"call ovt_tcm_read_one_message (command 0x%02x)\n",
+				tcm_hcd->command);
 	retval = ovt_tcm_read_one_message(tcm_hcd, resp_buf, resp_buf_size);
-	mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
+
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"error when get command response (command 0x%02x)\n",
@@ -3915,7 +3942,7 @@ f35_boot_recheck:
                     gpio_set_value(bdata->reset_gpio, 1);        
                     msleep(5);
 					retry++;
-			goto f35_boot_recheck;
+					goto f35_boot_recheck;
 				}
 				tcm_hcd->is_detected = false;
 				return -ENODEV;
@@ -3937,6 +3964,7 @@ static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd)
 	retval = tcm_hcd->read_message(tcm_hcd,
 			NULL,
 			0);
+
 
 	/* once the tcm communication interface is not ready, */
 	/* check whether the device is in F35 mode        */
@@ -4491,15 +4519,82 @@ static struct platform_driver ovt_tcm_driver = {
 	.shutdown = ovt_tcm_shutdown,
 };
 
+struct ts_device_ops ts_kit_ovt_tcm_ops = {
+	/* .chip_detect = ovt_tcm_chip_detect,
+	.chip_init = ovt_tcm_init_chip,
+	.chip_parse_config = ovt_tcm_parse_dts,
+	.chip_input_config = ovt_tcm_input_config,
+	.chip_irq_top_half = ovt_tcm_irq_top_half,
+	.chip_irq_bottom_half = ovt_tcm_irq_bottom_half,
+	.chip_fw_update_boot = ovt_tcm_fw_update_boot,
+	.chip_fw_update_sd = ovt_tcm_fw_update_sd,
+	.chip_get_info = ovt_tcm_chip_get_info,
+	.chip_set_info_flag = ovt_tcm_set_info_flag,
+	.chip_before_suspend = ovt_tcm_before_suspend,
+	.chip_suspend = ovt_tcm_suspend,
+	.chip_resume = ovt_tcm_resume,
+	.chip_after_resume = ovt_tcm_after_resume,
+	.chip_get_rawdata = ovt_tcm_mmi_test,
+	.chip_get_calibration_data = ovt_tcm_get_cal_data, */
+};
+#define OMNIVISION_TCM_VENDER_NAME "omnivision_tcm" 
 static int __init ovt_tcm_module_init(void)
 {
-	int retval;
+	int retval = NO_ERR;    
+	bool found = false;
+	struct device_node* child = NULL;
+	struct device_node* root = NULL;
+	struct ovt_tcm_hcd *tcm_hcd;
 
-	retval = ovt_tcm_bus_init();
-	if (retval < 0)
-		return retval;
+	printk(" ovt_tcm_ts_module_init called here\n");
+	
+	root = of_find_compatible_node(NULL, NULL, "huawei,ts_kit");
+	if (!root) {
+		printk("huawei_ts, find_compatible_node huawei,ts_kit error\n");
+		retval = -EINVAL;
+		goto out;
+	}
 
-	return platform_driver_register(&ovt_tcm_driver);
+	for_each_child_of_node(root, child)
+	{
+		if (of_device_is_compatible(child, OMNIVISION_TCM_VENDER_NAME)) {
+			printk("found is true\n");
+			found = true;
+			break;
+		} 
+	}
+
+	if (!found) {
+		printk(" not found chip ovtptics child node  !\n");
+		retval = -EINVAL;
+		goto out;
+	}
+
+	tcm_hcd = kzalloc(sizeof(*tcm_hcd), GFP_KERNEL);
+	if (!tcm_hcd) {
+		printk("Failed to allocate memory for tcm_hcd\n");
+		return -ENOMEM;
+	}
+	g_tcm_hcd = tcm_hcd;
+
+	tcm_hcd->ovt_tcm_chip_data = kzalloc(sizeof(struct ts_kit_device_data), GFP_KERNEL);
+	if (!tcm_hcd->ovt_tcm_chip_data) {
+		printk("Failed to allocate memory for tcm_hcd\n");
+		return -ENOMEM;
+	}
+
+    tcm_hcd->ovt_tcm_chip_data->cnode = child;
+    tcm_hcd->ovt_tcm_chip_data->ops = &ts_kit_ovt_tcm_ops;
+
+	return retval;
+	
+out:
+	if (tcm_hcd->ovt_tcm_chip_data)
+		kfree(tcm_hcd->ovt_tcm_chip_data);
+	if (tcm_hcd)
+		kfree(tcm_hcd);
+	tcm_hcd = NULL;	
+	return retval;
 }
 
 static void __exit ovt_tcm_module_exit(void)
