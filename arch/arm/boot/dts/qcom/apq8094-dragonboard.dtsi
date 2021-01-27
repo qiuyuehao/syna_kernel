@@ -156,7 +156,7 @@
 };
 
 #include "dsi-panel-hx8379a-truly-fwvga-video.dtsi"
-#include "dsi-panel-td4330-boe-fhd-video-lhb.dtsi"
+#include "dsi-panel-td4320-fhdp-video.dtsi"
 
 &dsi_hx8379a_fwvga_truly_vid {
 	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_pwm";
@@ -168,7 +168,7 @@
 };
 
 &mdss_dsi0 {
-	qcom,dsi-pref-prim-pan = <&dsi_td4330_fhd_video>;
+	qcom,dsi-pref-prim-pan = <&dsi_td4320_fhdp_video>;
 	pinctrl-names = "mdss_default", "mdss_sleep";
 	pinctrl-0 = <&mdss_dsi_active>;
 	pinctrl-1 = <&mdss_dsi_suspend>;
