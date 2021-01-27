@@ -33,7 +33,7 @@
 #include <linux/interrupt.h>
 #include <linux/regulator/consumer.h>
 #include "omnivision_tcm_core.h"
-#include "../../huawei_ts_kit.h"
+
 /* #define RESET_ON_RESUME */
 
 /* #define RESUME_EARLY_UNBLANK */
@@ -4537,7 +4537,7 @@ struct ts_device_ops ts_kit_ovt_tcm_ops = {
 	.chip_get_rawdata = ovt_tcm_mmi_test,
 	.chip_get_calibration_data = ovt_tcm_get_cal_data, */
 };
-#define OMNIVISION_TCM_VENDER_NAME "omnivision_tcm" 
+#define OMNIVISION_TCM_VENDER_NAME "omnivision,tcm-spi" 
 static int __init ovt_tcm_module_init(void)
 {
 	int retval = NO_ERR;    
@@ -4567,7 +4567,7 @@ static int __init ovt_tcm_module_init(void)
 	if (!found) {
 		printk(" not found chip ovtptics child node  !\n");
 		retval = -EINVAL;
-		goto out;
+		return retval;
 	}
 
 	tcm_hcd = kzalloc(sizeof(*tcm_hcd), GFP_KERNEL);
