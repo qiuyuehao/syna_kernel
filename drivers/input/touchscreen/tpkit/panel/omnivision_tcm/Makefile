@@ -4,13 +4,10 @@
 
 # Each configuration option enables a list of files.
 
-obj-$(CONFIG_TOUCHSCREEN_OMNIVISION_TCM_SPI) += omnivision_tcm_spi.o
-obj-$(CONFIG_TOUCHSCREEN_OMNIVISION_TCM_I2C) += omnivision_tcm_i2c.o
-obj-$(CONFIG_TOUCHSCREEN_OMNIVISION_TCM_CORE) += omnivision_tcm_core_module.o
-omnivision_tcm_core_module-objs := omnivision_tcm_core.o omnivision_tcm_touch.o
-obj-$(CONFIG_TOUCHSCREEN_OMNIVISION_TCM_ZEROFLASH) += omnivision_tcm_zeroflash.o
-obj-$(CONFIG_TOUCHSCREEN_OMNIVISION_TCM_REFLASH) += omnivision_tcm_reflash.o
-obj-$(CONFIG_TOUCHSCREEN_OMNIVISION_TCM_DEVICE) += omnivision_tcm_device.o
-obj-$(CONFIG_TOUCHSCREEN_OMNIVISION_TCM_TESTING) += omnivision_tcm_testing.o
-obj-$(CONFIG_TOUCHSCREEN_OMNIVISION_TCM_RECOVERY) += omnivision_tcm_recovery.o
-obj-$(CONFIG_TOUCHSCREEN_OMNIVISION_TCM_DIAGNOSTICS) += omnivision_tcm_diagnostics.o
+obj-y += omnivision_tcm_driver.o
+omnivision_tcm_driver-objs += omnivision_tcm_core.o omnivision_tcm_spi.o omnivision_tcm_zeroflash.o omnivision_tcm_touch.o omnivision_tcm_device.o omnivision_tcm_testing.o omnivision_tcm_reflash.o omnivision_tcm_diagnostics.o
+
+EXTRA_CFLAGS += -Iarch/arm/mach-hisi
+EXTRA_CFLAGS += -Idrivers/hisi/tzdriver
+EXTRA_CFLAGS += -Idrivers/tzdriver
+EXTRA_CFLAGS += -Idrivers/devkit/lcdkit/core/common

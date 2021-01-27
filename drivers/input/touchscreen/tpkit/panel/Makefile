@@ -3,4 +3,4 @@
 
 # Each configuration option enables a list of files.
 # obj-y  += synaptics/
-obj-y  += synaptics_tcm/
+obj-y  += omnivision_tcm/
