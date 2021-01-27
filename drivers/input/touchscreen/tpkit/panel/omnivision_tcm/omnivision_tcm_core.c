@@ -325,6 +325,7 @@ static ssize_t ovt_tcm_sysfs_info_show(struct device *dev,
 	if (retval < 0)
 		goto exit;
 
+	ovt_tcm_enable_irq(tcm_hcd, false, true);
 	count += retval;
 
 	retval = count;
@@ -1588,7 +1589,7 @@ retry:
 
 	retval = ovt_tcm_read(tcm_hcd,
 			tcm_hcd->in.buf,
-			tcm_hcd->read_length);
+			MESSAGE_HEADER_SIZE);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to read from device\n");
@@ -1711,8 +1712,8 @@ check_padding:
 	if (tcm_hcd->rd_chunk_size == 0)
 		tcm_hcd->read_length = total_length;
 #endif
-
-	secure_memcpy(in_buf,length,tcm_hcd->in.buf,tcm_hcd->in.buf_size,total_length);
+	if (in_buf)
+		secure_memcpy(in_buf,length,tcm_hcd->in.buf,tcm_hcd->in.buf_size,total_length);
 	retval = total_length;
 
 exit:
@@ -2135,6 +2136,9 @@ static int ovt_tcm_write_message_polling(struct ovt_tcm_hcd *tcm_hcd,
 
 	if (response_code != NULL)
 		*response_code = resp_buf[1];
+	if (resp_length) {
+		*resp_length = resp_buf[2] | resp_buf[3] << 8;
+	}
 
 exit:
 	tcm_hcd->command = CMD_NONE;

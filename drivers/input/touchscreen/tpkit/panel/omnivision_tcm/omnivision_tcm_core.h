@@ -45,6 +45,13 @@
 #define I2C_MODULE_NAME "omniVision_tcm_i2c"
 #define SPI_MODULE_NAME "omnivision_tcm_spi"
 
+
+typedef uint8 unsigned char;
+typedef uint16 unsigned short;
+typedef uint32 unsigned int;
+typedef int8 char;
+typedef int16 short;
+typedef int32 int;
 struct ovt_tcm_board_data {
 	bool x_flip;
 	bool y_flip;
