@@ -40,7 +40,7 @@
 
 #define RESET_ON_RESUME_DELAY_MS 50
 
-#define PREDICTIVE_READING
+//#define PREDICTIVE_READING
 
 #define MIN_READ_LENGTH 9
 
@@ -195,6 +195,12 @@ static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd);
 static void ovt_tcm_check_hdl(struct ovt_tcm_hcd *tcm_hcd,
 							unsigned char id);
 
+static int ovt_tcm_write_message_polling(struct ovt_tcm_hcd *tcm_hcd,
+		unsigned char command, unsigned char *payload,
+		unsigned int length, unsigned char *resp_buf,
+		unsigned int resp_buf_size, unsigned int *resp_length,
+		unsigned char *response_code, unsigned int polling_delay_ms);
+
 static ssize_t ovt_tcm_sysfs_info_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -325,7 +331,25 @@ static ssize_t ovt_tcm_sysfs_info_show(struct device *dev,
 	if (retval < 0)
 		goto exit;
 
-	ovt_tcm_enable_irq(tcm_hcd, false, true);
+	tcm_hcd->enable_irq(tcm_hcd, false, true);
+	{
+		uint8 error = -1;
+		uint8 cmd = CMD_GET_DYNAMIC_CONFIG;
+		uint8 payload[1] = {DC_IN_WAKEUP_GESTURE_MODE};
+		uint8 resp_buf[256] = {0};
+		uint8 resp_status_code = 0xf;
+		uint32 resp_length = 0;
+		error = ovt_tcm_write_message_polling(tcm_hcd, cmd, payload, sizeof(payload), resp_buf, sizeof(resp_buf), &resp_length,&resp_status_code, 50);
+		if (error < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to ovt_tcm_write_message_polling\n");
+		} else {
+			LOGE(tcm_hcd->pdev->dev.parent,
+				"ovt_tcm_write_message_polling error:%d %d %d\n",error, resp_length,resp_status_code);
+		}
+
+	}
+	tcm_hcd->enable_irq(tcm_hcd, true, true);
 	count += retval;
 
 	retval = count;
@@ -1589,7 +1613,7 @@ retry:
 
 	retval = ovt_tcm_read(tcm_hcd,
 			tcm_hcd->in.buf,
-			MESSAGE_HEADER_SIZE);
+			tcm_hcd->read_length);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to read from device\n");
@@ -1623,11 +1647,11 @@ retry:
 
 	tcm_hcd->payload_length = le2_to_uint(header->length);
 
-	LOGD(tcm_hcd->pdev->dev.parent,
+	LOGN(tcm_hcd->pdev->dev.parent,
 			"Status report code = 0x%02x\n",
 			tcm_hcd->status_report_code);
 
-	LOGD(tcm_hcd->pdev->dev.parent,
+	LOGN(tcm_hcd->pdev->dev.parent,
 			"Payload length = %d\n",
 			tcm_hcd->payload_length);
 
@@ -1985,7 +2009,7 @@ static int ovt_tcm_write_message_polling(struct ovt_tcm_hcd *tcm_hcd,
 	unsigned int chunk_space;
 	unsigned int xfer_length;
 	unsigned int remaining_length;
-	unsigned int command_status;
+
 	bool is_romboot_hdl = (command == CMD_ROMBOOT_DOWNLOAD) ? true : false;
 	bool is_hdl_reset = (command == CMD_RESET) && (tcm_hcd->in_hdl_mode);
 
@@ -2030,7 +2054,7 @@ static int ovt_tcm_write_message_polling(struct ovt_tcm_hcd *tcm_hcd,
 
 	chunks = chunks == 0 ? 1 : chunks;
 
-	LOGE(tcm_hcd->pdev->dev.parent,
+	LOGN(tcm_hcd->pdev->dev.parent,
 			"Command = 0x%02x\n",
 			command);
 
@@ -2113,9 +2137,12 @@ static int ovt_tcm_write_message_polling(struct ovt_tcm_hcd *tcm_hcd,
 	if (is_hdl_reset)
 		goto exit;
 	msleep(polling_delay_ms);
-	mutex_lock(&tcm_hcd->rw_ctrl_mutex);
+	
+	LOGE(tcm_hcd->pdev->dev.parent,
+				"call ovt_tcm_read_one_message (command 0x%02x)\n",
+				tcm_hcd->command);
 	retval = ovt_tcm_read_one_message(tcm_hcd, resp_buf, resp_buf_size);
-	mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
+
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"error when get command response (command 0x%02x)\n",
