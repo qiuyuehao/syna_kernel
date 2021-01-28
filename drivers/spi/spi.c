@@ -1259,6 +1259,7 @@ static int __spi_master_match(struct device *dev, const void *data)
 	const u16 *bus_num = data;
 
 	m = container_of(dev, struct spi_master, dev);
+	printk("spi_master bus_num:%d match %d....\n",m->bus_num, *bus_num);
 	return m->bus_num == *bus_num;
 }
 

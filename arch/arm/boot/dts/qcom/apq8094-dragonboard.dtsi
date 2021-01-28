@@ -98,7 +98,7 @@
 
 &tlmm_pinmux{
 	spi_0 {
-		status = "disabled";
+		status = "ok";
 	};
 
 	pmx_i2c_1 {

@@ -2106,13 +2106,37 @@ static int ts_creat_spi_client(void)
     board_info.chip_select = 0;
     board_info.mode = SPI_MODE_3;
 
-    adapter = spi_busnum_to_master(g_ts_kit_platform_data.bops->bus_id);
+    adapter = spi_busnum_to_master(0);
     if (!adapter)
     {
-        TS_LOG_ERR("spi_get_adapter failed\n");
-        return -EIO;
+        TS_LOG_ERR("spi_get_adapter 0 failed\n");
+        //return -EIO;
     }
-
+	adapter = spi_busnum_to_master(1);
+    if (!adapter)
+    {
+        TS_LOG_ERR("spi_get_adapter 1 failed\n");
+        //return -EIO;
+    }
+	    adapter = spi_busnum_to_master(2);
+    if (!adapter)
+    {
+        TS_LOG_ERR("spi_get_adapter 2 failed\n");
+        //return -EIO;
+    }
+	adapter = spi_busnum_to_master(3);
+    if (!adapter)
+    {
+        TS_LOG_ERR("spi_get_adapter 3 failed\n");
+        //return -EIO;
+    }
+	adapter = spi_busnum_to_master(86);
+    if (!adapter)
+    {
+        TS_LOG_ERR("spi_get_adapter 3 failed\n");
+        //return -EIO;
+    }
+	return -EIO;
 	client = spi_new_device(adapter, &board_info);
     if (!client)
     {
@@ -3904,7 +3928,7 @@ static void __exit huawei_ts_module_exit(void)
 }
 
 //module_init(huawei_ts_module_init);
-module_init(huawei_ts_module_init);
+late_initcall(huawei_ts_module_init);
 module_exit(huawei_ts_module_exit);
 EXPORT_SYMBOL(g_ts_kit_log_cfg);
 EXPORT_SYMBOL(huawei_ts_chip_register);
