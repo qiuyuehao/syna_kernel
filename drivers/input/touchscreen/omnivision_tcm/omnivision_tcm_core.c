@@ -1420,7 +1420,224 @@ static int ovt_tcm_raw_write(struct ovt_tcm_hcd *tcm_hcd,
 
 	return 0;
 }
+static int ovt_tcm_raw_write_v2(struct ovt_tcm_hcd *tcm_hcd,
+	unsigned char *data, unsigned int length)
+{
+	int retval;
+	unsigned int idx;
+	unsigned int chunks;
+	unsigned int chunk_space;
+	unsigned int xfer_length;
+	unsigned int remaining_length;
 
+	remaining_length = length;
+
+	/* available chunk space for data = total chunk size minus command
+	 * byte */
+	if (tcm_hcd->wr_chunk_size == 0)
+		chunk_space = remaining_length;
+	else
+		chunk_space = tcm_hcd->wr_chunk_size - 1;
+
+	chunks = ceil_div(remaining_length, chunk_space);
+
+	chunks = chunks == 0 ? 1 : chunks;
+
+	LOCK_BUFFER(tcm_hcd->out);
+
+	for (idx = 0; idx < chunks; idx++) {
+		if (remaining_length > chunk_space)
+			xfer_length = chunk_space;
+		else
+			xfer_length = remaining_length;
+
+		retval = ovt_tcm_alloc_mem(tcm_hcd,
+				&tcm_hcd->out,
+				xfer_length + 1);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to allocate memory for tcm_hcd->out.buf\n");
+			UNLOCK_BUFFER(tcm_hcd->out);
+			return retval;
+		}
+		{
+			uint32 real_data_pos = 0;
+			if (idx > 0) {
+				tcm_hcd->out.buf[0] = CMD_CONTINUE_WRITE;
+				real_data_pos = 1;
+			} else {
+				real_data_pos = 0;
+			}
+			if (xfer_length) {
+				retval = secure_memcpy(&tcm_hcd->out.buf[real_data_pos],
+						tcm_hcd->out.buf_size - 1,
+						&data[idx * chunk_space],
+						remaining_length,
+						xfer_length);
+				if (retval < 0) {
+					LOGE(tcm_hcd->pdev->dev.parent,
+							"Failed to copy data\n");
+					UNLOCK_BUFFER(tcm_hcd->out);
+					return retval;
+				}
+			}
+		}
+		retval = ovt_tcm_write(tcm_hcd,
+				tcm_hcd->out.buf,
+				xfer_length + 1);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to write to device\n");
+			UNLOCK_BUFFER(tcm_hcd->out);
+			return retval;
+		}
+
+		remaining_length -= xfer_length;
+		if (idx + 1 < chunks)
+			usleep_range(WRITE_DELAY_US_MIN, WRITE_DELAY_US_MAX);
+	}
+
+	UNLOCK_BUFFER(tcm_hcd->out);
+
+	return 0;
+}
+static int ovt_tcm_raw_read_v2(struct ovt_tcm_hcd *tcm_hcd,
+	unsigned char *in_buf, unsigned int length)
+{
+	int retval;
+	unsigned char code;
+	unsigned int idx;
+	unsigned int offset;
+	unsigned int chunks;
+	unsigned int chunk_space;
+	unsigned int xfer_length;
+	unsigned int remaining_length;
+
+	if (length < 2) {
+		retval = ovt_tcm_read(tcm_hcd,
+				in_buf,
+				length);
+		if (retval < 0) {
+			return -EINVAL;
+		}
+		return retval;
+	}
+
+	/* minus header marker byte and header code byte */
+	remaining_length = length - 2;
+
+	/* available chunk space for data = total chunk size minus header marker
+	 * byte and header code byte */
+	if (tcm_hcd->rd_chunk_size == 0)
+		chunk_space = remaining_length;
+	else
+		chunk_space = tcm_hcd->rd_chunk_size - 2;
+
+	chunks = ceil_div(remaining_length, chunk_space);
+
+	chunks = chunks == 0 ? 1 : chunks;
+
+	offset = 0;
+
+	LOCK_BUFFER(tcm_hcd->temp);
+
+	for (idx = 0; idx < chunks; idx++) {
+		if (remaining_length > chunk_space)
+			xfer_length = chunk_space;
+		else
+			xfer_length = remaining_length;
+
+		if (xfer_length == 1) {
+			in_buf[offset] = MESSAGE_PADDING;
+			offset += xfer_length;
+			remaining_length -= xfer_length;
+			continue;
+		}
+
+		retval = ovt_tcm_alloc_mem(tcm_hcd,
+				&tcm_hcd->temp,
+				xfer_length + 2);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to allocate memory for tcm_hcd->temp.buf\n");
+			UNLOCK_BUFFER(tcm_hcd->temp);
+			return retval;
+		}
+
+		retval = ovt_tcm_read(tcm_hcd,
+				tcm_hcd->temp.buf,
+				xfer_length + 2);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to read from device\n");
+			UNLOCK_BUFFER(tcm_hcd->temp);
+			return retval;
+		}
+
+		code = tcm_hcd->temp.buf[1];
+
+		if (idx == 0) {
+			retval = secure_memcpy(&in_buf[0],
+					length,
+					&tcm_hcd->temp.buf[0],
+					tcm_hcd->temp.buf_size,
+					xfer_length + 2);
+		} else {
+			if (code != STATUS_CONTINUED_READ) {
+				LOGE(tcm_hcd->pdev->dev.parent,
+						"Incorrect header code (0x%02x)\n",
+						code);
+				UNLOCK_BUFFER(tcm_hcd->temp);
+				return -EIO;
+			}
+
+			retval = secure_memcpy(&in_buf[offset],
+					length - offset,
+					&tcm_hcd->temp.buf[2],
+					tcm_hcd->temp.buf_size - 2,
+					xfer_length);
+		}
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to copy data\n");
+			UNLOCK_BUFFER(tcm_hcd->temp);
+			return retval;
+		}
+
+		if (idx == 0)
+			offset += (xfer_length + 2);
+		else
+			offset += xfer_length;
+
+		remaining_length -= xfer_length;
+	}
+
+	UNLOCK_BUFFER(tcm_hcd->temp);
+
+	return 0;
+}
+static int ovt_tcm_write_cmd_v2(struct ovt_tcm_hcd *tcm_hcd,
+		unsigned char command, unsigned char *payload,
+		unsigned int length)
+{
+	int retval;
+	retval = ovt_tcm_alloc_mem(tcm_hcd,
+			&tcm_hcd->out,
+			length + 3);
+	tcm_hcd->out.buf[0] = command;
+	tcm_hcd->out.buf[1] = length & 0xff;
+	tcm_hcd->out.buf[2] = length >> 8;
+	retval = secure_memcpy(&tcm_hcd->out.buf[3], length, payload, length, length);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,"fail secure_memcpy\n");
+		return -EINVAL;	
+	}
+	retval = ovt_tcm_raw_write_v2(tcm_hcd, tcm_hcd->out.buf, length + 3);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,"fail ovt_tcm_raw_write_v2\n");
+		return -EINVAL;	
+	}
+}
 /**
  * ovt_tcm_read_message() - read message from device
  *
@@ -1604,43 +1821,39 @@ static int ovt_tcm_read_one_message(struct ovt_tcm_hcd *tcm_hcd,
 	unsigned int total_length;
 	struct ovt_tcm_message_header *header;
 
-	mutex_lock(&tcm_hcd->rw_ctrl_mutex);
-
 	retry = true;
 
 retry:
-	LOCK_BUFFER(tcm_hcd->in);
-
+	retval = ovt_tcm_alloc_mem(tcm_hcd,
+			&tcm_hcd->in.buf,
+			MESSAGE_HEADER_SIZE);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to alloc mem for in buf\n");
+		return -EINVAL;
+	}
 	retval = ovt_tcm_read(tcm_hcd,
 			tcm_hcd->in.buf,
-			tcm_hcd->read_length);
+			MESSAGE_HEADER_SIZE);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to read from device\n");
-		UNLOCK_BUFFER(tcm_hcd->in);
-		if (retry) {
-			usleep_range(READ_RETRY_US_MIN, READ_RETRY_US_MAX);
-			retry = false;
-			goto retry;
-		}
-		goto exit;
+		return -EINVAL;
 	}
 
 	header = (struct ovt_tcm_message_header *)tcm_hcd->in.buf;
-
 
 	if (header->marker != MESSAGE_MARKER) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Incorrect header marker (0x%02x)\n",
 				header->marker);
-		UNLOCK_BUFFER(tcm_hcd->in);
 		retval = -ENXIO;
 		if (retry) {
 			usleep_range(READ_RETRY_US_MIN, READ_RETRY_US_MAX);
 			retry = false;
 			goto retry;
 		}
-		goto exit;
+		return -EINVAL;
 	}
 
 	tcm_hcd->status_report_code = header->code;
@@ -1655,36 +1868,6 @@ retry:
 			"Payload length = %d\n",
 			tcm_hcd->payload_length);
 
-	if (tcm_hcd->status_report_code <= STATUS_ERROR ||
-			tcm_hcd->status_report_code == STATUS_INVALID) {
-		switch (tcm_hcd->status_report_code) {
-		case STATUS_OK:
-			break;
-		case STATUS_CONTINUED_READ:
-			LOGD(tcm_hcd->pdev->dev.parent,
-					"Out-of-sync continued read\n");
-		case STATUS_IDLE:
-		case STATUS_BUSY:
-			tcm_hcd->payload_length = 0;
-			UNLOCK_BUFFER(tcm_hcd->in);
-			retval = 0;
-			goto exit;
-		default:
-			LOGE(tcm_hcd->pdev->dev.parent,
-					"Incorrect Status code (0x%02x)\n",
-					tcm_hcd->status_report_code);
-			if (tcm_hcd->status_report_code == STATUS_INVALID) {
-				if (retry) {
-					usleep_range(READ_RETRY_US_MIN,
-							READ_RETRY_US_MAX);
-					retry = false;
-					goto retry;
-				} else {
-					tcm_hcd->payload_length = 0;
-				}
-			}
-		}
-	}
 
 	total_length = MESSAGE_HEADER_SIZE + tcm_hcd->payload_length + 1;
 
@@ -1739,10 +1922,6 @@ check_padding:
 	if (in_buf)
 		secure_memcpy(in_buf,length,tcm_hcd->in.buf,tcm_hcd->in.buf_size,total_length);
 	retval = total_length;
-
-exit:
-
-	mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
 
 	return retval;
 }
