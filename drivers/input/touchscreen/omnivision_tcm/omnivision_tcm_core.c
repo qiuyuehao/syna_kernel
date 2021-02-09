@@ -1099,15 +1099,12 @@ static int ovt_tcm_continued_read(struct ovt_tcm_hcd *tcm_hcd)
 
 	remaining_length = total_length - tcm_hcd->read_length;
 
-	LOCK_BUFFER(tcm_hcd->in);
-
 	retval = ovt_tcm_realloc_mem(tcm_hcd,
 			&tcm_hcd->in,
 			total_length + 1);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to reallocate memory for tcm_hcd->in.buf\n");
-		UNLOCK_BUFFER(tcm_hcd->in);
 		return retval;
 	}
 
@@ -1146,7 +1143,6 @@ static int ovt_tcm_continued_read(struct ovt_tcm_hcd *tcm_hcd)
 			LOGE(tcm_hcd->pdev->dev.parent,
 					"Failed to allocate memory for tcm_hcd->temp.buf\n");
 			UNLOCK_BUFFER(tcm_hcd->temp);
-			UNLOCK_BUFFER(tcm_hcd->in);
 			return retval;
 		}
 
@@ -1157,7 +1153,6 @@ static int ovt_tcm_continued_read(struct ovt_tcm_hcd *tcm_hcd)
 			LOGE(tcm_hcd->pdev->dev.parent,
 					"Failed to read from device\n");
 			UNLOCK_BUFFER(tcm_hcd->temp);
-			UNLOCK_BUFFER(tcm_hcd->in);
 			return retval;
 		}
 
@@ -1169,7 +1164,6 @@ static int ovt_tcm_continued_read(struct ovt_tcm_hcd *tcm_hcd)
 					"Incorrect header marker (0x%02x)\n",
 					marker);
 			UNLOCK_BUFFER(tcm_hcd->temp);
-			UNLOCK_BUFFER(tcm_hcd->in);
 			return -EIO;
 		}
 
@@ -1178,7 +1172,6 @@ static int ovt_tcm_continued_read(struct ovt_tcm_hcd *tcm_hcd)
 					"Incorrect header code (0x%02x)\n",
 					code);
 			UNLOCK_BUFFER(tcm_hcd->temp);
-			UNLOCK_BUFFER(tcm_hcd->in);
 			return -EIO;
 		}
 
@@ -1191,7 +1184,6 @@ static int ovt_tcm_continued_read(struct ovt_tcm_hcd *tcm_hcd)
 			LOGE(tcm_hcd->pdev->dev.parent,
 					"Failed to copy payload\n");
 			UNLOCK_BUFFER(tcm_hcd->temp);
-			UNLOCK_BUFFER(tcm_hcd->in);
 			return retval;
 		}
 
@@ -1201,7 +1193,6 @@ static int ovt_tcm_continued_read(struct ovt_tcm_hcd *tcm_hcd)
 	}
 
 	UNLOCK_BUFFER(tcm_hcd->temp);
-	UNLOCK_BUFFER(tcm_hcd->in);
 
 	return 0;
 }
@@ -1621,6 +1612,8 @@ static int ovt_tcm_write_cmd_v2(struct ovt_tcm_hcd *tcm_hcd,
 		unsigned int length)
 {
 	int retval;
+	mutex_lock(&tcm_hcd->rw_ctrl_mutex);
+	LOCK_BUFFER(tcm_hcd->out);
 	retval = ovt_tcm_alloc_mem(tcm_hcd,
 			&tcm_hcd->out,
 			length + 3);
@@ -1630,13 +1623,18 @@ static int ovt_tcm_write_cmd_v2(struct ovt_tcm_hcd *tcm_hcd,
 	retval = secure_memcpy(&tcm_hcd->out.buf[3], length, payload, length, length);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,"fail secure_memcpy\n");
-		return -EINVAL;	
+		goto exit;	
 	}
 	retval = ovt_tcm_raw_write_v2(tcm_hcd, tcm_hcd->out.buf, length + 3);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,"fail ovt_tcm_raw_write_v2\n");
-		return -EINVAL;	
+		goto exit;	
 	}
+	retval = 0;
+exit:
+	UNLOCK_BUFFER(tcm_hcd->out);
+	mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
+	return retval;
 }
 /**
  * ovt_tcm_read_message() - read message from device
@@ -1811,7 +1809,173 @@ exit:
 
 	return retval;
 }
+static int ovt_tcm_read_message_v2(struct ovt_tcm_hcd *tcm_hcd,
+		unsigned char **resp_buf,
+		unsigned int *resp_buf_size, unsigned int *resp_length,
+		unsigned char *response_code)
+{
+	int retval;
+	bool retry;
+	unsigned int total_length;
+	struct ovt_tcm_message_header *header;
 
+	mutex_lock(&tcm_hcd->rw_ctrl_mutex);
+	LOCK_BUFFER(tcm_hcd->in);
+	retry = true;
+retry:
+
+	retval = ovt_tcm_read(tcm_hcd,
+			tcm_hcd->in.buf,
+			tcm_hcd->read_length);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to read from device\n");
+		if (retry) {
+			usleep_range(READ_RETRY_US_MIN, READ_RETRY_US_MAX);
+			retry = false;
+			goto retry;
+		}
+		goto exit;
+	}
+
+	header = (struct ovt_tcm_message_header *)tcm_hcd->in.buf;
+
+
+	if (header->marker != MESSAGE_MARKER) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Incorrect header marker (0x%02x)\n",
+				header->marker);
+		retval = -ENXIO;
+		if (retry) {
+			usleep_range(READ_RETRY_US_MIN, READ_RETRY_US_MAX);
+			retry = false;
+			goto retry;
+		}
+		goto exit;
+	}
+
+	tcm_hcd->status_report_code = header->code;
+
+	tcm_hcd->payload_length = le2_to_uint(header->length);
+
+	LOGD(tcm_hcd->pdev->dev.parent,
+			"Status report code = 0x%02x\n",
+			tcm_hcd->status_report_code);
+
+	LOGD(tcm_hcd->pdev->dev.parent,
+			"Payload length = %d\n",
+			tcm_hcd->payload_length);
+
+	if (tcm_hcd->status_report_code <= STATUS_ERROR ||
+			tcm_hcd->status_report_code == STATUS_INVALID) {
+		switch (tcm_hcd->status_report_code) {
+		case STATUS_OK:
+			break;
+		case STATUS_CONTINUED_READ:
+			LOGD(tcm_hcd->pdev->dev.parent,
+					"Out-of-sync continued read\n");
+		case STATUS_IDLE:
+		case STATUS_BUSY:
+			tcm_hcd->payload_length = 0;
+			retval = 0;
+			goto exit;
+		default:
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Incorrect Status code (0x%02x)\n",
+					tcm_hcd->status_report_code);
+			if (tcm_hcd->status_report_code == STATUS_INVALID) {
+				if (retry) {
+					usleep_range(READ_RETRY_US_MIN,
+							READ_RETRY_US_MAX);
+					retry = false;
+					goto retry;
+				} else {
+					tcm_hcd->payload_length = 0;
+				}
+			}
+		}
+	}
+
+	total_length = MESSAGE_HEADER_SIZE + tcm_hcd->payload_length + 1;
+
+#ifdef PREDICTIVE_READING
+	if (total_length <= tcm_hcd->read_length) {
+		goto check_padding;
+	} else if (total_length - 1 == tcm_hcd->read_length) {
+		tcm_hcd->in.buf[total_length - 1] = MESSAGE_PADDING;
+		goto check_padding;
+	}
+#else
+	if (tcm_hcd->payload_length == 0) {
+		tcm_hcd->in.buf[total_length - 1] = MESSAGE_PADDING;
+		goto check_padding;
+	}
+#endif
+	retval = ovt_tcm_continued_read(tcm_hcd);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to do continued read\n");
+		goto exit;
+	};
+
+	LOCK_BUFFER(tcm_hcd->in);
+
+	tcm_hcd->in.buf[0] = MESSAGE_MARKER;
+	tcm_hcd->in.buf[1] = tcm_hcd->status_report_code;
+	tcm_hcd->in.buf[2] = (unsigned char)tcm_hcd->payload_length;
+	tcm_hcd->in.buf[3] = (unsigned char)(tcm_hcd->payload_length >> 8);
+
+check_padding:
+	if (tcm_hcd->in.buf[total_length - 1] != MESSAGE_PADDING) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Incorrect message padding byte (0x%02x)\n",
+				tcm_hcd->in.buf[total_length - 1]);
+		retval = -EIO;
+		goto exit;
+	}
+
+#ifdef PREDICTIVE_READING
+	total_length = MAX(total_length, MIN_READ_LENGTH);
+	tcm_hcd->read_length = MIN(total_length, tcm_hcd->rd_chunk_size);
+	if (tcm_hcd->rd_chunk_size == 0)
+		tcm_hcd->read_length = total_length;
+#endif
+
+	retval = 0;
+
+exit:
+	if (retval >= 0) {
+		if (response_code) {
+			*response_code = tcm_hcd->status_report_code;
+		}
+		if (resp_length) {
+			*resp_length = tcm_hcd->payload_length;
+		}
+		if (resp_buf != NULL) {
+			if (*resp_buf_size > tcm_hcd->total_length) {
+				secure_memcpy(*resp_buf, *resp_buf_size,
+				tcm_hcd->in.buf, tcm_hcd->in.buf_size,
+				tcm_hcd->total_length);
+			} else {
+				if (*resp_buf_size = 0) {
+					*resp_buf = kmalloc(total_length, GFP_KERNEL);
+					*resp_buf_size = total_length;
+					secure_memcpy(*resp_buf, *resp_buf_size,
+					tcm_hcd->in.buf, tcm_hcd->in.buf_size,
+					tcm_hcd->total_length);					
+				} else {
+					secure_memcpy(*resp_buf, *resp_buf_size,
+					tcm_hcd->in.buf, tcm_hcd->in.buf_size,
+					*resp_buf_size);
+				}
+				
+			}
+		}
+	}
+	UNLOCK_BUFFER(tcm_hcd->in);
+	mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
+	return retval;
+}
 
 static int ovt_tcm_read_one_message(struct ovt_tcm_hcd *tcm_hcd,
 		unsigned char *in_buf, unsigned int length)
@@ -1925,6 +2089,7 @@ check_padding:
 
 	return retval;
 }
+
 /**
  * ovt_tcm_write_message() - write message to device and receive response
  *
@@ -2175,7 +2340,83 @@ exit:
 
 	return retval;
 }
+static int ovt_tcm_get_cmd_response_type(uint8 cmd)
+{
+	uint8 resp_type;
+	switch(cmd) {
+		case CMD_GET_APPLICATION_INFO:
+			resp_type = CMD_RESPONSE_NEED_RESPONSE;
+		default:
+			resp_type = CMD_RESPONSE_NEED_RESPONSE;
+	}
+	return resp_type;
+}
+static int ovt_tcm_write_message_v2(struct ovt_tcm_hcd *tcm_hcd,
+		unsigned char command, unsigned char *payload,
+		unsigned int length, unsigned char **resp_buf,
+		unsigned int *resp_buf_size, unsigned int *resp_length,
+		unsigned char *response_code, unsigned int polling_delay_ms)
+{
+	int retval;
+	bool response_read = false;
 
+	
+
+	mutex_lock(&tcm_hcd->command_mutex);
+
+	retval = ovt_tcm_write_cmd_v2(command, payload, length);
+
+	cmd_response_type = ovt_tcm_get_cmd_response_type(command);
+	switch (cmd_response_type) {
+		case CMD_RESPONSE_NO_NEED:
+			break;
+		case CMD_RESPONSE_NEED_RESPONSE:
+			while (response_read == false) {
+				retval = ovt_tcm_read_message_v2(tcm_hcd, resp_buf, resp_buf_size, resp_length, response_code);
+				if (retval < 0) {
+					goto exit;
+				}
+				if (*response_code == STATUS_IDLE) {
+					msleep(10);
+					continue;
+				}
+				if (*response_code < REPORT_IDENTIFY) {
+					response_read = true;
+					break;
+				} else {
+					//process report when try to read response here
+				}
+			}
+		case CMD_RESPONSE_NEED_REPORT:
+			while (response_read == false) {
+				retval = ovt_tcm_read_message_v2(tcm_hcd, resp_buf, resp_buf_size, resp_length, response_code);
+				if (retval < 0) {
+					goto exit;
+				}
+				if (*response_code == STATUS_IDLE) {
+					msleep(10);
+					continue;
+				}
+				if (*response_code >= REPORT_IDENTIFY) {
+					response_read = true;
+					break;
+				} else {
+					//process response when try to read report here
+				}
+			}
+
+	}
+	
+
+exit:
+	if (response_read) {
+		atomic_set(&tcm_hcd->command_status, CMD_IDLE);
+	}
+	tcm_hcd->command = CMD_NONE;
+	mutex_unlock(&tcm_hcd->command_mutex);
+
+	return retval;
+}
 static int ovt_tcm_write_message_polling(struct ovt_tcm_hcd *tcm_hcd,
 		unsigned char command, unsigned char *payload,
 		unsigned int length, unsigned char *resp_buf,
@@ -2522,9 +2763,19 @@ static irqreturn_t ovt_tcm_isr(int irq, void *data)
 
 	tcm_hcd->isr_pid = current->pid;
 
-	retval = tcm_hcd->read_message(tcm_hcd,
+	retval = ovt_tcm_read_message_v2(tcm_hcd, resp_buf, resp_buf_size, resp_length, response_code);
 			NULL,
 			0);
+	if (response_code == STATUS_IDLE) {
+
+	} else {
+		if (response_code >= REPORT_IDENTIFY) {
+			// process report
+		} else {
+			// process response
+		}
+	}
+	
 	if (retval < 0) {
         if (tcm_hcd->ovt_tcm_driver_removing) goto exit;
 

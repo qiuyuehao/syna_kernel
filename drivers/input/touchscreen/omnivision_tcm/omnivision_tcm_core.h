@@ -304,7 +304,11 @@ enum command {
 	CMD_ENTER_IO_BRIDGE_MODE = 0x44,
 	CMD_ROMBOOT_DOWNLOAD = 0x45,
 };
-
+enum command_response_type {
+	CMD_RESPONSE_NO_NEED,
+	CMD_RESPONSE_NEED_RESPONSE,
+	CMD_RESPONSE_NEED_REPORT,
+};
 enum status_code {
 	STATUS_IDLE = 0x00,
 	STATUS_OK = 0x01,
