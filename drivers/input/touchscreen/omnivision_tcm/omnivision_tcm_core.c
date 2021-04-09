@@ -346,7 +346,25 @@ static ssize_t ovt_tcm_sysfs_info_appfw_show(struct device *dev,
 	tcm_hcd = g_tcm_hcd;
 
 	mutex_lock(&tcm_hcd->extif_mutex);
+	LOGE(tcm_hcd->pdev->dev.parent,
+				"ovt_tcm_sysfs_info_appfw_show test start,disable irq\n");
+	tcm_hcd->enable_irq(tcm_hcd, false, false);
+	{
+		unsigned char *resp_buf = NULL;
+		unsigned int resp_buf_size = 0;
+		unsigned int resp_length = 0;
+		unsigned char status_code = 0xf;
+		retval = tcm_hcd->write_message(tcm_hcd, 0x20, NULL, 0, &resp_buf, &resp_buf_size, &resp_length,&status_code,10);
+		if (retval >= 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+				"ovt_tcm_sysfs_info_appfw_show test result  resp_buf_size:%d, resp_length:%d, status_code:%d\n",
+				resp_buf_size, resp_length, status_code);
+		}
+	}
+	tcm_hcd->enable_irq(tcm_hcd,true, false);
 
+	LOGE(tcm_hcd->pdev->dev.parent,
+				"ovt_tcm_sysfs_info_appfw_show test end,enable irq\n");
 	retval = ovt_tcm_get_app_info(tcm_hcd);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -1617,12 +1635,16 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 		mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
 		goto exit;
 	}
-
+#if 0
 	if (tcm_hcd->do_polling && polling_delay_ms) {
 		cancel_delayed_work_sync(&tcm_hcd->polling_work);
 		flush_workqueue(tcm_hcd->polling_workqueue);
 	}
-
+#endif
+	if (polling_delay_ms) {
+		cancel_delayed_work_sync(&tcm_hcd->polling_work);
+		flush_workqueue(tcm_hcd->polling_workqueue);
+	}
 	atomic_set(&tcm_hcd->command_status, CMD_BUSY);
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0))
@@ -1747,15 +1769,25 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 
 	if (is_hdl_reset)
 		goto exit;
-
+#if 0
 	if (tcm_hcd->do_polling && polling_delay_ms) {
 		queue_delayed_work(tcm_hcd->polling_workqueue,
 				&tcm_hcd->polling_work,
 				msecs_to_jiffies(polling_delay_ms));
 	}
-
+#endif
+	if (polling_delay_ms) {
+		msleep(polling_delay_ms);
+		queue_delayed_work(tcm_hcd->polling_workqueue,
+				&tcm_hcd->polling_work,
+				msecs_to_jiffies(POLLING_DELAY_MS));
+	}
 	retval = wait_for_completion_timeout(&response_complete,
 			msecs_to_jiffies(RESPONSE_TIMEOUT_MS));
+	if (polling_delay_ms) {
+		cancel_delayed_work_sync(&tcm_hcd->polling_work);
+		flush_workqueue(tcm_hcd->polling_workqueue);		
+	}
 	if (retval == 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Timed out waiting for response (command 0x%02x)\n",
@@ -1948,10 +1980,10 @@ static void ovt_tcm_polling_work(struct work_struct *work)
 	struct ovt_tcm_hcd *tcm_hcd =
 			container_of(delayed_work, struct ovt_tcm_hcd,
 			polling_work);
-
+#if 0
 	if (!tcm_hcd->do_polling)
 		return;
-
+#endif
 	retval = tcm_hcd->read_message(tcm_hcd,
 			NULL,
 			0);
