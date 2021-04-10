@@ -360,6 +360,7 @@ static ssize_t ovt_tcm_sysfs_info_appfw_show(struct device *dev,
 				"ovt_tcm_sysfs_info_appfw_show test result  resp_buf_size:%d, resp_length:%d, status_code:%d\n",
 				resp_buf_size, resp_length, status_code);
 		}
+		kfree(resp_buf);
 	}
 	tcm_hcd->enable_irq(tcm_hcd,true, false);
 
