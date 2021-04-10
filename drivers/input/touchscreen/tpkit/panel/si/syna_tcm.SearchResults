@@ -1,0 +1,29 @@
+---- info->fingers Matches (28 in 2 files) ----
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):		info->fingers[i].status = (finger_state >> (2 * i)) & MASK_2BIT;
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):		if (info->fingers[i].status == 2) {
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):			info->fingers[i].status = TP_GLOVE;
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):			info->fingers[finger].x = x;
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):			info->fingers[finger].y = y;
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):			info->fingers[finger].ewx = wx;
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):			info->fingers[finger].ewy = wy;
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):			info->fingers[finger].pressure = z;
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):			info->fingers[finger].status = finger_status;
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):			info->fingers[finger].x = x;
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):			info->fingers[finger].y = y;
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):			info->fingers[finger].sg = sg;
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):			info->fingers[finger].pressure = z;
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):				info->fingers[finger].wx = wx;
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):				info->fingers[finger].wy = wy;
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):				info->fingers[finger].ewx = finger_grip_data->ewx;
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):				info->fingers[finger].ewy = finger_grip_data->ewy;
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):				info->fingers[finger].xer = finger_grip_data->xer;
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):				info->fingers[finger].yer = finger_grip_data->yer;
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):				info->fingers[finger].ewx = wx;
+Synaptics.c (c:\users\jzhou\desktop\tpkit\panel\synaptics):				info->fingers[finger].ewy = wy;
+Synaptics_tcm_touch.c (c:\users\jzhou\desktop\tpkit\panel\synaptics_tcm):				info->fingers[idx].status = status << 6;
+Synaptics_tcm_touch.c (c:\users\jzhou\desktop\tpkit\panel\synaptics_tcm):			info->fingers[idx].x = x;
+Synaptics_tcm_touch.c (c:\users\jzhou\desktop\tpkit\panel\synaptics_tcm):			info->fingers[idx].y = y;
+Synaptics_tcm_touch.c (c:\users\jzhou\desktop\tpkit\panel\synaptics_tcm):			info->fingers[idx].major = wx;
+Synaptics_tcm_touch.c (c:\users\jzhou\desktop\tpkit\panel\synaptics_tcm):			info->fingers[idx].minor = wy;
+Synaptics_tcm_touch.c (c:\users\jzhou\desktop\tpkit\panel\synaptics_tcm):			info->fingers[idx].sg = 0;
+Synaptics_tcm_touch.c (c:\users\jzhou\desktop\tpkit\panel\synaptics_tcm):			info->fingers[idx].pressure = z;
