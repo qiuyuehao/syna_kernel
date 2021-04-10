@@ -78,7 +78,83 @@
 
 #define RMI_UBL_FN_NUMBER 0x35
 
+static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
+{
+	//read just one byte
+	uint8 check_header = 0x77;
+	int retval = 0;
+	//should do some spi/i2c init in order to read/write from device
 
+	//init spi device
+	retval = ovt_tcm_spi_probe(data->spi, hw_if.bdata);
+	if (retval < 0) {
+		TS_LOG_ERR("ovt_tcm_chip_detect fail to do spi probe\n");
+		return 1;
+	}
+
+	retval = ovt_tcm_probe(ovt_tcm_spi_device);
+	//should power on? do the probe in origin core.c
+	retval = ovt_tcm_raw_read(g_tcm_hcd, &check_header, 1);
+	if (check_header == MESSAGE_MARKER) {
+		return 0; //no error
+		//return no error will wakeup ts init task
+		//ts init task will call ts_kit_init ==> chip_init()
+	} else {
+		return 1; //error
+	}
+}
+static int ovt_tcm_init_chip(void)
+{
+	int retval = NO_ERR;
+	// no need to update or do hostdown load here,like probe function
+
+	return retval;
+}
+static int ovt_tcm_fw_update_boot(char *file_name)
+{
+	//update the firmware here power on update firmware here
+	//irq shutdown by ts kit
+	int retval = NO_ERR;
+	TS_LOG_ERR("ovt_tcm_fw_update_boot\n");
+	//do hostdownload here and init
+	return retval;
+}
+
+static int syna_tcm_input_config(struct input_dev *input_dev)
+{
+	//config the input device
+	set_bit(EV_SYN, input_dev->evbit);
+	set_bit(EV_KEY, input_dev->evbit);
+	set_bit(EV_ABS, input_dev->evbit);
+	set_bit(BTN_TOUCH, input_dev->keybit);
+	set_bit(BTN_TOOL_FINGER, input_dev->keybit);
+	return NO_ERR;
+}
+
+struct ts_device_ops ts_kit_ovt_tcm_ops = {
+	.chip_detect = ovt_tcm_chip_detect,
+	.chip_init = ovt_tcm_init_chip,
+	//.chip_parse_config = ovt_tcm_parse_dts, did not called by ts kit?
+	.chip_input_config = ovt_tcm_input_config,
+
+	.chip_irq_top_half = ovt_tcm_irq_top_half,
+	.chip_irq_bottom_half = ovt_tcm_irq_bottom_half,
+	.chip_fw_update_boot = ovt_tcm_fw_update_boot,  // host download on boot
+	.chip_fw_update_sd = ovt_tcm_fw_update_sd,   // host download by hand
+//	.oem_info_switch = ovtptics_oem_info_switch,
+	.chip_get_info = ovt_tcm_chip_get_info,
+//	.chip_get_capacitance_test_type =
+//	    ovtptics_chip_get_capacitance_test_type,
+	.chip_set_info_flag = ovt_tcm_set_info_flag,
+	.chip_before_suspend = ovt_tcm_before_suspend,
+	.chip_suspend = ovt_tcm_suspend,
+	.chip_resume = ovt_tcm_resume,
+	.chip_after_resume = ovt_tcm_after_resume,
+//	.chip_wakeup_gesture_enable_switch =
+//	    ovtptics_wakeup_gesture_enable_switch,
+	.chip_get_rawdata = ovt_tcm_mmi_test,
+	.chip_get_calibration_data = ovt_tcm_get_cal_data,
+};
 struct ovt_tcm_hcd *g_tcm_hcd;
 
 #define dynamic_config_sysfs(c_name, id) \
@@ -1222,10 +1298,13 @@ static int ovt_tcm_raw_read(struct ovt_tcm_hcd *tcm_hcd,
 	unsigned int xfer_length;
 	unsigned int remaining_length;
 
-	if (length < 2) {
+	if (length <= 2) {
+		retval = ovt_tcm_read(tcm_hcd,
+				in_buf,
+				length);
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Invalid length information\n");
-		return -EINVAL;
+		return retval;
 	}
 
 	/* minus header marker byte and header code byte */
@@ -3788,10 +3867,12 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	tcm_hcd->update_watchdog = ovt_tcm_update_watchdog;
 #endif
 
+#if 0
 	if (bdata->irq_gpio >= 0)
 		tcm_hcd->irq = gpio_to_irq(bdata->irq_gpio);
 	else
 		tcm_hcd->irq = bdata->irq_gpio;
+#endif
 
 	mutex_init(&tcm_hcd->extif_mutex);
 	mutex_init(&tcm_hcd->reset_mutex);
@@ -3987,78 +4068,6 @@ prepare_modules:
 	queue_work(mod_pool.workqueue, &mod_pool.work);
 
 	return 0;
-
-err_enable_irq:
-	cancel_delayed_work_sync(&tcm_hcd->polling_work);
-	flush_workqueue(tcm_hcd->polling_workqueue);
-	destroy_workqueue(tcm_hcd->polling_workqueue);
-
-#ifdef WATCHDOG_SW
-	cancel_delayed_work_sync(&tcm_hcd->watchdog.work);
-	flush_workqueue(tcm_hcd->watchdog.workqueue);
-	destroy_workqueue(tcm_hcd->watchdog.workqueue);
-#endif
-
-	cancel_work_sync(&tcm_hcd->helper.work);
-	flush_workqueue(tcm_hcd->helper.workqueue);
-	destroy_workqueue(tcm_hcd->helper.workqueue);
-
-#ifdef REPORT_NOTIFIER
-	kthread_stop(tcm_hcd->notifier_thread);
-
-err_create_run_kthread:
-#endif
-#ifdef CONFIG_FB
-	fb_unregister_client(&tcm_hcd->fb_notifier);
-#endif
-
-err_sysfs_create_dynamic_config_file:
-	for (idx--; idx >= 0; idx--) {
-		sysfs_remove_file(tcm_hcd->dynamnic_config_sysfs_dir,
-				&(*dynamic_config_attrs[idx]).attr);
-	}
-
-	kobject_put(tcm_hcd->dynamnic_config_sysfs_dir);
-
-	idx = ARRAY_SIZE(attrs);
-
-err_sysfs_create_dynamic_config_dir:
-err_sysfs_create_file:
-	for (idx--; idx >= 0; idx--)
-		sysfs_remove_file(tcm_hcd->sysfs_dir, &(*attrs[idx]).attr);
-
-	kobject_put(tcm_hcd->sysfs_dir);
-
-err_sysfs_create_dir:
-	if (bdata->irq_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->irq_gpio, false, 0, 0);
-
-	if (bdata->power_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->power_gpio, false, 0, 0);
-
-	if (bdata->reset_gpio >= 0)
-		ovt_tcm_set_gpio(tcm_hcd, bdata->reset_gpio, false, 0, 0);
-
-err_config_gpio:
-	ovt_tcm_enable_regulator(tcm_hcd, false);
-
-err_enable_regulator:
-	ovt_tcm_get_regulator(tcm_hcd, false);
-
-err_get_regulator:
-	device_init_wakeup(&pdev->dev, 0);
-
-err_alloc_mem:
-	RELEASE_BUFFER(tcm_hcd->report.buffer);
-	RELEASE_BUFFER(tcm_hcd->config);
-	RELEASE_BUFFER(tcm_hcd->temp);
-	RELEASE_BUFFER(tcm_hcd->resp);
-	RELEASE_BUFFER(tcm_hcd->out);
-	RELEASE_BUFFER(tcm_hcd->in);
-
-	kfree(tcm_hcd);
-
-	return retval;
 }
 
 static int ovt_tcm_remove(struct platform_device *pdev)
@@ -4189,16 +4198,69 @@ static struct platform_driver ovt_tcm_driver = {
 	.remove = ovt_tcm_remove,
 	.shutdown = ovt_tcm_shutdown,
 };
-
+#define OMNIVISION_VENDER_NAME "omnivision_tcm"
 static int __init ovt_tcm_module_init(void)
 {
-	int retval;
+	int retval = NO_ERR;    
+	bool found = false;
+	struct device_node* child = NULL;
+	struct device_node* root = NULL;
 
-	retval = ovt_tcm_bus_init();
-	if (retval < 0)
-		return retval;
+	TS_LOG_INFO("ovt_tcm_module_init called\n");
+	
+	root = of_find_compatible_node(NULL, NULL, "huawei,ts_kit");
+	if (!root) {
+		TS_LOG_ERR("huawei_ts, find_compatible_node huawei,ts_kit error\n");
+		retval = -EINVAL;
+		goto out;
+	}
 
-	return platform_driver_register(&ovt_tcm_driver);
+	for_each_child_of_node(root, child)
+	{
+		if (of_device_is_compatible(child, OMNIVISION_VENDER_NAME)) {
+			TS_LOG_INFO("omnivision dtsi node found\n");
+			found = true;
+			break;
+		} 
+	}
+
+	if (!found) {
+		TS_LOG_ERR(" not found chip omnivision child node  !\n");
+		retval = -EINVAL;
+		goto out;
+	}
+
+	tcm_hcd = kzalloc(sizeof(*tcm_hcd), GFP_KERNEL);
+	if (!tcm_hcd) {
+		TS_LOG_ERR("Failed to allocate memory for tcm_hcd\n");
+		return -ENOMEM;
+	}
+
+	tcm_hcd->ovt_tcm_chip_data = kzalloc(sizeof(struct ts_kit_device_data), GFP_KERNEL);
+	if (!tcm_hcd->ovt_tcm_chip_data) {
+		TS_LOG_ERR("Failed to allocate memory for tcm_hcd\n");
+		return -ENOMEM;
+	}
+
+    tcm_hcd->ovt_tcm_chip_data->cnode = child;
+    tcm_hcd->ovt_tcm_chip_data->ops = &ts_kit_ovt_tcm_ops;
+
+	retval = huawei_ts_chip_register(tcm_hcd->ovt_tcm_chip_data);
+	if(retval)
+	{
+	  TS_LOG_ERR(" ovtptics chip register fail !\n");
+	  goto out;
+	}
+
+	return retval;
+	
+out:
+	if (tcm_hcd->ovt_tcm_chip_data)
+		kfree(tcm_hcd->ovt_tcm_chip_data);
+	if (tcm_hcd)
+		kfree(tcm_hcd);
+	tcm_hcd = NULL;	
+	return retval;
 }
 
 static void __exit ovt_tcm_module_exit(void)

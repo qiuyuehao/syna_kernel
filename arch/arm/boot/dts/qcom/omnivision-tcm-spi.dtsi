@@ -32,31 +32,38 @@
 
 &spi_0 {
 	status = "ok";
-	omnivision_tcm@0 {
-		compatible = "omnivision,tcm-spi";
-		reg = <0>;
-		spi-max-frequency = <3000000>;
-		interrupt-parent = <&msm_gpio>;
-		interrupts = <65 0x2008>;
-		vdd-supply = <&pm8994_lvs2>;
-		avdd-supply = <&pm8994_l22>;
-		pinctrl-names = "pmx_ts_active", "pmx_ts_suspend";
-		pinctrl-0 = <&ts_active>;
-		pinctrl-1 = <&ts_suspend>;
-		omnivision,bus-reg-name = "vdd";
-		omnivision,pwr-reg-name = "avdd";
-		omnivision,irq-gpio = <&msm_gpio 65 0x2008>; /* IRQF_ONESHOT | IRQF_TRIGGER_LOW */
-		omnivision,irq-on-state = <0>;
-		omnivision,reset-gpio = <&msm_gpio 102 0x0000>;
-		omnivision,reset-on-state = <0>;
-		omnivision,reset-active-ms = <20>;
-		omnivision,reset-delay-ms = <200>;
-		omnivision,power-delay-ms = <200>;
-		omnivision,spi-mode = <3>;
-		omnivision,byte-delay-us = <0>;
-		omnivision,block-delay-us = <0>;
-		omnivision,ubl-max-freq = <3000000>;
-		omnivision,ubl-byte-delay-us = <20>;
-		omnivision,display-reset-gpio = <&msm_gpio 78 0>;
+	ts_kit {
+		compatible = "huawei,ts_kit";
+		bus_type = "spi";
+		bus_id = <0>;
+		aft_enable = <0>;
+		reset_gpio = <&msm_gpio 102 0x0000>;
+		irq_gpio = <&msm_gpio 65 0x2008>;
+		product = "tskit-dragonboard"
+		omnivision_tcm {
+			spi-max-frequency = <3000000>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <65 0x2008>;
+			vdd-supply = <&pm8994_lvs2>;
+			avdd-supply = <&pm8994_l22>;
+			pinctrl-names = "pmx_ts_active", "pmx_ts_suspend";
+			pinctrl-0 = <&ts_active>;
+			pinctrl-1 = <&ts_suspend>;
+			omnivision,bus-reg-name = "vdd";
+			omnivision,pwr-reg-name = "avdd";
+			omnivision,irq-gpio = <&msm_gpio 65 0x2008>; /* IRQF_ONESHOT | IRQF_TRIGGER_LOW */
+			omnivision,irq-on-state = <0>;
+			omnivision,reset-gpio = <&msm_gpio 102 0x0000>;
+			omnivision,reset-on-state = <0>;
+			omnivision,reset-active-ms = <20>;
+			omnivision,reset-delay-ms = <200>;
+			omnivision,power-delay-ms = <200>;
+			omnivision,spi-mode = <3>;
+			omnivision,byte-delay-us = <0>;
+			omnivision,block-delay-us = <0>;
+			omnivision,ubl-max-freq = <3000000>;
+			omnivision,ubl-byte-delay-us = <20>;
+			omnivision,display-reset-gpio = <&msm_gpio 78 0>;
+		}
 	};
 };

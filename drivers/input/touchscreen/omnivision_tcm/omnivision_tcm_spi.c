@@ -39,9 +39,9 @@ static struct spi_transfer *xfer;
 
 static struct ovt_tcm_bus_io bus_io;
 
-static struct ovt_tcm_hw_interface hw_if;
+struct ovt_tcm_hw_interface hw_if;
 
-static struct platform_device *ovt_tcm_spi_device;
+struct platform_device *ovt_tcm_spi_device;
 
 #ifdef CONFIG_OF
 static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
@@ -49,7 +49,7 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 	int retval;
 	u32 value;
 	struct property *prop;
-	struct device_node *np = dev->of_node;
+	struct device_node *np = tcm_hcd->ovt_tcm_chip_data->cnode;
 	const char *name;
 
 	prop = of_find_property(np, "omnivision,irq-gpio", NULL);
@@ -270,7 +270,7 @@ static int ovt_tcm_spi_alloc_mem(struct ovt_tcm_hcd *tcm_hcd,
 		unsigned int count, unsigned int size)
 {
 	static unsigned int xfer_count;
-	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
+	struct spi_device *spi = tcm_hcd->ovt_tcm_chip_data->ts_platform_data->spi;
 
 	if (count > xfer_count) {
 		kfree(xfer);
@@ -310,7 +310,7 @@ static int ovt_tcm_spi_rmi_read(struct ovt_tcm_hcd *tcm_hcd,
 	unsigned int mode;
 	unsigned int byte_count;
 	struct spi_message msg;
-	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
+	struct spi_device *spi = tcm_hcd->ovt_tcm_chip_data->ts_platform_data->spi;
 	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
 	mutex_lock(&tcm_hcd->io_ctrl_mutex);
@@ -390,7 +390,7 @@ static int ovt_tcm_spi_rmi_write(struct ovt_tcm_hcd *tcm_hcd,
 	unsigned int mode;
 	unsigned int byte_count;
 	struct spi_message msg;
-	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
+	struct spi_device *spi = tcm_hcd->ovt_tcm_chip_data->ts_platform_data->spi;
 	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
 	mutex_lock(&tcm_hcd->io_ctrl_mutex);
@@ -451,7 +451,7 @@ static int ovt_tcm_spi_read(struct ovt_tcm_hcd *tcm_hcd, unsigned char *data,
 	int retval;
 	unsigned int idx;
 	struct spi_message msg;
-	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
+	struct spi_device *spi = tcm_hcd->ovt_tcm_chip_data->ts_platform_data->spi;
 	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
 	mutex_lock(&tcm_hcd->io_ctrl_mutex);
@@ -510,7 +510,7 @@ static int ovt_tcm_spi_write(struct ovt_tcm_hcd *tcm_hcd, unsigned char *data,
 	int retval;
 	unsigned int idx;
 	struct spi_message msg;
-	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
+	struct spi_device *spi = tcm_hcd->ovt_tcm_chip_data->ts_platform_data->spi;
 	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
 	mutex_lock(&tcm_hcd->io_ctrl_mutex);
@@ -559,7 +559,7 @@ exit:
 	return retval;
 }
 
-static int ovt_tcm_spi_probe(struct spi_device *spi)
+int ovt_tcm_spi_probe(struct spi_device *spi)
 {
 	int retval;
 
@@ -642,53 +642,3 @@ static int ovt_tcm_spi_remove(struct spi_device *spi)
 	return 0;
 }
 
-static const struct spi_device_id ovt_tcm_id_table[] = {
-	{SPI_MODULE_NAME, 0},
-	{},
-};
-MODULE_DEVICE_TABLE(spi, ovt_tcm_id_table);
-
-#ifdef CONFIG_OF
-static struct of_device_id ovt_tcm_of_match_table[] = {
-	{
-		.compatible = "omnivision,tcm-spi",
-	},
-	{},
-};
-MODULE_DEVICE_TABLE(of, ovt_tcm_of_match_table);
-#else
-#define ovt_tcm_of_match_table NULL
-#endif
-
-static struct spi_driver ovt_tcm_spi_driver = {
-	.driver = {
-		.name = SPI_MODULE_NAME,
-		.owner = THIS_MODULE,
-		.of_match_table = ovt_tcm_of_match_table,
-	},
-	.probe = ovt_tcm_spi_probe,
-	.remove = ovt_tcm_spi_remove,
-	.id_table = ovt_tcm_id_table,
-};
-
-int ovt_tcm_bus_init(void)
-{
-	return spi_register_driver(&ovt_tcm_spi_driver);
-}
-EXPORT_SYMBOL(ovt_tcm_bus_init);
-
-void ovt_tcm_bus_exit(void)
-{
-	kfree(buf);
-
-	kfree(xfer);
-
-	spi_unregister_driver(&ovt_tcm_spi_driver);
-
-	return;
-}
-EXPORT_SYMBOL(ovt_tcm_bus_exit);
-
-MODULE_AUTHOR("omnivision, Inc.");
-MODULE_DESCRIPTION("omnivision TCM SPI Bus Module");
-MODULE_LICENSE("GPL v2");

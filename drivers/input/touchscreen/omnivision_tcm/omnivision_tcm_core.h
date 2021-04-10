@@ -459,6 +459,7 @@ struct ovt_tcm_features {
 } __packed;
 
 struct ovt_tcm_hcd {
+	struct ts_kit_device_data *ovt_tcm_chip_data;
 	pid_t isr_pid;
 	atomic_t command_status;
 	atomic_t host_downloading;
@@ -593,6 +594,10 @@ struct ovt_tcm_hw_interface {
 	struct ovt_tcm_board_data *bdata;
 	const struct ovt_tcm_bus_io *bus_io;
 };
+
+extern ovt_tcm_hw_interface hw_if;
+extern int ovt_tcm_spi_probe(struct spi_device *spi);
+extern struct platform_device *ovt_tcm_spi_device;
 
 int ovt_tcm_bus_init(void);
 
