@@ -39,7 +39,7 @@
 		aft_enable = <0>;
 		reset_gpio = <&msm_gpio 102 0x0000>;
 		irq_gpio = <&msm_gpio 65 0x2008>;
-		product = "tskit-dragonboard"
+		product = "tskit-dragonboard";
 		omnivision_tcm {
 			spi-max-frequency = <3000000>;
 			interrupt-parent = <&msm_gpio>;
@@ -64,6 +64,6 @@
 			omnivision,ubl-max-freq = <3000000>;
 			omnivision,ubl-byte-delay-us = <20>;
 			omnivision,display-reset-gpio = <&msm_gpio 78 0>;
-		}
+		};
 	};
 };
