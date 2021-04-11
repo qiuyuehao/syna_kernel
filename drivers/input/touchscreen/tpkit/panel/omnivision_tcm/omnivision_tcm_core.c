@@ -114,29 +114,7 @@ static int ovt_tcm_init_chip(void)
 }
 static int ovt_tcm_fw_update_boot(char *file_name)
 {
-	//update the firmware here power on update firmware here
-	//irq shutdown by ts kit
-	int retval = 0;
-	TS_LOG_ERR("ovt_tcm_fw_update_boot\n");
-	//do hostdownload here and init
-	switch(g_tcm_hcd->sensor_type) {
-		case TYPE_F35:
-			retval = zeroflash_do_f35_firmware_download();
-			break;
-		case TYPE_ROMBOOT:
-			retval = zeroflash_do_romboot_firmware_download();
-			break;
-		default:
-			return 1;
-	}
-	if (retval < 0) {
-		return 1;//error
-	}
-	//download config
-	retval = zeroflash_do_config_download();
-	if (retval < 0) {
-		return 1;
-	}
+	zeroflash_do_hostdownload(g_tcm_hcd);
 	touch_init(g_tcm_hcd);
 	return 0;
 }
