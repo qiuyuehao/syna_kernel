@@ -194,8 +194,6 @@ struct zeroflash_hcd {
 	struct ovt_tcm_hcd *tcm_hcd;
 };
 
-static void zeroflash_do_romboot_firmware_download(void);
-
 DECLARE_COMPLETION(zeroflash_remove_complete);
 
 STORE_PROTOTYPE(zeroflash, hdl)
@@ -652,7 +650,7 @@ static int zeroflash_download_open_short_config(void)
 			&zeroflash_hcd->resp.buf_size,
 			&zeroflash_hcd->resp.data_length,
 			&response_code,
-			0);
+			20);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to write command %s\n",
@@ -762,7 +760,7 @@ static int zeroflash_download_disp_config(void)
 			&zeroflash_hcd->resp.buf_size,
 			&zeroflash_hcd->resp.data_length,
 			&response_code,
-			0);
+			20);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to write command %s\n",
@@ -878,7 +876,7 @@ static int zeroflash_download_app_config(void)
 			&zeroflash_hcd->resp.buf_size,
 			&zeroflash_hcd->resp.data_length,
 			&response_code,
-			0);
+			20);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to write command %s\n",
@@ -917,7 +915,7 @@ unlock_out:
 	return retval;
 }
 
-static void zeroflash_download_config_work(struct work_struct *work)
+int zeroflash_download_config_work(void)
 {
 	int retval;
 	struct ovt_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
@@ -973,8 +971,6 @@ exit:
 
     if (tcm_hcd->ovt_tcm_driver_removing == 1)
         return;
-
-	zeroflash_download_config();
 
 	return;
 }
@@ -1062,36 +1058,24 @@ static int zeroflash_download_app_fw(void)
 	UNLOCK_BUFFER(zeroflash_hcd->out);
 
 	LOGN(tcm_hcd->pdev->dev.parent,
-			"Application firmware downloaded\n");
+			"Application firmware downloaded and wait identify report\n");
 
 	return 0;
 }
 
 
-static void zeroflash_do_f35_firmware_download(void)
+int zeroflash_do_f35_firmware_download(void)
 {
 	int retval;
 	struct rmi_f35_data data;
 	struct ovt_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
-	static unsigned int retry_count;
+	unsigned int retry_count = 0;
 	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
-	if (tcm_hcd->irq_enabled) {
-		retval = tcm_hcd->enable_irq(tcm_hcd, false, true);
-		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to disable interrupt\n");
-		}
-	}
-
+retry_download:
 	LOGN(tcm_hcd->pdev->dev.parent,
 			"Prepare F35 firmware download\n");
 
-	if (tcm_hcd->id_info.mode == MODE_ROMBOOTLOADER) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Incorrect uboot type, exit\n");
-		goto exit;
-	}
 	retval = zeroflash_check_uboot();
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -1138,47 +1122,43 @@ static void zeroflash_do_f35_firmware_download(void)
 	/* perform firmware downloading */
 	retval = zeroflash_download_app_fw();
 	if (retval < 0) {
-        
-		
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to download application firmware, so reset tp \n");
 		goto exit;
 	}
+	msleep(20);
+	{
 
+		retval = tcm_hcd->read_message(tcm_hcd,NULL, 0);
+		if (retval >= 0) {
+			if (tcm_hcd->in.buf[1] == REPORT_IDENTIFY) {
+				LOGN(tcm_hcd->pdev->dev.parent,
+					"success of firmware download\n");
+			}
+			retval = 0;
+		} else {
+				LOGN(tcm_hcd->pdev->dev.parent,
+					"fail of firmware download\n");
+				if (retry_count >= 10) {
+					goto exit;
+				}
+				gpio_set_value(bdata->reset_gpio, 0);
+				msleep(5);
+				gpio_set_value(bdata->reset_gpio, 1);        
+				msleep(5);
+				retry_count++;
+				goto retry_download;
+				retval = -1;			
+		}
+	}
 	LOGN(tcm_hcd->pdev->dev.parent,
 			"End of firmware download\n");
 
 exit:
-	if (retval < 0) {
-        gpio_set_value(bdata->reset_gpio, 0);
-        msleep(5);
-        gpio_set_value(bdata->reset_gpio, 1);        
-        msleep(5);
-		retry_count++;
-    }
-
-	if (DOWNLOAD_RETRY_COUNT && retry_count > DOWNLOAD_RETRY_COUNT) {
-		//retval = tcm_hcd->enable_irq(tcm_hcd, false, true);
-		retval = tcm_hcd->enable_irq(tcm_hcd, true, true);
-		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to disable interrupt\n");
-		}
-
-		LOGD(tcm_hcd->pdev->dev.parent,
-				"Interrupt is disabled\n");
-	} else {
-		retval = tcm_hcd->enable_irq(tcm_hcd, true, NULL);
-		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to enable interrupt\n");
-		}
-	}
-
-	return;
+	return retval;
 }
 
-static void zeroflash_do_romboot_firmware_download(void)
+int zeroflash_do_romboot_firmware_download(void)
 {
 	int retval;
 	unsigned char *out_buf = NULL;
@@ -1280,9 +1260,50 @@ exit:
 
 	kfree(resp_buf);
 
-	return;
+	return retval;
 }
 
+int zeroflash_do_config_download(void)
+{
+	int retval = 0;
+	struct ovt_tcm_hcd *tcm_hcd;
+	tcm_hcd = g_tcm_hcd;
+	retval = tcm_hcd->read_message(tcm_hcd, NULL, 0);
+	if (retval >= 0) {
+		if (tcm_hcd->in.buf[1] == REPORT_STATUS) {
+			struct firmware_status *fw_status;
+
+			LOGN(tcm_hcd->pdev->dev.parent,
+				"read the status report\n");
+			fw_status = &(zeroflash_hcd->fw_status);
+
+			retval = secure_memcpy((unsigned char *)fw_status,
+					sizeof(zeroflash_hcd->fw_status),
+					tcm_hcd->report.buffer.buf,
+					tcm_hcd->report.buffer.buf_size,
+					sizeof(zeroflash_hcd->fw_status));
+
+			if (retval < 0) {
+				LOGE(tcm_hcd->pdev->dev.parent,
+						"Failed to copy firmware status\n");
+				return retval;
+			}
+down_load_config:
+			if (!fw_status->need_app_config && !fw_status->need_disp_config) {
+				return 0;
+			} else {
+				zeroflash_download_config_work();
+				goto down_load_config;
+			}
+		} else {
+			if (tcm_hcd->in.buf[1] == STATUS_IDLE) {
+				return 0;
+			}	
+		}
+	} else {
+		return retval;
+	}
+}
 static int zeroflash_init(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int retval = 0;
@@ -1308,10 +1329,10 @@ static int zeroflash_init(struct ovt_tcm_hcd *tcm_hcd)
 	INIT_BUFFER(zeroflash_hcd->out, false);
 	INIT_BUFFER(zeroflash_hcd->resp, false);
 
-	zeroflash_hcd->workqueue =
+/* 	zeroflash_hcd->workqueue =
 			create_singlethread_workqueue("ovt_tcm_zeroflash");
 	INIT_WORK(&zeroflash_hcd->config_work,
-			zeroflash_download_config_work);
+			zeroflash_download_config_work); */
 
 	if (ENABLE_SYS_ZEROFLASH == false)
 		goto init_finished;

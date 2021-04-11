@@ -77,10 +77,13 @@
 #define PDT_END_ADDR 0x00ee
 
 #define RMI_UBL_FN_NUMBER 0x35
-
+struct ovt_tcm_hcd *g_tcm_hcd;
+static struct ovt_tcm_hcd *tcm_hcd;
 static int ovt_tcm_probe(struct platform_device *pdev);
 static int ovt_tcm_raw_read(struct ovt_tcm_hcd *tcm_hcd,
 		unsigned char *in_buf, unsigned int length);
+static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd);
+
 static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 {
 
@@ -97,13 +100,12 @@ static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 
 	retval = ovt_tcm_probe(ovt_tcm_spi_device);
 	//should power on? do the probe in origin core.c
-	retval = ovt_tcm_raw_read(g_tcm_hcd, &check_header, 1);
-	if (check_header == MESSAGE_MARKER) {
-		return 0; //no error
-		//return no error will wakeup ts init task
-		//ts init task will call ts_kit_init ==> chip_init()
+	retval = ovt_tcm_sensor_detection(g_tcm_hcd);
+	if (retval < 0) {
+		TS_LOG_ERR("fail to do sensor detection\n");
+		return 1;
 	} else {
-		return 1; //error
+		return 0;
 	}
 }
 static int ovt_tcm_init_chip(void)
@@ -117,10 +119,28 @@ static int ovt_tcm_fw_update_boot(char *file_name)
 {
 	//update the firmware here power on update firmware here
 	//irq shutdown by ts kit
-	int retval = NO_ERR;
+	int retval = 0;
 	TS_LOG_ERR("ovt_tcm_fw_update_boot\n");
 	//do hostdownload here and init
-	return retval;
+	switch(g_tcm_hcd->sensor_type) {
+		case TYPE_F35:
+			retval = zeroflash_do_f35_firmware_download();
+		break;
+		case TYPE_ROMBOOT:
+			retval = zeroflash_do_romboot_firmware_download();
+		break;
+		default:
+		break;
+	}
+	if (retval < 0) {
+		return 1;//error
+	}
+	//download config
+	retval = zeroflash_do_config_download();
+	if (retval < 0) {
+		return 1;
+	}
+	return 0;
 }
 
 static int ovt_tcm_input_config(struct input_dev *input_dev)
@@ -158,8 +178,7 @@ struct ts_device_ops ts_kit_ovt_tcm_ops = {
 	//.chip_get_rawdata = ovt_tcm_mmi_test,
 	//.chip_get_calibration_data = ovt_tcm_get_cal_data,
 };
-struct ovt_tcm_hcd *g_tcm_hcd;
-static struct ovt_tcm_hcd *tcm_hcd;
+
 
 #define dynamic_config_sysfs(c_name, id) \
 static ssize_t ovt_tcm_sysfs_##c_name##_show(struct device *dev, \
@@ -271,7 +290,7 @@ static struct device_attribute *dynamic_config_attrs[] = {
 };
 
 static int ovt_tcm_get_app_info(struct ovt_tcm_hcd *tcm_hcd);
-//static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd);
+static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd);
 static void ovt_tcm_check_hdl(struct ovt_tcm_hcd *tcm_hcd,
 							unsigned char id);
 
@@ -930,42 +949,10 @@ static void ovt_tcm_dispatch_report(struct ovt_tcm_hcd *tcm_hcd)
 				"TouchFWLog: %s\n", fw_log);
     } else {
 
-		/* once an identify report is received, */
-		/* reinitialize touch in case any changes */
-		if ((tcm_hcd->report.id == REPORT_IDENTIFY) &&
-				IS_FW_MODE(tcm_hcd->id_info.mode)) {
-
-			if (atomic_read(&tcm_hcd->helper.task) == HELP_NONE) {
-				atomic_set(&tcm_hcd->helper.task,
-						HELP_TOUCH_REINIT);
-				queue_work(tcm_hcd->helper.workqueue,
-						&tcm_hcd->helper.work);
-			}
-		}
-
-		/* dispatch received report to the other modules */
-		mutex_lock(&mod_pool.mutex);
-
-		if (!list_empty(&mod_pool.list)) {
-			list_for_each_entry(mod_handler, &mod_pool.list, link) {
-				if (!mod_handler->insert &&
-						!mod_handler->detach &&
-						(mod_handler->mod_cb->syncbox))
-					mod_handler->mod_cb->syncbox(tcm_hcd);
-			}
-		}
-
-		tcm_hcd->async_report_id = tcm_hcd->status_report_code;
-
-		mutex_unlock(&mod_pool.mutex);
 	}
 
 	UNLOCK_BUFFER(tcm_hcd->report.buffer);
 	UNLOCK_BUFFER(tcm_hcd->in);
-
-#ifdef REPORT_NOTIFIER
-	wake_up_process(tcm_hcd->notifier_thread);
-#endif
 
 	return;
 }
@@ -3704,7 +3691,7 @@ f35_boot_recheck:
 			}
 	return 0;
 }
-#if 0
+
 static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int retval;
@@ -3807,7 +3794,7 @@ static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd)
 
 	return 0;
 }
-#endif
+
 static int ovt_tcm_probe(struct platform_device *pdev)
 {
 	int retval;

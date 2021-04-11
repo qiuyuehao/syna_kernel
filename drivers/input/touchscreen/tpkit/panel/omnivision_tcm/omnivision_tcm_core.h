@@ -599,6 +599,9 @@ struct ovt_tcm_hw_interface {
 extern struct ovt_tcm_hw_interface hw_if;
 extern int ovt_tcm_spi_probe(struct spi_device *spi);
 extern struct platform_device *ovt_tcm_spi_device;
+extern int zeroflash_do_romboot_firmware_download(void);
+extern int zeroflash_do_f35_firmware_download(void);
+extern int zeroflash_do_config_download(void);
 typedef unsigned char uint8;
 typedef char int8;
 typedef unsigned short uint16;
