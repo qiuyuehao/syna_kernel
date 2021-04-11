@@ -623,7 +623,64 @@ static int touch_parse_report(void)
 exit:
 	return 0;
 }
+int fill_touch_info_data(struct ts_fingers *info)
+{
+	struct touch_data *touch_data;
+	struct object_data *object_data;
+	unsigned int idx = 0;
+	unsigned int x = 0;
+	unsigned int y = 0;
+	unsigned int z = 0;
+	unsigned int wx = 0;
+	unsigned int wy = 0;
+	unsigned int temp = 0;
+	unsigned int status = 0;
 
+	struct ovt_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd;
+
+	int retval;
+	unsigned int touch_count = 0;
+	retval = touch_parse_report();
+	touch_data = &touch_hcd->touch_data;
+	object_data = touch_hcd->touch_data.object_data;
+	touch_count = 0;
+
+	for (idx = 0; idx < touch_hcd->max_objects; idx++) {
+		if (touch_hcd->prev_status[idx] == LIFT &&
+				object_data[idx].status == LIFT)
+			status = NOP;
+		else
+			status = object_data[idx].status;
+
+		switch (status) {
+		case LIFT:
+			break;
+		case FINGER:
+		case GLOVED_FINGER:
+			x = object_data[idx].x_pos;
+			y = object_data[idx].y_pos;
+			wx = object_data[idx].x_width;
+			wy = object_data[idx].y_width;
+			z = object_data[idx].z;
+			if (status == 1)
+				info->fingers[idx].status = status << 6;
+			info->fingers[idx].x = x;
+			info->fingers[idx].y = y;
+			info->fingers[idx].major = wx;
+			info->fingers[idx].minor = wy;
+			info->fingers[idx].sg = 0;
+			info->fingers[idx].pressure = z;
+			LOGD(tcm_hcd->pdev->dev.parent,
+					"Finger %d: x = %d, y = %d\n",
+					idx, x, y);
+			touch_count++;
+			break;
+		default:
+			break;
+		}
+		touch_hcd->prev_status[idx] = object_data[idx].status;
+	}
+}
 /**
  * touch_report() - Report touch events
  *
@@ -829,7 +886,7 @@ static int touch_get_input_params(void)
 			&tcm_hcd->config.buf_size,
 			&tcm_hcd->config.data_length,
 			NULL,
-			0);
+			20);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to write command %s\n",
@@ -970,7 +1027,7 @@ static int touch_set_report_config(void)
 			&touch_hcd->resp.buf_size,
 			&touch_hcd->resp.data_length,
 			NULL,
-			0);
+			20);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to write command %s\n",

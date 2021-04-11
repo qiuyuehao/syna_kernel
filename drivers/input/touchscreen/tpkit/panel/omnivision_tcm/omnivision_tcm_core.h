@@ -603,7 +603,7 @@ extern int zeroflash_do_romboot_firmware_download(void);
 extern int zeroflash_do_f35_firmware_download(void);
 extern int zeroflash_do_config_download(void);
 extern int zeroflash_init(struct ovt_tcm_hcd *tcm_hcd);
-
+extern int fill_touch_info_data(struct ts_fingers *info);
 typedef unsigned char uint8;
 typedef char int8;
 typedef unsigned short uint16;
