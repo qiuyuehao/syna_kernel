@@ -1310,8 +1310,6 @@ int zeroflash_init(struct ovt_tcm_hcd *tcm_hcd)
 	int idx;
 
 	zeroflash_hcd = NULL;
-	if (!(tcm_hcd->in_hdl_mode))
-		return 0;
 
 	zeroflash_hcd = kzalloc(sizeof(*zeroflash_hcd), GFP_KERNEL);
 	if (!zeroflash_hcd) {
@@ -1372,6 +1370,33 @@ int zeroflash_init(struct ovt_tcm_hcd *tcm_hcd)
 		}
 	} */
 	return retval;
+}
+
+int zeroflash_do_hostdownload(struct ovt_tcm_hcd *tcm_hcd)
+{
+	//update the firmware here power on update firmware here
+	//irq shutdown by ts kit
+	int retval = 0;
+	TS_LOG_ERR("zeroflash_do_hostdownload\n");
+	//do hostdownload here and init
+	switch(g_tcm_hcd->sensor_type) {
+		case TYPE_F35:
+			retval = zeroflash_do_f35_firmware_download();
+			break;
+		case TYPE_ROMBOOT:
+			retval = zeroflash_do_romboot_firmware_download();
+			break;
+		default:
+			return 1;
+	}
+	if (retval < 0) {
+		return 1;//error
+	}
+	//download config
+	retval = zeroflash_do_config_download();
+	if (retval < 0) {
+		return 1;
+	}
 }
 
 static int zeroflash_remove(struct ovt_tcm_hcd *tcm_hcd)

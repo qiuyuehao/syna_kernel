@@ -86,12 +86,8 @@ static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd);
 
 static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 {
-
-	uint8 check_header = 0x77;
 	int retval = 0;
 
-	//should do some spi/i2c init in order to read/write from device
-	//init spi device
 	retval = ovt_tcm_spi_probe(data->spi);
 	if (retval < 0) {
 		TS_LOG_ERR("ovt_tcm_chip_detect fail to do spi probe\n");
@@ -126,12 +122,12 @@ static int ovt_tcm_fw_update_boot(char *file_name)
 	switch(g_tcm_hcd->sensor_type) {
 		case TYPE_F35:
 			retval = zeroflash_do_f35_firmware_download();
-		break;
+			break;
 		case TYPE_ROMBOOT:
 			retval = zeroflash_do_romboot_firmware_download();
-		break;
+			break;
 		default:
-		break;
+			return 1;
 	}
 	if (retval < 0) {
 		return 1;//error
@@ -3687,7 +3683,7 @@ f35_boot_recheck:
                     gpio_set_value(bdata->reset_gpio, 1);        
                     msleep(5);
 					retry++;
-			goto f35_boot_recheck;
+					goto f35_boot_recheck;
 				}
 				tcm_hcd->is_detected = false;
 				return -ENODEV;
@@ -3804,6 +3800,8 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	struct ovt_tcm_hcd *tcm_hcd;
 	const struct ovt_tcm_board_data *bdata;
 	const struct ovt_tcm_hw_interface *hw_if;
+
+	tcm_hcd = g_tcm_hcd;
 
 	hw_if = pdev->dev.platform_data;
 	if (!hw_if) {
