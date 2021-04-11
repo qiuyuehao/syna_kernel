@@ -99,6 +99,7 @@ static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 	}
 
 	retval = ovt_tcm_probe(ovt_tcm_spi_device);
+	zeroflash_init(g_tcm_hcd);
 	//should power on? do the probe in origin core.c
 	retval = ovt_tcm_sensor_detection(g_tcm_hcd);
 	if (retval < 0) {
@@ -140,6 +141,7 @@ static int ovt_tcm_fw_update_boot(char *file_name)
 	if (retval < 0) {
 		return 1;
 	}
+	touch_init(g_tcm_hcd);
 	return 0;
 }
 

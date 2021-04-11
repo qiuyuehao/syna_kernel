@@ -602,6 +602,8 @@ extern struct platform_device *ovt_tcm_spi_device;
 extern int zeroflash_do_romboot_firmware_download(void);
 extern int zeroflash_do_f35_firmware_download(void);
 extern int zeroflash_do_config_download(void);
+extern int zeroflash_init(struct ovt_tcm_hcd *tcm_hcd);
+
 typedef unsigned char uint8;
 typedef char int8;
 typedef unsigned short uint16;

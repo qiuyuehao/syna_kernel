@@ -1304,7 +1304,7 @@ down_load_config:
 		return retval;
 	}
 }
-static int zeroflash_init(struct ovt_tcm_hcd *tcm_hcd)
+int zeroflash_init(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int retval = 0;
 	int idx;
@@ -1334,10 +1334,10 @@ static int zeroflash_init(struct ovt_tcm_hcd *tcm_hcd)
 	INIT_WORK(&zeroflash_hcd->config_work,
 			zeroflash_download_config_work); */
 
-	if (ENABLE_SYS_ZEROFLASH == false)
+/* 	if (ENABLE_SYS_ZEROFLASH == false)
 		goto init_finished;
-
-	zeroflash_hcd->sysfs_dir = kobject_create_and_add(SYSFS_DIR_NAME,
+ */
+/* 	zeroflash_hcd->sysfs_dir = kobject_create_and_add(SYSFS_DIR_NAME,
 			tcm_hcd->sysfs_dir);
 	if (!zeroflash_hcd->sysfs_dir) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -1353,9 +1353,8 @@ static int zeroflash_init(struct ovt_tcm_hcd *tcm_hcd)
 					"Failed to create sysfs file\n");
 		}
 	}
-
-init_finished:
-	/* prepare the firmware download process */
+ */
+/* init_finished:
 	if (tcm_hcd->in_hdl_mode) {
 		switch (tcm_hcd->sensor_type) {
 		case TYPE_F35:
@@ -1371,7 +1370,7 @@ init_finished:
 			break;
 
 		}
-	}
+	} */
 	return retval;
 }
 
