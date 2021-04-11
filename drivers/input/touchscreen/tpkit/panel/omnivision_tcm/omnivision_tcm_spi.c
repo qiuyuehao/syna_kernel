@@ -49,7 +49,7 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 	int retval;
 	u32 value;
 	struct property *prop;
-	struct device_node *np = tcm_hcd->ovt_tcm_chip_data->cnode;
+	struct device_node *np = g_tcm_hcd->ovt_tcm_chip_data->cnode;
 	const char *name;
 
 	prop = of_find_property(np, "omnivision,irq-gpio", NULL);
@@ -629,15 +629,6 @@ int ovt_tcm_spi_probe(struct spi_device *spi)
 				"Failed to add platform device\n");
 		return retval;
 	}
-
-	return 0;
-}
-
-static int ovt_tcm_spi_remove(struct spi_device *spi)
-{
-	ovt_tcm_spi_device->dev.platform_data = NULL;
-
-	platform_device_unregister(ovt_tcm_spi_device);
 
 	return 0;
 }

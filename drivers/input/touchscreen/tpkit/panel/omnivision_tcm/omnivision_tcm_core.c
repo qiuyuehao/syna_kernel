@@ -78,15 +78,18 @@
 
 #define RMI_UBL_FN_NUMBER 0x35
 
+static int ovt_tcm_probe(struct platform_device *pdev);
+static int ovt_tcm_raw_read(struct ovt_tcm_hcd *tcm_hcd,
+		unsigned char *in_buf, unsigned int length);
 static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 {
-	//read just one byte
+
 	uint8 check_header = 0x77;
 	int retval = 0;
-	//should do some spi/i2c init in order to read/write from device
 
+	//should do some spi/i2c init in order to read/write from device
 	//init spi device
-	retval = ovt_tcm_spi_probe(data->spi, hw_if.bdata);
+	retval = ovt_tcm_spi_probe(data->spi);
 	if (retval < 0) {
 		TS_LOG_ERR("ovt_tcm_chip_detect fail to do spi probe\n");
 		return 1;
@@ -120,7 +123,7 @@ static int ovt_tcm_fw_update_boot(char *file_name)
 	return retval;
 }
 
-static int syna_tcm_input_config(struct input_dev *input_dev)
+static int ovt_tcm_input_config(struct input_dev *input_dev)
 {
 	//config the input device
 	set_bit(EV_SYN, input_dev->evbit);
@@ -137,25 +140,26 @@ struct ts_device_ops ts_kit_ovt_tcm_ops = {
 	//.chip_parse_config = ovt_tcm_parse_dts, did not called by ts kit?
 	.chip_input_config = ovt_tcm_input_config,
 
-	.chip_irq_top_half = ovt_tcm_irq_top_half,
-	.chip_irq_bottom_half = ovt_tcm_irq_bottom_half,
+	//.chip_irq_top_half = ovt_tcm_irq_top_half,
+	//.chip_irq_bottom_half = ovt_tcm_irq_bottom_half,
 	.chip_fw_update_boot = ovt_tcm_fw_update_boot,  // host download on boot
-	.chip_fw_update_sd = ovt_tcm_fw_update_sd,   // host download by hand
+	//.chip_fw_update_sd = ovt_tcm_fw_update_sd,   // host download by hand
 //	.oem_info_switch = ovtptics_oem_info_switch,
-	.chip_get_info = ovt_tcm_chip_get_info,
+	//.chip_get_info = ovt_tcm_chip_get_info,
 //	.chip_get_capacitance_test_type =
 //	    ovtptics_chip_get_capacitance_test_type,
-	.chip_set_info_flag = ovt_tcm_set_info_flag,
-	.chip_before_suspend = ovt_tcm_before_suspend,
-	.chip_suspend = ovt_tcm_suspend,
-	.chip_resume = ovt_tcm_resume,
-	.chip_after_resume = ovt_tcm_after_resume,
+	//.chip_set_info_flag = ovt_tcm_set_info_flag,
+	//.chip_before_suspend = ovt_tcm_before_suspend,
+	//.chip_suspend = ovt_tcm_suspend,
+	//.chip_resume = ovt_tcm_resume,
+	//.chip_after_resume = ovt_tcm_after_resume,
 //	.chip_wakeup_gesture_enable_switch =
 //	    ovtptics_wakeup_gesture_enable_switch,
-	.chip_get_rawdata = ovt_tcm_mmi_test,
-	.chip_get_calibration_data = ovt_tcm_get_cal_data,
+	//.chip_get_rawdata = ovt_tcm_mmi_test,
+	//.chip_get_calibration_data = ovt_tcm_get_cal_data,
 };
 struct ovt_tcm_hcd *g_tcm_hcd;
+static struct ovt_tcm_hcd *tcm_hcd;
 
 #define dynamic_config_sysfs(c_name, id) \
 static ssize_t ovt_tcm_sysfs_##c_name##_show(struct device *dev, \
@@ -215,7 +219,7 @@ exit: \
 
 DECLARE_COMPLETION(response_complete);
 
-static struct kobject *sysfs_dir;
+//static struct kobject *sysfs_dir;
 
 static struct ovt_tcm_module_pool mod_pool;
 
@@ -267,7 +271,7 @@ static struct device_attribute *dynamic_config_attrs[] = {
 };
 
 static int ovt_tcm_get_app_info(struct ovt_tcm_hcd *tcm_hcd);
-static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd);
+//static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd);
 static void ovt_tcm_check_hdl(struct ovt_tcm_hcd *tcm_hcd,
 							unsigned char id);
 
@@ -797,7 +801,7 @@ exit:
 	return 0;
 }
 EXPORT_SYMBOL(ovt_tcm_add_module);
-
+#if 0
 static void ovt_tcm_module_work(struct work_struct *work)
 {
 	struct ovt_tcm_module_handler *mod_handler;
@@ -829,7 +833,7 @@ static void ovt_tcm_module_work(struct work_struct *work)
 
 	return;
 }
-
+#endif
 
 #ifdef REPORT_NOTIFIER
 /**
@@ -3700,7 +3704,7 @@ f35_boot_recheck:
 			}
 	return 0;
 }
-
+#if 0
 static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int retval;
@@ -3803,11 +3807,10 @@ static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd)
 
 	return 0;
 }
-
+#endif
 static int ovt_tcm_probe(struct platform_device *pdev)
 {
 	int retval;
-	int idx;
 	struct ovt_tcm_hcd *tcm_hcd;
 	const struct ovt_tcm_board_data *bdata;
 	const struct ovt_tcm_hw_interface *hw_if;
@@ -3825,9 +3828,6 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 				"Board data not found\n");
 		return -ENODEV;
 	}
-
-	tcm_hcd = kzalloc(sizeof(*tcm_hcd), GFP_KERNEL);
-	g_tcm_hcd = tcm_hcd;
 
 	if (!tcm_hcd) {
 		LOGE(&pdev->dev,
@@ -3898,7 +3898,6 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 		LOGE(&pdev->dev,
 				"Failed to allocate memory for tcm_hcd->in.buf\n");
 		UNLOCK_BUFFER(tcm_hcd->in);
-		goto err_alloc_mem;
 	}
 
 	UNLOCK_BUFFER(tcm_hcd->in);
@@ -3914,158 +3913,29 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	init_waitqueue_head(&tcm_hcd->reflash_wq);
 	atomic_set(&tcm_hcd->firmware_flashing, 0);
 
-	if (!mod_pool.initialized) {
-		mutex_init(&mod_pool.mutex);
-		INIT_LIST_HEAD(&mod_pool.list);
-		mod_pool.initialized = true;
-	}
 
 	retval = ovt_tcm_get_regulator(tcm_hcd, true);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to get regulators\n");
-		goto err_get_regulator;
 	}
 
 	retval = ovt_tcm_enable_regulator(tcm_hcd, true);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to enable regulators\n");
-		goto err_enable_regulator;
 	}
 
 	retval = ovt_tcm_config_gpio(tcm_hcd);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to configure GPIO's\n");
-		goto err_config_gpio;
 	}
 
-	/* detect the type of touch controller */
-	retval = ovt_tcm_sensor_detection(tcm_hcd);
-	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to detect the sensor\n");
-		goto err_sysfs_create_dir;
-	}
-
-	sysfs_dir = kobject_create_and_add(PLATFORM_DRIVER_NAME,
-			NULL); //&pdev->dev.kobj);  move to /sys
-	if (!sysfs_dir) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to create sysfs directory\n");
-		retval = -EINVAL;
-		goto err_sysfs_create_dir;
-	}
-
-	tcm_hcd->sysfs_dir = sysfs_dir;
-
-	for (idx = 0; idx < ARRAY_SIZE(attrs); idx++) {
-		retval = sysfs_create_file(tcm_hcd->sysfs_dir,
-				&(*attrs[idx]).attr);
-		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to create sysfs file\n");
-			goto err_sysfs_create_file;
-		}
-	}
-
-	tcm_hcd->dynamnic_config_sysfs_dir =
-			kobject_create_and_add(DYNAMIC_CONFIG_SYSFS_DIR_NAME,
-			tcm_hcd->sysfs_dir);
-	if (!tcm_hcd->dynamnic_config_sysfs_dir) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to create dynamic config sysfs directory\n");
-		retval = -EINVAL;
-		goto err_sysfs_create_dynamic_config_dir;
-	}
-
-	for (idx = 0; idx < ARRAY_SIZE(dynamic_config_attrs); idx++) {
-		retval = sysfs_create_file(tcm_hcd->dynamnic_config_sysfs_dir,
-				&(*dynamic_config_attrs[idx]).attr);
-		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to create dynamic config sysfs file\n");
-			goto err_sysfs_create_dynamic_config_file;
-		}
-	}
-
-#ifdef CONFIG_FB
-	tcm_hcd->fb_notifier.notifier_call = ovt_tcm_fb_notifier_cb;
-	retval = fb_register_client(&tcm_hcd->fb_notifier);
-	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to register FB notifier client\n");
-	}
-#endif
-
-
-#ifdef REPORT_NOTIFIER
-	tcm_hcd->notifier_thread = kthread_run(ovt_tcm_report_notifier,
-			tcm_hcd, "ovt_tcm_report_notifier");
-	if (IS_ERR(tcm_hcd->notifier_thread)) {
-		retval = PTR_ERR(tcm_hcd->notifier_thread);
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to create and run tcm_hcd->notifier_thread\n");
-		goto err_create_run_kthread;
-	}
-#endif
-
-	tcm_hcd->helper.workqueue =
-			create_singlethread_workqueue("ovt_tcm_helper");
-	INIT_WORK(&tcm_hcd->helper.work, ovt_tcm_helper_work);
-
-#ifdef WATCHDOG_SW
-	tcm_hcd->watchdog.workqueue =
-			create_singlethread_workqueue("ovt_tcm_watchdog");
-	INIT_DELAYED_WORK(&tcm_hcd->watchdog.work, ovt_tcm_watchdog_work);
-#endif
 
 	tcm_hcd->polling_workqueue =
 			create_singlethread_workqueue("ovt_tcm_polling");
 	INIT_DELAYED_WORK(&tcm_hcd->polling_work, ovt_tcm_polling_work);
-
-
-	/* skip the following initialization */
-	/* since the fw is not ready for hdl devices */
-	if (tcm_hcd->in_hdl_mode)
-		goto prepare_modules;
-
-
-	/* register and enable the interrupt in probe */
-	/* if this is not the hdl device */
-	retval = tcm_hcd->enable_irq(tcm_hcd, true, NULL);
-	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-			"Failed to enable interrupt\n");
-		goto err_enable_irq;
-	}
-	LOGD(tcm_hcd->pdev->dev.parent,
-			"Interrupt is registered\n");
-
-	/* ensure the app firmware is running */
-	retval = ovt_tcm_identify(tcm_hcd, false);
-	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-			"Application firmware is not running\n");
-		goto err_enable_irq;
-	}
-	/* initialize the touch reporting */
-	retval = touch_init(tcm_hcd);
-	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-			"Failed to initialze touch reporting\n");
-		goto err_enable_irq;
-	}
-
-prepare_modules:
-	/* prepare to add other modules */
-	mod_pool.workqueue =
-			create_singlethread_workqueue("ovt_tcm_module");
-	INIT_WORK(&mod_pool.work, ovt_tcm_module_work);
-	mod_pool.tcm_hcd = tcm_hcd;
-	mod_pool.queue_work = true;
-	queue_work(mod_pool.workqueue, &mod_pool.work);
 
 	return 0;
 }
@@ -4231,6 +4101,8 @@ static int __init ovt_tcm_module_init(void)
 	}
 
 	tcm_hcd = kzalloc(sizeof(*tcm_hcd), GFP_KERNEL);
+	g_tcm_hcd = tcm_hcd;
+
 	if (!tcm_hcd) {
 		TS_LOG_ERR("Failed to allocate memory for tcm_hcd\n");
 		return -ENOMEM;
@@ -4267,7 +4139,7 @@ static void __exit ovt_tcm_module_exit(void)
 {
 	platform_driver_unregister(&ovt_tcm_driver);
 
-	ovt_tcm_bus_exit();
+	//ovt_tcm_bus_exit();
 
 	return;
 }

@@ -42,6 +42,7 @@
 #include <linux/notifier.h>
 #endif
 
+#include "../../huawei_ts_kit.h"
 #define I2C_MODULE_NAME "omniVision_tcm_i2c"
 #define SPI_MODULE_NAME "omnivision_tcm_spi"
 
@@ -546,7 +547,7 @@ struct ovt_tcm_hcd {
 	void (*report_touch)(void);
 	void (*update_watchdog)(struct ovt_tcm_hcd *tcm_hcd, bool en);
 };
-
+extern struct ovt_tcm_hcd *g_tcm_hcd;
 struct ovt_tcm_module_cb {
 	enum module_type type;
 	int (*init)(struct ovt_tcm_hcd *tcm_hcd);
@@ -595,9 +596,13 @@ struct ovt_tcm_hw_interface {
 	const struct ovt_tcm_bus_io *bus_io;
 };
 
-extern ovt_tcm_hw_interface hw_if;
+extern struct ovt_tcm_hw_interface hw_if;
 extern int ovt_tcm_spi_probe(struct spi_device *spi);
 extern struct platform_device *ovt_tcm_spi_device;
+typedef unsigned char uint8;
+typedef char int8;
+typedef unsigned short uint16;
+typedef short int16;
 
 int ovt_tcm_bus_init(void);
 
