@@ -1379,7 +1379,7 @@ int zeroflash_do_hostdownload(struct ovt_tcm_hcd *tcm_hcd)
 	int retval = 0;
 	TS_LOG_ERR("zeroflash_do_hostdownload\n");
 	//do hostdownload here and init
-	switch(g_tcm_hcd->sensor_type) {
+	switch(tcm_hcd->sensor_type) {
 		case TYPE_F35:
 			retval = zeroflash_do_f35_firmware_download();
 			break;
