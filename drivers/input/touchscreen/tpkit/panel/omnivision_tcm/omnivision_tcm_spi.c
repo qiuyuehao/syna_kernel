@@ -451,8 +451,12 @@ static int ovt_tcm_spi_read(struct ovt_tcm_hcd *tcm_hcd, unsigned char *data,
 	int retval;
 	unsigned int idx;
 	struct spi_message msg;
-	struct spi_device *spi = tcm_hcd->ovt_tcm_chip_data->ts_platform_data->spi;
-	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
+	
+	struct spi_device *spi;
+	const struct ovt_tcm_board_data *bdata;
+
+	spi = tcm_hcd->ovt_tcm_chip_data->ts_platform_data->spi;
+	bdata = tcm_hcd->hw_if->bdata;
 
 	mutex_lock(&tcm_hcd->io_ctrl_mutex);
 

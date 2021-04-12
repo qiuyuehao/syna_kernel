@@ -552,11 +552,11 @@ void touch_report(struct ts_fingers *info)
 	if (tcm_hcd->in_suspend)
 		goto exit;
 
-	TS_LOG_DEBUG("not in suspend\n");
+	TS_LOG_INFO("not in suspend\n");
 
 	if (!tcm_hcd->report_touch)
 		goto exit;
-	TS_LOG_DEBUG("report touch is true\n");
+	TS_LOG_INFO("report touch is true\n");
 	
 	retval = touch_parse_report();
 	if (retval < 0) {

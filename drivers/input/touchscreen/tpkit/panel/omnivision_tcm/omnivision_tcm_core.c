@@ -88,13 +88,14 @@ static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 {
 	int retval = 0;
 
+	g_tcm_hcd->ovt_tcm_chip_data->ts_platform_data = data;
+	data->spi->dev.of_node = g_tcm_hcd->ovt_tcm_chip_data->cnode;
+
 	retval = ovt_tcm_spi_probe(data->spi);
 	if (retval < 0) {
 		TS_LOG_ERR("ovt_tcm_chip_detect fail to do spi probe\n");
 		return 1;
 	}
-
-	data->spi->dev.of_node = g_tcm_hcd->ovt_tcm_chip_data->cnode;
 
 	retval = ovt_tcm_probe(ovt_tcm_spi_device);
 	zeroflash_init(g_tcm_hcd);
@@ -111,13 +112,19 @@ static int ovt_tcm_init_chip(void)
 {
 	int retval = NO_ERR;
 	// no need to update or do hostdown load here,like probe function
-
+	//irq not register here now
+	retval = zeroflash_do_hostdownload(g_tcm_hcd);
+	if (retval == 0) {
+		retval = g_tcm_hcd->identify(g_tcm_hcd, true);
+		retval = touch_init(g_tcm_hcd);
+	}
+		
+		
 	return retval;
 }
 static int ovt_tcm_fw_update_boot(char *file_name)
 {
-	zeroflash_do_hostdownload(g_tcm_hcd);
-	touch_init(g_tcm_hcd);
+	//irq register now
 	return 0;
 }
 
@@ -911,7 +918,7 @@ static void ovt_tcm_dispatch_report(struct ovt_tcm_hcd *tcm_hcd)
 	tcm_hcd->report.id = tcm_hcd->status_report_code;
 
 	/* report directly if touch report is received */
-	if (tcm_hcd->report.id == REPORT_TOUCH) {
+	/* if (tcm_hcd->report.id == REPORT_TOUCH) {
 		if (tcm_hcd->report_touch)
 			tcm_hcd->report_touch();
 
@@ -928,7 +935,7 @@ static void ovt_tcm_dispatch_report(struct ovt_tcm_hcd *tcm_hcd)
 				"TouchFWLog: %s\n", fw_log);
     } else {
 
-	}
+	} */
 
 	UNLOCK_BUFFER(tcm_hcd->report.buffer);
 	UNLOCK_BUFFER(tcm_hcd->in);
@@ -1886,7 +1893,7 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 
 	if (response_code != NULL)
 		*response_code = tcm_hcd->response_code;
-
+	LOGN(tcm_hcd->pdev->dev.parent,"response code = 0x%02x (command 0x%02x)\n",tcm_hcd->response_code, tcm_hcd->command);
 	UNLOCK_BUFFER(tcm_hcd->resp);
 
 exit:
@@ -2214,7 +2221,7 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int retval;
 	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
-
+#if 0
 	if (bdata->irq_gpio >= 0) {
 		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->irq_gpio,
 				true, 0, 0);
@@ -2224,7 +2231,7 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 			goto err_set_gpio_irq;
 		}
 	}
-
+#endif
 	if (bdata->power_gpio >= 0) {
 		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->power_gpio,
 				true, 1, !bdata->power_on_state);
@@ -2234,7 +2241,7 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 			goto err_set_gpio_power;
 		}
 	}
-
+#if 0
 	if (bdata->reset_gpio >= 0) {
 		retval = ovt_tcm_set_gpio(tcm_hcd, bdata->reset_gpio,
 				true, 1, !bdata->reset_on_state);
@@ -2244,19 +2251,19 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 			goto err_set_gpio_reset;
 		}
 	}
-
+#endif
 	if (bdata->power_gpio >= 0) {
 		gpio_set_value(bdata->power_gpio, bdata->power_on_state);
 		msleep(bdata->power_delay_ms);
 	}
-
+#if 0
 	if (bdata->reset_gpio >= 0) {
 		gpio_set_value(bdata->reset_gpio, bdata->reset_on_state);
 		msleep(bdata->reset_active_ms);
 		gpio_set_value(bdata->reset_gpio, !bdata->reset_on_state);
 		msleep(bdata->reset_delay_ms);
 	}
-
+#endif
 	return 0;
 
 err_set_gpio_reset:
@@ -2385,7 +2392,7 @@ get_app_info:
 			&resp_buf_size,
 			&resp_length,
 			NULL,
-			0);
+			100);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to write command %s\n",
@@ -2562,7 +2569,7 @@ id_info:
 			&resp_buf_size,
 			&resp_length,
 			NULL,
-			0);
+			20);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to write command %s\n",
@@ -4021,8 +4028,18 @@ static int ovt_tcm_irq_bottom_half(struct ts_cmd_node *in_cmd,
 	TS_LOG_DEBUG("order: %d\n",
 		     out_cmd->cmd_param.pub_params.algo_param.algo_order);
 
+	TS_LOG_INFO("ovt_tcm_irq_bottom_half\n");
+
 	retval = g_tcm_hcd->read_message(g_tcm_hcd, NULL, 0);
 	if (retval < 0) {
+		int retval = 0;
+		msleep(100);
+		retval = zeroflash_do_hostdownload(g_tcm_hcd);
+		if (retval == 1) { //error
+			goto exit;
+		}
+		retval = g_tcm_hcd->identify(g_tcm_hcd, true);
+		retval = touch_init(g_tcm_hcd);
 		goto exit;
 	}
 	if (g_tcm_hcd->in.buf[1] == REPORT_TOUCH) {

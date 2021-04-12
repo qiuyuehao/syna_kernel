@@ -289,8 +289,18 @@ re_check:
 			fn_number);
 
 	if (fn_number != UBL_FN_NUMBER) {
-		if (retry--)
+		if (retry--) {
+			//hard reset TP here?
+			const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
+			if (bdata->tpio_reset_gpio >= 0) {
+				gpio_set_value(bdata->tpio_reset_gpio, bdata->reset_on_state);
+				msleep(bdata->reset_active_ms);
+				gpio_set_value(bdata->tpio_reset_gpio, !bdata->reset_on_state);
+				mdelay(TP_RESET_TO_HDL_DELAY_MS);
+			}
 			goto re_check;
+		}
+			
 
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to find F$35\n");
@@ -1080,6 +1090,10 @@ retry_download:
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to find valid uboot\n");
+		gpio_set_value(bdata->reset_gpio, 0);
+		msleep(5);
+		gpio_set_value(bdata->reset_gpio, 1);        
+		msleep(5);
 		goto exit;
 	}
 
@@ -1100,6 +1114,10 @@ retry_download:
 				"Microbootloader error code = 0x%02x\n",
 				data.error_code);
 		if (data.error_code != CHECKSUM_FAILURE) {
+			gpio_set_value(bdata->reset_gpio, 0);
+			msleep(5);
+			gpio_set_value(bdata->reset_gpio, 1);        
+			msleep(5);
 			retval = -EIO;
 			goto exit;
 		} else {
@@ -1397,6 +1415,7 @@ int zeroflash_do_hostdownload(struct ovt_tcm_hcd *tcm_hcd)
 	if (retval < 0) {
 		return 1;
 	}
+	return 0;
 }
 
 static int zeroflash_remove(struct ovt_tcm_hcd *tcm_hcd)

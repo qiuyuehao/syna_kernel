@@ -34,7 +34,7 @@
 
 #define TYPE_B_PROTOCOL
 
-#define USE_DEFAULT_TOUCH_REPORT_CONFIG
+//#define USE_DEFAULT_TOUCH_REPORT_CONFIG
 
 #define TOUCH_REPORT_CONFIG_SIZE 128
 
@@ -267,10 +267,10 @@ static int touch_parse_report(void)
 	struct object_data *object_data;
 	struct ovt_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd;
 	static unsigned int end_of_foreach;
-
+	LOGE(tcm_hcd->pdev->dev.parent, "touch_parse_report 0\n");
 	touch_data = &touch_hcd->touch_data;
 	object_data = touch_hcd->touch_data.object_data;
-
+	LOGE(tcm_hcd->pdev->dev.parent, "touch_parse_report 1\n");
 	config_data = tcm_hcd->config.buf;
 	config_size = tcm_hcd->config.data_length;
 
@@ -278,7 +278,7 @@ static int touch_parse_report(void)
 
 	size = sizeof(*object_data) * touch_hcd->max_objects;
 	memset(touch_hcd->touch_data.object_data, 0x00, size);
-
+	LOGE(tcm_hcd->pdev->dev.parent, "touch_parse_report 2\n");
 	num_of_active_objects = false;
 
 	idx = 0;
@@ -286,9 +286,10 @@ static int touch_parse_report(void)
 	objects = 0;
 	active_objects = 0;
 	active_only = false;
-
+	LOGE(tcm_hcd->pdev->dev.parent, "touch_parse_report 3\n");
 	while (idx < config_size) {
 		code = config_data[idx++];
+		LOGE(tcm_hcd->pdev->dev.parent, "ovt touch config code = %x\n", code);
 		switch (code) {
 		case TOUCH_END:
 			goto exit;
@@ -621,6 +622,7 @@ static int touch_parse_report(void)
 	}
 
 exit:
+	LOGE(tcm_hcd->pdev->dev.parent, "touch_parse_report exit\n");
 	return 0;
 }
 int fill_touch_info_data(struct ts_fingers *info)
