@@ -94,6 +94,8 @@ static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 		return 1;
 	}
 
+	data->spi->dev.of_node = g_tcm_hcd->ovt_tcm_chip_data->cnode;
+
 	retval = ovt_tcm_probe(ovt_tcm_spi_device);
 	zeroflash_init(g_tcm_hcd);
 	//should power on? do the probe in origin core.c

@@ -32,7 +32,7 @@
 
 &spi_0 {
 	status = "ok";
-	ts_kit {
+	ts_kit@0 {
 		compatible = "huawei,ts_kit";
 		bus_type = "spi";
 		bus_id = <0>;
@@ -40,16 +40,16 @@
 		reset_gpio = <&msm_gpio 102 0x0000>;
 		irq_gpio = <&msm_gpio 65 0x2008>;
 		product = "tskit-dragonboard";
-		omnivision_tcm {
+		omnivision_tcm@0 {
 			compatible = "omnivision_tcm";
 			spi-max-frequency = <3000000>;
 			interrupt-parent = <&msm_gpio>;
 			interrupts = <65 0x2008>;
-			vdd-supply = <&pm8994_lvs2>;
-			avdd-supply = <&pm8994_l22>;
 			pinctrl-names = "pmx_ts_active", "pmx_ts_suspend";
 			pinctrl-0 = <&ts_active>;
 			pinctrl-1 = <&ts_suspend>;
+			vdd-supply = <&pm8994_lvs2>;
+			avdd-supply = <&pm8994_l22>;
 			omnivision,bus-reg-name = "vdd";
 			omnivision,pwr-reg-name = "avdd";
 			omnivision,irq-gpio = <&msm_gpio 65 0x2008>; /* IRQF_ONESHOT | IRQF_TRIGGER_LOW */
