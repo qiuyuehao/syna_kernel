@@ -910,10 +910,10 @@ int ovt_touch_config_input_dev(struct input_dev *input_dev)
 	set_bit(EV_ABS, input_dev->evbit);
 	set_bit(BTN_TOUCH, input_dev->keybit);
 	set_bit(BTN_TOOL_FINGER, input_dev->keybit);
-	input_set_abs_params(input_dev,
+/* 	input_set_abs_params(input_dev,
 			ABS_MT_POSITION_X, 0, touch_hcd->max_x, 0, 0);
 	input_set_abs_params(input_dev,
-			ABS_MT_POSITION_Y, 0, touch_hcd->max_y, 0, 0);
+			ABS_MT_POSITION_Y, 0, touch_hcd->max_y, 0, 0); */
 	
 	input_set_abs_params(input_dev, ABS_PRESSURE, 0, 255, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_TRACKING_ID, 0, 15, 0, 0);
