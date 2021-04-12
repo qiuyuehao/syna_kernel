@@ -2321,7 +2321,8 @@ static int ovt_tcm_get_regulator(struct ovt_tcm_hcd *tcm_hcd, bool get)
 		retval = 0;
 		goto regulator_put;
 	}
-
+	LOGE(tcm_hcd->pdev->dev.parent,
+					"bus reg name:%s, power reg name:%s\n", bdata->bus_reg_name, bdata->pwr_reg_name);
 	if (bdata->bus_reg_name != NULL && *bdata->bus_reg_name != 0) {
 		tcm_hcd->bus_reg = regulator_get(tcm_hcd->pdev->dev.parent,
 				bdata->bus_reg_name);
@@ -4116,8 +4117,11 @@ static int __init ovt_tcm_module_init(void)
 	return retval;
 	
 out:
-	if (tcm_hcd->ovt_tcm_chip_data)
-		kfree(tcm_hcd->ovt_tcm_chip_data);
+	if (tcm_hcd) {
+		if (tcm_hcd->ovt_tcm_chip_data)
+			kfree(tcm_hcd->ovt_tcm_chip_data);
+	}
+
 	if (tcm_hcd)
 		kfree(tcm_hcd);
 	tcm_hcd = NULL;	

@@ -41,6 +41,7 @@
 		irq_gpio = <&msm_gpio 65 0x2008>;
 		product = "tskit-dragonboard";
 		omnivision_tcm {
+			compatible = "omnivision_tcm";
 			spi-max-frequency = <3000000>;
 			interrupt-parent = <&msm_gpio>;
 			interrupts = <65 0x2008>;
