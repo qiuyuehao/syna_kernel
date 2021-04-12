@@ -568,7 +568,7 @@ struct ovt_tcm_module_handler {
 	struct list_head link;
 	struct ovt_tcm_module_cb *mod_cb;
 };
-
+extern int ovt_touch_config_input_dev(struct input_dev *input_dev);
 struct ovt_tcm_module_pool {
 	bool initialized;
 	bool queue_work;

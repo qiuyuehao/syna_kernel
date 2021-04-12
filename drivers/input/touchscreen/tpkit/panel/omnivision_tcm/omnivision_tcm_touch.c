@@ -267,10 +267,8 @@ static int touch_parse_report(void)
 	struct object_data *object_data;
 	struct ovt_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd;
 	static unsigned int end_of_foreach;
-	LOGE(tcm_hcd->pdev->dev.parent, "touch_parse_report 0\n");
 	touch_data = &touch_hcd->touch_data;
 	object_data = touch_hcd->touch_data.object_data;
-	LOGE(tcm_hcd->pdev->dev.parent, "touch_parse_report 1\n");
 	config_data = tcm_hcd->config.buf;
 	config_size = tcm_hcd->config.data_length;
 
@@ -278,7 +276,6 @@ static int touch_parse_report(void)
 
 	size = sizeof(*object_data) * touch_hcd->max_objects;
 	memset(touch_hcd->touch_data.object_data, 0x00, size);
-	LOGE(tcm_hcd->pdev->dev.parent, "touch_parse_report 2\n");
 	num_of_active_objects = false;
 
 	idx = 0;
@@ -286,10 +283,8 @@ static int touch_parse_report(void)
 	objects = 0;
 	active_objects = 0;
 	active_only = false;
-	LOGE(tcm_hcd->pdev->dev.parent, "touch_parse_report 3\n");
 	while (idx < config_size) {
 		code = config_data[idx++];
-		LOGE(tcm_hcd->pdev->dev.parent, "ovt touch config code = %x\n", code);
 		switch (code) {
 		case TOUCH_END:
 			goto exit;
@@ -622,7 +617,6 @@ static int touch_parse_report(void)
 	}
 
 exit:
-	LOGE(tcm_hcd->pdev->dev.parent, "touch_parse_report exit\n");
 	return 0;
 }
 int fill_touch_info_data(struct ts_fingers *info)
@@ -672,9 +666,9 @@ int fill_touch_info_data(struct ts_fingers *info)
 			info->fingers[idx].minor = wy;
 			info->fingers[idx].sg = 0;
 			info->fingers[idx].pressure = z;
-			LOGD(tcm_hcd->pdev->dev.parent,
-					"Finger %d: x = %d, y = %d\n",
-					idx, x, y);
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Finger %d: x = %d, y = %d, wx=%d, wy=%d, z=%d\n",
+					idx, x, y, wx, wy, z);
 			touch_count++;
 			break;
 		default:
@@ -909,6 +903,28 @@ static int touch_get_input_params(void)
  * input events to be reported, and register the input device with the input
  * subsystem.
  */
+int ovt_touch_config_input_dev(struct input_dev *input_dev)
+{
+	set_bit(EV_SYN, input_dev->evbit);
+	set_bit(EV_KEY, input_dev->evbit);
+	set_bit(EV_ABS, input_dev->evbit);
+	set_bit(BTN_TOUCH, input_dev->keybit);
+	set_bit(BTN_TOOL_FINGER, input_dev->keybit);
+	input_set_abs_params(input_dev,
+			ABS_MT_POSITION_X, 0, touch_hcd->max_x, 0, 0);
+	input_set_abs_params(input_dev,
+			ABS_MT_POSITION_Y, 0, touch_hcd->max_y, 0, 0);
+	
+	input_set_abs_params(input_dev, ABS_PRESSURE, 0, 255, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_TRACKING_ID, 0, 15, 0, 0);
+
+
+	input_set_abs_params(input_dev, ABS_MT_PRESSURE, 0, 255, 0, 0);
+#if ANTI_FALSE_TOUCH_USE_PARAM_MAJOR_MINOR
+	input_set_abs_params(input_dev, ABS_MT_WIDTH_MAJOR, 0, 100, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_WIDTH_MINOR, 0, 100, 0, 0);
+#endif
+}
 static int touch_set_input_dev(void)
 {
 	int retval;

@@ -131,11 +131,7 @@ static int ovt_tcm_fw_update_boot(char *file_name)
 static int ovt_tcm_input_config(struct input_dev *input_dev)
 {
 	//config the input device
-	set_bit(EV_SYN, input_dev->evbit);
-	set_bit(EV_KEY, input_dev->evbit);
-	set_bit(EV_ABS, input_dev->evbit);
-	set_bit(BTN_TOUCH, input_dev->keybit);
-	set_bit(BTN_TOOL_FINGER, input_dev->keybit);
+	ovt_touch_config_input_dev(input_dev);
 	return NO_ERR;
 }
 static int ovt_tcm_irq_bottom_half(struct ts_cmd_node *in_cmd,
@@ -4022,11 +4018,9 @@ static int ovt_tcm_irq_bottom_half(struct ts_cmd_node *in_cmd,
 	struct ts_fingers *info =
 	    &out_cmd->cmd_param.pub_params.algo_param.info;
 
-	out_cmd->command = TS_INPUT_ALGO;
+	out_cmd->command = TS_INVAILD_CMD;
 	out_cmd->cmd_param.pub_params.algo_param.algo_order =
 	    tcm_hcd->ovt_tcm_chip_data->algo_id;
-	TS_LOG_DEBUG("order: %d\n",
-		     out_cmd->cmd_param.pub_params.algo_param.algo_order);
 
 	TS_LOG_INFO("ovt_tcm_irq_bottom_half\n");
 
@@ -4044,6 +4038,7 @@ static int ovt_tcm_irq_bottom_half(struct ts_cmd_node *in_cmd,
 	}
 	if (g_tcm_hcd->in.buf[1] == REPORT_TOUCH) {
 		fill_touch_info_data(info);
+		out_cmd->command = TS_INPUT_ALGO;
 		return 0;
 	}
 exit:
