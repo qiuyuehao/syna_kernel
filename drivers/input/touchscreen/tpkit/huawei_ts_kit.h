@@ -243,11 +243,11 @@ extern u8 g_ts_kit_log_cfg;
 
 #define TS_LOG_INFO(fmt,arg...)		printk("TS_KIT [%s:%d] "fmt"\n",__func__,__LINE__,##arg)
 #define TS_LOG_ERR(fmt,arg...)		printk("/TS_KIT [%s:%d] "fmt"\n",__func__,__LINE__,##arg)
-#define TS_LOG_DEBUG(fmt,arg...)	\
-    do { \
+#define TS_LOG_DEBUG(fmt,arg...)	printk("TS_KIT [%s:%d] "fmt"\n",__func__,__LINE__,##arg)
+/*     do { \
         if (g_ts_kit_log_cfg)	\
             printk("/TS_KIT [%s:%d] "fmt"\n",__func__,__LINE__,##arg); \
-    }while(0)
+    }while(0) */
 
 #define TP_FINGER 				1
 #define TP_STYLUS				2

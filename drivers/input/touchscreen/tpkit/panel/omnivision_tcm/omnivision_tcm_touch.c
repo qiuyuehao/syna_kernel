@@ -662,10 +662,10 @@ int fill_touch_info_data(struct ts_fingers *info)
 				info->fingers[idx].status = status << 6;
 			info->fingers[idx].x = x;
 			info->fingers[idx].y = y;
-			info->fingers[idx].major = wx;
-			info->fingers[idx].minor = wy;
+			info->fingers[idx].major = 10;
+			info->fingers[idx].minor = 10;
 			info->fingers[idx].sg = 0;
-			info->fingers[idx].pressure = z;
+			info->fingers[idx].pressure = 30;
 			LOGE(tcm_hcd->pdev->dev.parent,
 					"Finger %d: x = %d, y = %d, wx=%d, wy=%d, z=%d\n",
 					idx, x, y, wx, wy, z);
@@ -913,6 +913,9 @@ int ovt_touch_config_input_dev(struct input_dev *input_dev)
 	set_bit(EV_ABS, input_dev->evbit);
 	set_bit(BTN_TOUCH, input_dev->keybit);
 	set_bit(BTN_TOOL_FINGER, input_dev->keybit);
+#ifdef INPUT_PROP_DIRECT
+	set_bit(INPUT_PROP_DIRECT, input_dev->propbit);
+#endif
 /* 	input_set_abs_params(input_dev,
 			ABS_MT_POSITION_X, 0, touch_hcd->max_x, 0, 0);
 	input_set_abs_params(input_dev,
@@ -1210,7 +1213,7 @@ int touch_init(struct ovt_tcm_hcd *tcm_hcd)
 				"Failed to set up input reporting\n");
 		goto err_set_input_reporting;
 	}
-
+	touch_free_objects();
 	tcm_hcd->report_touch = touch_report;
 
 	return 0;

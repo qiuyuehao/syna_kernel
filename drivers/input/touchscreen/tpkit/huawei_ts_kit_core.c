@@ -76,7 +76,7 @@ EXPORT_SYMBOL(g_ts_kit_platform_data);
 struct ts_tui_data  tee_tui_data;
 EXPORT_SYMBOL(tee_tui_data);
 #endif
-u8 g_ts_kit_log_cfg = 0;
+u8 g_ts_kit_log_cfg = 1;
 
 static struct ts_cmd_node ping_cmd_buff;
 static struct ts_cmd_node pang_cmd_buff;
@@ -3133,9 +3133,11 @@ related_proc:
             enable_irq(g_ts_kit_platform_data.irq_id);
             break;
         case TS_INPUT_ALGO:
+			TS_LOG_INFO("TS_INPUT_ALGO\n");
             ts_algo_calibrate(proc_cmd, out_cmd);
             break;
         case TS_REPORT_INPUT:
+			TS_LOG_INFO("TS_REPORT_INPUT\n");
             ts_report_input(proc_cmd, out_cmd);
             break;
         case TS_REPORT_PEN:
@@ -3267,11 +3269,11 @@ related_proc:
             break;
     }
 
-    TS_LOG_DEBUG("command :%d process result:%d \n", proc_cmd->command, error);
+    TS_LOG_INFO("command :%d process out command:%d result:%d \n", proc_cmd->command, out_cmd->command, error);
 
     if (out_cmd->command != TS_INVAILD_CMD)
     {
-        TS_LOG_DEBUG("related command :%d  need process\n", out_cmd->command);
+        TS_LOG_INFO("related command :%d  need process\n", out_cmd->command);
         swap(proc_cmd, out_cmd);//ping - pang
         goto related_proc;
     }

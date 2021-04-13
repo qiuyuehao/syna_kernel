@@ -84,7 +84,7 @@ void ts_algo_calibrate(struct ts_cmd_node* in_cmd, struct ts_cmd_node* out_cmd)
         goto out;
     }
 
-    TS_LOG_DEBUG("algo order: %d, algo_size :%d\n", order, algo_size);
+    TS_LOG_INFO("algo order: %d, algo_size :%d\n", order, algo_size);
 
     for (id = 0; id < algo_size; id++)
     {
@@ -106,6 +106,7 @@ void ts_algo_calibrate(struct ts_cmd_node* in_cmd, struct ts_cmd_node* out_cmd)
 out:
     memcpy(&out_cmd->cmd_param.pub_params.report_info, in_finger, sizeof(struct ts_fingers));
     out_cmd->command = TS_REPORT_INPUT;
+    TS_LOG_INFO("out_cmd->command = TS_REPORT_INPUT\n");
 	if(g_ts_kit_platform_data.aft_param.aft_enable_flag)
 	{
 		if(atomic_read(&g_ts_kit_platform_data.fingers_waitq_flag) == AFT_WAITQ_WAIT)
@@ -322,6 +323,7 @@ void ts_report_pen(struct ts_cmd_node* in_cmd, struct ts_cmd_node* out_cmd)
 	//pen or rubber report point
 	ts_report_pen_event(input, pens->tool, pens->tool.pressure, pens->tool.tool_type, pens->tool.pen_inrange_status);
 }
+#define TYPE_B_PROTOCOL 1
 void ts_report_input(struct ts_cmd_node* in_cmd, struct ts_cmd_node* out_cmd)
 {
     struct ts_fingers* finger = NULL;
@@ -360,6 +362,11 @@ void ts_report_input(struct ts_cmd_node* in_cmd, struct ts_cmd_node* out_cmd)
     {
         if (finger->fingers[id].status == 0)
         {
+#ifdef TYPE_B_PROTOCOL
+			input_mt_slot(input_dev, id);
+			input_mt_report_slot_state(input_dev,
+					MT_TOOL_FINGER, 0);
+#endif
             TS_LOG_DEBUG("never touch before: id is %d\n", id);
             continue;
         }
@@ -367,13 +374,22 @@ void ts_report_input(struct ts_cmd_node* in_cmd, struct ts_cmd_node* out_cmd)
         {
 //            if (lcdkit_fps_support_query() && lcdkit_fps_tscall_support_query())
 //                lcdkit_fps_ts_callback();
-            TS_LOG_DEBUG("down: id is %d, finger->fingers[id].pressure = %d, finger->fingers[id].x = %d, finger->fingers[id].y = %d\n",
+            TS_LOG_INFO("down: id is %d, finger->fingers[id].pressure = %d, finger->fingers[id].x = %d, finger->fingers[id].y = %d\n",
                          id, finger->fingers[id].pressure, finger->fingers[id].x, finger->fingers[id].y);
             finger_num++;
+#ifdef TYPE_B_PROTOCOL
+			input_mt_slot(input_dev, id);
+			input_mt_report_slot_state(input_dev,
+					MT_TOOL_FINGER, 1);
+#endif
+            input_report_key(input_dev,
+					BTN_TOUCH, 1);
+			input_report_key(input_dev,
+					BTN_TOOL_FINGER, 1);
             input_report_abs(input_dev, ABS_MT_PRESSURE, finger->fingers[id].pressure);
             input_report_abs(input_dev, ABS_MT_POSITION_X, finger->fingers[id].x);
             input_report_abs(input_dev, ABS_MT_POSITION_Y, finger->fingers[id].y);
-            input_report_abs(input_dev, ABS_MT_TRACKING_ID, id);
+            //input_report_abs(input_dev, ABS_MT_TRACKING_ID, id);
 			if (local_param && local_param->feature_all){
 				if (local_param->sensor_x_width && local_param->sensor_y_width){
 #if ANTI_FALSE_TOUCH_USE_PARAM_MAJOR_MINOR
@@ -415,16 +431,26 @@ void ts_report_input(struct ts_cmd_node* in_cmd, struct ts_cmd_node* out_cmd)
 #endif
 				}
 			}
-            input_mt_sync(input_dev);				//modfiy by mengkun
+#ifndef TYPE_B_PROTOCOL
+			input_mt_sync(input_dev);			//modfiy by mengkun
+#endif
         }
         else if (finger->fingers[id].status == TS_FINGER_RELEASE)
         {
-            TS_LOG_DEBUG("up: id is %d, status = %d\n", id, finger->fingers[id].status);
+            TS_LOG_INFO("up: id is %d, status = %d\n", id, finger->fingers[id].status);
             input_mt_sync(input_dev);	//modfiy by mengkun
         }
     }
-
-    input_report_key(input_dev, BTN_TOUCH, finger_num);
+    if (finger_num == 0) {
+        input_report_key(input_dev,
+				BTN_TOUCH, 0);
+		input_report_key(input_dev,
+				BTN_TOOL_FINGER, 0);
+#ifndef TYPE_B_PROTOCOL
+		input_mt_sync(input_dev);
+#endif
+    }
+    //input_report_key(input_dev, BTN_TOUCH, finger_num);
     input_sync(input_dev);
 
     ts_film_touchplus(finger, finger_num, input_dev);
