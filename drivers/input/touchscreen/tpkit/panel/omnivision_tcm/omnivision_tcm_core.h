@@ -460,6 +460,7 @@ struct ovt_tcm_features {
 } __packed;
 
 struct ovt_tcm_hcd {
+	struct ts_kit_platform_data *ovt_tcm_platform_data;
 	struct ts_kit_device_data *ovt_tcm_chip_data;
 	pid_t isr_pid;
 	atomic_t command_status;

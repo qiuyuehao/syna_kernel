@@ -824,9 +824,19 @@ static int touch_set_input_params(void)
 			ABS_MT_POSITION_X, 0, touch_hcd->max_x, 0, 0);
 	input_set_abs_params(touch_hcd->input_dev,
 			ABS_MT_POSITION_Y, 0, touch_hcd->max_y, 0, 0);
-
+	input_set_abs_params(touch_hcd->input_dev,
+			ABS_X, 0, touch_hcd->max_x, 0, 0);
+	input_set_abs_params(touch_hcd->input_dev,
+			ABS_Y, 0, touch_hcd->max_y, 0, 0);
 	input_mt_init_slots(touch_hcd->input_dev, touch_hcd->max_objects,
 			INPUT_MT_DIRECT);
+	kfree(touch_hcd->prev_status);
+	touch_hcd->prev_status = kzalloc(touch_hcd->max_objects, GFP_KERNEL);
+	if (!touch_hcd->prev_status) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to allocate memory for touch_hcd->prev_status\n");
+		return -ENOMEM;
+	}
 
 	touch_hcd->input_params.max_x = touch_hcd->max_x;
 	touch_hcd->input_params.max_y = touch_hcd->max_y;
@@ -835,13 +845,6 @@ static int touch_set_input_params(void)
 	if (touch_hcd->max_objects == 0)
 		return 0;
 
-	kfree(touch_hcd->prev_status);
-	touch_hcd->prev_status = kzalloc(touch_hcd->max_objects, GFP_KERNEL);
-	if (!touch_hcd->prev_status) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to allocate memory for touch_hcd->prev_status\n");
-		return -ENOMEM;
-	}
 
 	return 0;
 }
@@ -929,16 +932,17 @@ static int touch_set_input_dev(void)
 {
 	int retval;
 	struct ovt_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd;
-
-	touch_hcd->input_dev = input_allocate_device();
+	return 0;
+	//touch_hcd->input_dev = input_allocate_device();
+	//touch_hcd->input_dev = g_ts_kit_platform_data.input_dev;
 	if (touch_hcd->input_dev == NULL) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to allocate input device\n");
 		return -ENODEV;
 	}
 
-	touch_hcd->input_dev->name = TOUCH_INPUT_NAME;
-	touch_hcd->input_dev->phys = TOUCH_INPUT_PHYS_PATH;
+	//touch_hcd->input_dev->name = TOUCH_INPUT_NAME;
+	//touch_hcd->input_dev->phys = TOUCH_INPUT_PHYS_PATH;
 	touch_hcd->input_dev->id.product = OMNIVISION_TCM_ID_PRODUCT;
 	touch_hcd->input_dev->id.version = OMNIVISION_TCM_ID_VERSION;
 	touch_hcd->input_dev->dev.parent = tcm_hcd->pdev->dev.parent;
@@ -1110,6 +1114,7 @@ static int touch_check_input_params(void)
 static int touch_set_input_reporting(void)
 {
 	int retval;
+	int size;
 	struct ovt_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd;
 
 	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) ||
@@ -1140,8 +1145,17 @@ static int touch_set_input_reporting(void)
 				"Failed to get input parameters\n");
 		goto exit;
 	}
-
-	retval = touch_check_input_params();
+	touch_set_input_params();
+	kfree(touch_hcd->touch_data.object_data);
+	size = sizeof(*touch_hcd->touch_data.object_data);
+	size *= touch_hcd->max_objects;
+	touch_hcd->touch_data.object_data = kzalloc(size, GFP_KERNEL);
+	if (!touch_hcd->touch_data.object_data) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to allocate memory for touch_hcd->touch_data.object_data\n");
+		goto exit;;
+	}
+/* 	retval = touch_check_input_params();
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to check input parameters\n");
@@ -1162,7 +1176,7 @@ static int touch_set_input_reporting(void)
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to set up input device\n");
 		goto exit;
-	}
+	} */
 
 exit:
 	mutex_unlock(&touch_hcd->report_mutex);
@@ -1176,20 +1190,19 @@ exit:
 int touch_init(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int retval;
-
-	touch_hcd = kzalloc(sizeof(*touch_hcd), GFP_KERNEL);
-	if (!touch_hcd) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to allocate memory for touch_hcd\n");
-		return -ENOMEM;
+	if (touch_hcd == NULL) {
+		touch_hcd = kzalloc(sizeof(*touch_hcd), GFP_KERNEL);
+		if (!touch_hcd) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to allocate memory for touch_hcd\n");
+			return -ENOMEM;
+		}
+		touch_hcd->tcm_hcd = tcm_hcd;
+		mutex_init(&touch_hcd->report_mutex);
+		INIT_BUFFER(touch_hcd->out, false);
+		INIT_BUFFER(touch_hcd->resp, false);
+		touch_hcd->input_dev = tcm_hcd->ovt_tcm_platform_data->input_dev;
 	}
-
-	touch_hcd->tcm_hcd = tcm_hcd;
-
-	mutex_init(&touch_hcd->report_mutex);
-
-	INIT_BUFFER(touch_hcd->out, false);
-	INIT_BUFFER(touch_hcd->resp, false);
 
 	retval = touch_set_input_reporting();
 	if (retval < 0) {
