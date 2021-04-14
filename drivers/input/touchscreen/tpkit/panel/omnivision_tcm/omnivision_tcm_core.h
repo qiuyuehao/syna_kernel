@@ -75,7 +75,7 @@ struct ovt_tcm_board_data {
 #define OMNIVISION_TCM_ID_VERSION 0x0300
 #define OMNIVISION_TCM_ID_SUBVERSION 0
 
-#define PLATFORM_DRIVER_NAME "omnivision_tcm"
+#define PLATFORM_DRIVER_NAME "ovt_tcm_platform_device_TS_KIT"
 
 #define TOUCH_INPUT_NAME "omnivision_tcm_touch"
 #define TOUCH_INPUT_PHYS_PATH "omnivision_tcm/touch_input"
@@ -569,7 +569,7 @@ struct ovt_tcm_module_handler {
 	struct list_head link;
 	struct ovt_tcm_module_cb *mod_cb;
 };
-extern int ovt_touch_config_input_dev(struct input_dev *input_dev);
+extern void ovt_touch_config_input_dev(struct input_dev *input_dev);
 struct ovt_tcm_module_pool {
 	bool initialized;
 	bool queue_work;
@@ -599,10 +599,12 @@ struct ovt_tcm_hw_interface {
 
 extern struct ovt_tcm_hw_interface hw_if;
 extern int ovt_tcm_spi_probe(struct spi_device *spi);
-extern struct platform_device *ovt_tcm_spi_device;
+extern struct platform_device *ovt_tcm_spi_platform_device;
 extern int zeroflash_init(struct ovt_tcm_hcd *tcm_hcd);
 extern int fill_touch_info_data(struct ts_fingers *info);
 extern int zeroflash_do_hostdownload(struct ovt_tcm_hcd *tcm_hcd);
+extern void ovt_tcm_simple_hw_reset(struct ovt_tcm_hcd *tcm_hcd);
+
 typedef unsigned char uint8;
 typedef char int8;
 typedef unsigned short uint16;

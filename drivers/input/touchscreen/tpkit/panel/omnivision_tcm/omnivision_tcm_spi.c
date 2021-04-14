@@ -41,7 +41,7 @@ static struct ovt_tcm_bus_io bus_io;
 
 struct ovt_tcm_hw_interface hw_if;
 
-struct platform_device *ovt_tcm_spi_device;
+struct platform_device *ovt_tcm_spi_platform_device;
 
 #ifdef CONFIG_OF
 static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
@@ -49,7 +49,7 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 	int retval;
 	u32 value;
 	struct property *prop;
-	struct device_node *np = g_tcm_hcd->ovt_tcm_chip_data->cnode;
+	struct device_node *np = dev->of_node;
 	const char *name;
 
 	prop = of_find_property(np, "omnivision,irq-gpio", NULL);
@@ -573,8 +573,8 @@ int ovt_tcm_spi_probe(struct spi_device *spi)
 		return -EIO;
 	}
 
-	ovt_tcm_spi_device = platform_device_alloc(PLATFORM_DRIVER_NAME, 0);
-	if (!ovt_tcm_spi_device) {
+	ovt_tcm_spi_platform_device = platform_device_alloc(PLATFORM_DRIVER_NAME, 0);
+	if (!ovt_tcm_spi_platform_device) {
 		LOGE(&spi->dev,
 				"Failed to allocate platform device\n");
 		return -ENOMEM;
@@ -616,7 +616,7 @@ int ovt_tcm_spi_probe(struct spi_device *spi)
 	hw_if.bus_io = &bus_io;
 
 	spi->bits_per_word = 8;
-
+	dev_set_name(&(spi->dev), "ovt_tcm_spi_device_TS_KIT");
 	retval = spi_setup(spi);
 	if (retval < 0) {
 		LOGE(&spi->dev,
@@ -624,10 +624,10 @@ int ovt_tcm_spi_probe(struct spi_device *spi)
 		return retval;
 	}
 
-	ovt_tcm_spi_device->dev.parent = &spi->dev;
-	ovt_tcm_spi_device->dev.platform_data = &hw_if;
+	ovt_tcm_spi_platform_device->dev.parent = &spi->dev;
+	ovt_tcm_spi_platform_device->dev.platform_data = &hw_if;
 
-	retval = platform_device_add(ovt_tcm_spi_device);
+	retval = platform_device_add(ovt_tcm_spi_platform_device);
 	if (retval < 0) {
 		LOGE(&spi->dev,
 				"Failed to add platform device\n");

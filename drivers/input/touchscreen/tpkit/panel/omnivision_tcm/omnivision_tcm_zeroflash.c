@@ -269,6 +269,7 @@ static int zeroflash_check_uboot(void)
 	int retval;
 	unsigned char fn_number;
 	unsigned int retry = 3;
+	struct rmi_f35_data data;
 	struct rmi_f35_query query;
 	struct rmi_pdt_entry p_entry;
 	struct ovt_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
@@ -290,25 +291,16 @@ re_check:
 
 	if (fn_number != UBL_FN_NUMBER) {
 		if (retry--) {
-			//hard reset TP here?
-			const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
-			if (bdata->tpio_reset_gpio >= 0) {
-				gpio_set_value(bdata->tpio_reset_gpio, bdata->reset_on_state);
-				msleep(bdata->reset_active_ms);
-				gpio_set_value(bdata->tpio_reset_gpio, !bdata->reset_on_state);
-				mdelay(TP_RESET_TO_HDL_DELAY_MS);
-			}
+			ovt_tcm_simple_hw_reset(tcm_hcd);
 			goto re_check;
 		}
-			
-
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to find F$35\n");
 		return -ENODEV;
 	}
 
-	if (zeroflash_hcd->f35_ready)
-		return 0;
+/* 	if (zeroflash_hcd->f35_ready)
+		return 0; */
 
 	retval = ovt_tcm_rmi_read(tcm_hcd,
 			PDT_START_ADDR,
@@ -346,7 +338,29 @@ re_check:
 		return -ENODEV;
 	}
 
-	return 0;
+	retval = ovt_tcm_rmi_read(tcm_hcd,
+			zeroflash_hcd->f35_addr.data_base,
+			(unsigned char *)&data,
+			sizeof(data));
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to read F$35 data\n");
+		goto exit;
+	}
+
+	if (data.error_code != REQUESTING_FIRMWARE) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Microbootloader error code = 0x%02x\n",
+				data.error_code);
+		ovt_tcm_simple_hw_reset(tcm_hcd);
+		if(retry--) {
+			goto re_check;
+		}
+		retval = -EINVAL;
+		goto exit;
+	}
+exit:
+	return retval;
 }
 
 static int zeroflash_parse_fw_image(void)
@@ -925,7 +939,7 @@ unlock_out:
 	return retval;
 }
 
-int zeroflash_download_config_work(void)
+int zeroflash_download_config_directly(void)
 {
 	int retval;
 	struct ovt_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
@@ -934,7 +948,7 @@ int zeroflash_download_config_work(void)
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to get firmware image\n");
-		return;
+		return retval;
 	}
 
 	LOGN(tcm_hcd->pdev->dev.parent,
@@ -946,7 +960,7 @@ int zeroflash_download_config_work(void)
 			atomic_set(&tcm_hcd->host_downloading, 0);
 			LOGE(tcm_hcd->pdev->dev.parent,
 					"Failed to download application config, abort\n");
-			return;
+			return retval;
 		}
 		goto exit;
 	}
@@ -957,7 +971,7 @@ int zeroflash_download_config_work(void)
 			atomic_set(&tcm_hcd->host_downloading, 0);
 			LOGE(tcm_hcd->pdev->dev.parent,
 					"Failed to download display config, abort\n");
-			return;
+			return retval;
 		}
 		goto exit;
 	}
@@ -970,7 +984,7 @@ int zeroflash_download_config_work(void)
 			atomic_set(&tcm_hcd->host_downloading, 0);
 			LOGE(tcm_hcd->pdev->dev.parent,
 					"Failed to download open_short config, abort\n");
-			return;
+			return retval;
 		}
 		goto exit;
 	}
@@ -980,9 +994,9 @@ exit:
 			"End of config download\n");
 
     if (tcm_hcd->ovt_tcm_driver_removing == 1)
-        return;
+        return retval;
 
-	return;
+	return retval;
 }
 
 static int zeroflash_download_app_fw(void)
@@ -1068,7 +1082,7 @@ static int zeroflash_download_app_fw(void)
 	UNLOCK_BUFFER(zeroflash_hcd->out);
 
 	LOGN(tcm_hcd->pdev->dev.parent,
-			"Application firmware downloaded and wait identify report\n");
+			"Application firmware downloaded and fw should return identify report next\n");
 
 	return 0;
 }
@@ -1077,10 +1091,8 @@ static int zeroflash_download_app_fw(void)
 int zeroflash_do_f35_firmware_download(void)
 {
 	int retval;
-	struct rmi_f35_data data;
 	struct ovt_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
-	unsigned int retry_count = 0;
-	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
+	unsigned int retry_count = 3;
 
 retry_download:
 	LOGN(tcm_hcd->pdev->dev.parent,
@@ -1090,42 +1102,10 @@ retry_download:
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to find valid uboot\n");
-		gpio_set_value(bdata->reset_gpio, 0);
-		msleep(5);
-		gpio_set_value(bdata->reset_gpio, 1);        
-		msleep(5);
 		goto exit;
 	}
 
 	atomic_set(&tcm_hcd->host_downloading, 1);
-
-	retval = ovt_tcm_rmi_read(tcm_hcd,
-			zeroflash_hcd->f35_addr.data_base,
-			(unsigned char *)&data,
-			sizeof(data));
-	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to read F$35 data\n");
-		goto exit;
-	}
-
-	if (data.error_code != REQUESTING_FIRMWARE) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Microbootloader error code = 0x%02x\n",
-				data.error_code);
-		if (data.error_code != CHECKSUM_FAILURE) {
-			gpio_set_value(bdata->reset_gpio, 0);
-			msleep(5);
-			gpio_set_value(bdata->reset_gpio, 1);        
-			msleep(5);
-			retval = -EIO;
-			goto exit;
-		} else {
-			retry_count++;
-		}
-	} else {
-		retry_count = 0;
-	}
 
 	retval = zeroflash_get_fw_image();
 	if (retval < 0) {
@@ -1148,30 +1128,22 @@ retry_download:
 	{
 
 		retval = tcm_hcd->read_message(tcm_hcd,NULL, 0);
-		if (retval >= 0) {
+		if (retval < 0) {
+			LOGN(tcm_hcd->pdev->dev.parent,
+				"fail of firmware download\n");
+			if (retry_count--) {
+				ovt_tcm_simple_hw_reset(tcm_hcd);
+				goto retry_download;
+			}
+			goto exit;
+		} else {
 			if (tcm_hcd->in.buf[1] == REPORT_IDENTIFY) {
 				LOGN(tcm_hcd->pdev->dev.parent,
 					"success of firmware download\n");
 			}
 			retval = 0;
-		} else {
-				LOGN(tcm_hcd->pdev->dev.parent,
-					"fail of firmware download\n");
-				if (retry_count >= 10) {
-					goto exit;
-				}
-				gpio_set_value(bdata->reset_gpio, 0);
-				msleep(5);
-				gpio_set_value(bdata->reset_gpio, 1);        
-				msleep(5);
-				retry_count++;
-				goto retry_download;
-				retval = -1;			
 		}
 	}
-	LOGN(tcm_hcd->pdev->dev.parent,
-			"End of firmware download\n");
-
 exit:
 	return retval;
 }
@@ -1281,7 +1253,7 @@ exit:
 	return retval;
 }
 
-int zeroflash_do_config_download(void)
+int zeroflash_do_config_download_entry(void)
 {
 	int retval = 0;
 	struct ovt_tcm_hcd *tcm_hcd;
@@ -1310,13 +1282,18 @@ down_load_config:
 			if (!fw_status->need_app_config && !fw_status->need_disp_config) {
 				return 0;
 			} else {
-				zeroflash_download_config_work();
+				retval = zeroflash_download_config_directly();
+				if (retval < 0) {
+					return retval;
+				}
 				goto down_load_config;
 			}
 		} else {
 			if (tcm_hcd->in.buf[1] == STATUS_IDLE) {
 				return 0;
-			}	
+			} else {
+				return -EINVAL;
+			}
 		}
 	} else {
 		return retval;
@@ -1348,7 +1325,7 @@ int zeroflash_init(struct ovt_tcm_hcd *tcm_hcd)
 /* 	zeroflash_hcd->workqueue =
 			create_singlethread_workqueue("ovt_tcm_zeroflash");
 	INIT_WORK(&zeroflash_hcd->config_work,
-			zeroflash_download_config_work); */
+			zeroflash_download_config_directly); */
 
 /* 	if (ENABLE_SYS_ZEROFLASH == false)
 		goto init_finished;
@@ -1404,16 +1381,19 @@ int zeroflash_do_hostdownload(struct ovt_tcm_hcd *tcm_hcd)
 		case TYPE_ROMBOOT:
 			retval = zeroflash_do_romboot_firmware_download();
 			break;
+		case TYPE_FLASH:
+			return 0;
 		default:
-			return 1;
+			return -EINVAL;
 	}
 	if (retval < 0) {
-		return 1;//error
+		return -EINVAL;//error
 	}
+
 	//download config
-	retval = zeroflash_do_config_download();
+	retval = zeroflash_do_config_download_entry();
 	if (retval < 0) {
-		return 1;
+		return retval;
 	}
 	return 0;
 }

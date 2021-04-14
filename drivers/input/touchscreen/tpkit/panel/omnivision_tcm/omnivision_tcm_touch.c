@@ -906,7 +906,7 @@ static int touch_get_input_params(void)
  * input events to be reported, and register the input device with the input
  * subsystem.
  */
-int ovt_touch_config_input_dev(struct input_dev *input_dev)
+void ovt_touch_config_input_dev(struct input_dev *input_dev)
 {
 	set_bit(EV_SYN, input_dev->evbit);
 	set_bit(EV_KEY, input_dev->evbit);
@@ -916,6 +916,8 @@ int ovt_touch_config_input_dev(struct input_dev *input_dev)
 #ifdef INPUT_PROP_DIRECT
 	set_bit(INPUT_PROP_DIRECT, input_dev->propbit);
 #endif
+
+	// the max value is from app info
 /* 	input_set_abs_params(input_dev,
 			ABS_MT_POSITION_X, 0, touch_hcd->max_x, 0, 0);
 	input_set_abs_params(input_dev,

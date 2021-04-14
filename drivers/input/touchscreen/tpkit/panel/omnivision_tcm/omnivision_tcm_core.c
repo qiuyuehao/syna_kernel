@@ -86,51 +86,65 @@ static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd);
 
 static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 {
+	//after module init register to huawei ts kit, will call this detect, if return NO_ERR, will wakeup ts init task
 	int retval = 0;
 	g_tcm_hcd->ovt_tcm_platform_data = data;
 	g_tcm_hcd->ovt_tcm_chip_data->ts_platform_data = data;
+
+	//g_tcm_hcd->ovt_tcm_chip_data->cnode is customer chip dtsi cnode, like synaptics, goodix or omnivision, add this for spi device probe
 	data->spi->dev.of_node = g_tcm_hcd->ovt_tcm_chip_data->cnode;
 
 	retval = ovt_tcm_spi_probe(data->spi);
 	if (retval < 0) {
 		TS_LOG_ERR("ovt_tcm_chip_detect fail to do spi probe\n");
-		return 1;
+		return RESULT_ERR;
 	}
 
-	retval = ovt_tcm_probe(ovt_tcm_spi_device);
-	zeroflash_init(g_tcm_hcd);
-	//should power on? do the probe in origin core.c
+	retval = ovt_tcm_probe(ovt_tcm_spi_platform_device);
+	if (retval < 0) {
+		TS_LOG_ERR("ovt_tcm_chip_detect fail to do ovt_tcm_probe\n");
+		return RESULT_ERR;		
+	}
+
+	retval = zeroflash_init(g_tcm_hcd);
+	if (retval < 0) {
+		TS_LOG_ERR("ovt_tcm_chip_detect fail to do zeroflash_init\n");
+		return RESULT_ERR;		
+	}
+	//already power on in ovt_tcm_probe
 	retval = ovt_tcm_sensor_detection(g_tcm_hcd);
 	if (retval < 0) {
 		TS_LOG_ERR("fail to do sensor detection\n");
-		return 1;
+		return RESULT_ERR;
 	} else {
-		return 0;
+		return NO_ERR;
 	}
 }
 static int ovt_tcm_init_chip(void)
 {
 	int retval = NO_ERR;
-	// no need to update or do hostdown load here,like probe function
-	//irq not register here now
+
+	//irq not register here now, called by ts init task, after detect ok, before ovt_tcm_fw_update_boot().
 	retval = zeroflash_do_hostdownload(g_tcm_hcd);
-	if (retval == 0) {
+	if (retval >= 0) {
 		retval = g_tcm_hcd->identify(g_tcm_hcd, true);
 		retval = touch_init(g_tcm_hcd);
+		return NO_ERR;
+	} else {
+		//should return error result here, but force to no error for dragon board
+		return NO_ERR;
 	}
-		
-		
-	return retval;
+	
 }
 static int ovt_tcm_fw_update_boot(char *file_name)
 {
 	//irq register now
-	return 0;
+	return NO_ERR;
 }
 
 static int ovt_tcm_input_config(struct input_dev *input_dev)
 {
-	//config the input device
+	//after ovt_tcm_init_chip, before ovt_tcm_fw_update_boot
 	ovt_touch_config_input_dev(input_dev);
 	return NO_ERR;
 }
@@ -2326,8 +2340,6 @@ static int ovt_tcm_get_regulator(struct ovt_tcm_hcd *tcm_hcd, bool get)
 		retval = 0;
 		goto regulator_put;
 	}
-	LOGE(tcm_hcd->pdev->dev.parent,
-					"bus reg name:%s, power reg name:%s\n", bdata->bus_reg_name, bdata->pwr_reg_name);
 	if (bdata->bus_reg_name != NULL && *bdata->bus_reg_name != 0) {
 		tcm_hcd->bus_reg = regulator_get(tcm_hcd->pdev->dev.parent,
 				bdata->bus_reg_name);
@@ -3631,14 +3643,20 @@ static int ovt_tcm_fb_notifier_cb(struct notifier_block *nb,
 	return 0;
 }
 #endif
-
+void ovt_tcm_simple_hw_reset(struct ovt_tcm_hcd *tcm_hcd)
+{
+	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;        
+	gpio_set_value(bdata->reset_gpio, 0);
+	msleep(5);
+	gpio_set_value(bdata->reset_gpio, 1);        
+	msleep(5);
+}
 static int ovt_tcm_check_f35(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int retval;
 	unsigned char fn_number;
 	int retry = 0;
 	const int retry_max = 10;
-    const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
 f35_boot_recheck:
 			retval = ovt_tcm_rmi_read(tcm_hcd,
@@ -3661,11 +3679,7 @@ f35_boot_recheck:
 							"Failed to find F$35, try_times = %d\n",
 							retry);
 				if (retry < retry_max) {
-					msleep(100);                   
-                    gpio_set_value(bdata->reset_gpio, 0);
-                    msleep(5);
-                    gpio_set_value(bdata->reset_gpio, 1);        
-                    msleep(5);
+					ovt_tcm_simple_hw_reset(tcm_hcd);
 					retry++;
 					goto f35_boot_recheck;
 				}
@@ -3700,7 +3714,7 @@ static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd)
 			if (retval < 0) {
 				LOGE(tcm_hcd->pdev->dev.parent,
 					"Failed to read TCM message, default to F35\n");
-				retval = 0;
+				retval = 0; // force to F35 here, because on dragon board, when run ovt_tcm_sensor_detection, the display still off, maybe dragon doesn't have little kernel code.
 				//return retval;
 			}
 			tcm_hcd->in_hdl_mode = true;
@@ -4072,10 +4086,11 @@ static struct platform_driver ovt_tcm_driver = {
 	.remove = ovt_tcm_remove,
 	.shutdown = ovt_tcm_shutdown,
 };
+
 #define OMNIVISION_VENDER_NAME "omnivision_tcm"
 static int __init ovt_tcm_module_init(void)
 {
-	int retval = NO_ERR;    
+	int retval = 0;    
 	bool found = false;
 	struct device_node* child = NULL;
 	struct device_node* root = NULL;
@@ -4084,7 +4099,7 @@ static int __init ovt_tcm_module_init(void)
 	
 	root = of_find_compatible_node(NULL, NULL, "huawei,ts_kit");
 	if (!root) {
-		TS_LOG_ERR("huawei_ts, find_compatible_node huawei,ts_kit error\n");
+		TS_LOG_ERR("can not find_compatible_node huawei,ts_kit error\n");
 		retval = -EINVAL;
 		goto out;
 	}
@@ -4092,14 +4107,14 @@ static int __init ovt_tcm_module_init(void)
 	for_each_child_of_node(root, child)
 	{
 		if (of_device_is_compatible(child, OMNIVISION_VENDER_NAME)) {
-			TS_LOG_INFO("omnivision dtsi node found\n");
+			TS_LOG_INFO("%s dtsi node in huawei,ts_kit found\n", OMNIVISION_VENDER_NAME);
 			found = true;
 			break;
 		} 
 	}
 
 	if (!found) {
-		TS_LOG_ERR(" not found chip omnivision child node  !\n");
+		TS_LOG_ERR(" not found chip omnivision child node in huawei ts kit  !\n");
 		retval = -EINVAL;
 		goto out;
 	}
@@ -4114,7 +4129,7 @@ static int __init ovt_tcm_module_init(void)
 
 	tcm_hcd->ovt_tcm_chip_data = kzalloc(sizeof(struct ts_kit_device_data), GFP_KERNEL);
 	if (!tcm_hcd->ovt_tcm_chip_data) {
-		TS_LOG_ERR("Failed to allocate memory for tcm_hcd\n");
+		TS_LOG_ERR("Failed to allocate memory for tcm_hcd chip data\n");
 		return -ENOMEM;
 	}
 
