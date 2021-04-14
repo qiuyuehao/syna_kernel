@@ -830,13 +830,6 @@ static int touch_set_input_params(void)
 			ABS_Y, 0, touch_hcd->max_y, 0, 0);
 	input_mt_init_slots(touch_hcd->input_dev, touch_hcd->max_objects,
 			INPUT_MT_DIRECT);
-	kfree(touch_hcd->prev_status);
-	touch_hcd->prev_status = kzalloc(touch_hcd->max_objects, GFP_KERNEL);
-	if (!touch_hcd->prev_status) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to allocate memory for touch_hcd->prev_status\n");
-		return -ENOMEM;
-	}
 
 	touch_hcd->input_params.max_x = touch_hcd->max_x;
 	touch_hcd->input_params.max_y = touch_hcd->max_y;
@@ -1127,15 +1120,12 @@ static int touch_set_input_reporting(void)
 		LOGN(tcm_hcd->pdev->dev.parent,
 				"Identifying mode = 0x%02x\n",
 				tcm_hcd->id_info.mode);
-
-		return 0;
+		return -EINVAL;
 	}
 
 	touch_hcd->init_touch_ok = false;
 
-	touch_free_objects();
-
-	mutex_lock(&touch_hcd->report_mutex);
+/* 	mutex_lock(&touch_hcd->report_mutex); */
 
 	retval = touch_set_report_config();
 	if (retval < 0) {
@@ -1150,7 +1140,17 @@ static int touch_set_input_reporting(void)
 				"Failed to get input parameters\n");
 		goto exit;
 	}
+
 	touch_set_input_params();
+
+	kfree(touch_hcd->prev_status);
+	touch_hcd->prev_status = kzalloc(touch_hcd->max_objects, GFP_KERNEL);
+	if (!touch_hcd->prev_status) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to allocate memory for touch_hcd->prev_status\n");
+		return -ENOMEM;
+	}
+
 	kfree(touch_hcd->touch_data.object_data);
 	size = sizeof(*touch_hcd->touch_data.object_data);
 	size *= touch_hcd->max_objects;
@@ -1158,7 +1158,7 @@ static int touch_set_input_reporting(void)
 	if (!touch_hcd->touch_data.object_data) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to allocate memory for touch_hcd->touch_data.object_data\n");
-		goto exit;;
+		return -ENOMEM;
 	}
 /* 	retval = touch_check_input_params();
 	if (retval < 0) {
@@ -1184,7 +1184,7 @@ static int touch_set_input_reporting(void)
 	} */
 
 exit:
-	mutex_unlock(&touch_hcd->report_mutex);
+/* 	mutex_unlock(&touch_hcd->report_mutex); */
 
 	touch_hcd->init_touch_ok = retval < 0 ? false : true;
 
@@ -1194,7 +1194,7 @@ exit:
 
 int touch_init(struct ovt_tcm_hcd *tcm_hcd)
 {
-	int retval;
+	int retval = 0;
 	if (touch_hcd == NULL) {
 		touch_hcd = kzalloc(sizeof(*touch_hcd), GFP_KERNEL);
 		if (!touch_hcd) {
@@ -1213,23 +1213,11 @@ int touch_init(struct ovt_tcm_hcd *tcm_hcd)
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to set up input reporting\n");
-		goto err_set_input_reporting;
+		goto exit;
 	}
 	touch_free_objects();
 	tcm_hcd->report_touch = touch_report;
-
-	return 0;
-
-err_set_input_reporting:
-	kfree(touch_hcd->touch_data.object_data);
-	kfree(touch_hcd->prev_status);
-
-	RELEASE_BUFFER(touch_hcd->resp);
-	RELEASE_BUFFER(touch_hcd->out);
-
-	kfree(touch_hcd);
-	touch_hcd = NULL;
-
+exit:
 	return retval;
 }
 

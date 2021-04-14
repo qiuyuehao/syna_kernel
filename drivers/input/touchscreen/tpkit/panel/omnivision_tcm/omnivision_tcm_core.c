@@ -155,7 +155,6 @@ struct ts_device_ops ts_kit_ovt_tcm_ops = {
 	.chip_init = ovt_tcm_init_chip,
 	//.chip_parse_config = ovt_tcm_parse_dts, did not called by ts kit?
 	.chip_input_config = ovt_tcm_input_config,
-
 	.chip_irq_top_half = NULL,
 	.chip_irq_bottom_half = ovt_tcm_irq_bottom_half,
 	.chip_fw_update_boot = ovt_tcm_fw_update_boot,  // host download on boot
@@ -4032,7 +4031,7 @@ static int ovt_tcm_irq_bottom_half(struct ts_cmd_node *in_cmd,
 	struct ts_fingers *info =
 	    &out_cmd->cmd_param.pub_params.algo_param.info;
 
-	out_cmd->command = TS_INVAILD_CMD;
+	out_cmd->command = TS_INVAILD_CMD;  //default to invalid cmd
 	out_cmd->cmd_param.pub_params.algo_param.algo_order =
 	    tcm_hcd->ovt_tcm_chip_data->algo_id;
 
@@ -4040,14 +4039,12 @@ static int ovt_tcm_irq_bottom_half(struct ts_cmd_node *in_cmd,
 
 	retval = g_tcm_hcd->read_message(g_tcm_hcd, NULL, 0);
 	if (retval < 0) {
-		int retval = 0;
-		msleep(100);
+		msleep(500);
 		retval = zeroflash_do_hostdownload(g_tcm_hcd);
-		if (retval == 1) { //error
-			goto exit;
+		if (retval >= 0) { //error
+			retval = g_tcm_hcd->identify(g_tcm_hcd, true);
+			retval = touch_init(g_tcm_hcd);
 		}
-		retval = g_tcm_hcd->identify(g_tcm_hcd, true);
-		retval = touch_init(g_tcm_hcd);
 		goto exit;
 	}
 	if (g_tcm_hcd->in.buf[1] == REPORT_TOUCH) {
