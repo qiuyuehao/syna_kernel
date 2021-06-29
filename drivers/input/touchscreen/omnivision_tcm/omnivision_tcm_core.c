@@ -56,7 +56,7 @@
 
 #define ENABLE_IRQ_DELAY_MS 20
 
-#define FALL_BACK_ON_POLLING
+//#define FALL_BACK_ON_POLLING
 
 #define POLLING_DELAY_MS 5
 
@@ -1652,7 +1652,7 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 		chunk_space = tcm_hcd->wr_chunk_size - 1;
 
 	if (is_romboot_hdl) {
-		if (WR_CHUNK_SIZE) {
+		if (0) { //force to remaining_length when romboot hdl
 			chunk_space = WR_CHUNK_SIZE - 1;
 			chunk_space = chunk_space -
 					(chunk_space % ROMBOOT_DOWNLOAD_UNIT);

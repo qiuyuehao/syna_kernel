@@ -92,6 +92,7 @@ static void device_capture_touch_report(unsigned int count)
 
 	switch (id) {
 	case REPORT_TOUCH:
+		device_hcd->report.data_length = 0;
 		if (count >= 4) {
 			remaining_size = le2_to_uint(&data[2]);
 		} else {
@@ -253,7 +254,7 @@ static int device_ioctl(struct inode *inp, struct file *filp, unsigned int cmd,
 		break;
 	case DEVICE_IOC_IRQ:
 		if (arg == 0)
-			retval = tcm_hcd->enable_irq(tcm_hcd, false, false);
+			retval = tcm_hcd->enable_irq(tcm_hcd, false, true);
 		else if (arg == 1)
 			retval = tcm_hcd->enable_irq(tcm_hcd, true, NULL);
 		break;

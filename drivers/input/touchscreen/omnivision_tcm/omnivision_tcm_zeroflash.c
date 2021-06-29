@@ -563,14 +563,13 @@ static void zeroflash_download_config(void)
 			&& !(fw_status->need_open_short_config
 			&& zeroflash_hcd->has_open_short_config)
 			&& (atomic_read(&tcm_hcd->host_downloading))) {
-
+		atomic_set(&tcm_hcd->host_downloading, 0);
 		if (atomic_read(&tcm_hcd->helper.task) == HELP_NONE) {
 			atomic_set(&tcm_hcd->helper.task,
 					HELP_SEND_REINIT_NOTIFICATION);
 			queue_work(tcm_hcd->helper.workqueue,
 					&tcm_hcd->helper.work);
 		}
-		atomic_set(&tcm_hcd->host_downloading, 0);
 		return;
 	}
 

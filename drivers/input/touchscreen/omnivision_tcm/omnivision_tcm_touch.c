@@ -34,7 +34,7 @@
 
 #define TYPE_B_PROTOCOL
 
-#define USE_DEFAULT_TOUCH_REPORT_CONFIG
+//#define USE_DEFAULT_TOUCH_REPORT_CONFIG
 
 #define TOUCH_REPORT_CONFIG_SIZE 128
 
@@ -957,6 +957,12 @@ static int touch_set_report_config(void)
 	touch_hcd->out.buf[idx++] = 12;
 	touch_hcd->out.buf[idx++] = TOUCH_OBJECT_N_Y_POSITION;
 	touch_hcd->out.buf[idx++] = 12;
+	touch_hcd->out.buf[idx++] = TOUCH_OBJECT_N_X_WIDTH;
+	touch_hcd->out.buf[idx++] = 16;
+	touch_hcd->out.buf[idx++] = TOUCH_OBJECT_N_Y_WIDTH;
+	touch_hcd->out.buf[idx++] = 16;
+	touch_hcd->out.buf[idx++] = TOUCH_OBJECT_N_Z;
+	touch_hcd->out.buf[idx++] = 16;	
 	touch_hcd->out.buf[idx++] = TOUCH_FOREACH_END;
 	touch_hcd->out.buf[idx++] = TOUCH_END;
 
