@@ -542,7 +542,7 @@ static int zeroflash_get_fw_image(void)
 
 	if (zeroflash_hcd->fw_entry != NULL)
 		return 0;
-
+	LOGN(tcm_hcd->pdev->dev.parent,"zeroflash_get_fw_image\n");
 	if (zeroflash_hcd->image == NULL) {
 		retval = request_firmware(&zeroflash_hcd->fw_entry,
 				FW_IMAGE_NAME,
@@ -555,7 +555,7 @@ static int zeroflash_get_fw_image(void)
 		}
 	}
 
-	LOGD(tcm_hcd->pdev->dev.parent,
+	LOGN(tcm_hcd->pdev->dev.parent,
 			"Firmware image size = %d\n",
 			(unsigned int)zeroflash_hcd->fw_entry->size);
 
@@ -1175,14 +1175,14 @@ int zeroflash_do_romboot_firmware_download(void)
 	}
 
 	pm_stay_awake(&tcm_hcd->pdev->dev);
-
+	LOGN(tcm_hcd->pdev->dev.parent,"tcm mode = %d\n",tcm_hcd->id_info.mode);
 	if (tcm_hcd->id_info.mode != MODE_ROMBOOTLOADER) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Not in romboot mode\n");
 		atomic_set(&tcm_hcd->host_downloading, 0);
 		goto exit;
 	}
-
+	LOGN(tcm_hcd->pdev->dev.parent,"about to request firmware\n");
 	retval = zeroflash_get_fw_image();
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -1192,7 +1192,7 @@ int zeroflash_do_romboot_firmware_download(void)
 
 	image_size = (unsigned int)zeroflash_hcd->image_info.app_firmware.size;
 
-	LOGD(tcm_hcd->pdev->dev.parent,
+	LOGN(tcm_hcd->pdev->dev.parent,
 			"image_size = %d\n",
 			image_size);
 

@@ -1080,23 +1080,24 @@ static void ovt_tcm_dispatch_message(struct ovt_tcm_hcd *tcm_hcd)
 				complete(&response_complete);
 				break;
 			}
-		} else {
+		} 
 
-			if ((tcm_hcd->id_info.mode == MODE_ROMBOOTLOADER) &&
-					tcm_hcd->in_hdl_mode) {
+		if ((tcm_hcd->id_info.mode == MODE_ROMBOOTLOADER) &&
+				tcm_hcd->in_hdl_mode) {
 
-				if (atomic_read(&tcm_hcd->helper.task) ==
-						HELP_NONE) {
-					atomic_set(&tcm_hcd->helper.task,
-							HELP_SEND_ROMBOOT_HDL);
-					queue_work(tcm_hcd->helper.workqueue,
-							&tcm_hcd->helper.work);
-				} else {
-					LOGN(tcm_hcd->pdev->dev.parent,
-							"Helper thread is busy\n");
-				}
-				return;
-			}
+			// if (atomic_read(&tcm_hcd->helper.task) ==
+			// 		HELP_NONE) {
+			// 	atomic_set(&tcm_hcd->helper.task,
+			// 			HELP_SEND_ROMBOOT_HDL);
+			// 	queue_work(tcm_hcd->helper.workqueue,
+			// 			&tcm_hcd->helper.work);
+			// } else {
+			// 	LOGN(tcm_hcd->pdev->dev.parent,
+			// 			"Helper thread is busy\n");
+			// }
+			tcm_hcd->sensor_type = TYPE_ROMBOOT;
+			zeroflash_do_romboot_firmware_download();
+			return;
 		}
 
 #ifdef FORCE_RUN_APPLICATION_FIRMWARE
@@ -1499,6 +1500,7 @@ static int ovt_tcm_read_message(struct ovt_tcm_hcd *tcm_hcd,
 
 	if (in_buf != NULL) {
 		retval = ovt_tcm_raw_read(tcm_hcd, in_buf, length);
+		mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
 		goto exit;
 	}
 
@@ -1519,6 +1521,7 @@ retry:
 			retry = false;
 			goto retry;
 		}
+		mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
 		goto exit;
 	}
 
@@ -1536,6 +1539,7 @@ retry:
 			retry = false;
 			goto retry;
 		}
+		mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
 		goto exit;
 	}
 
@@ -1543,11 +1547,11 @@ retry:
 
 	tcm_hcd->payload_length = le2_to_uint(header->length);
 
-	LOGD(tcm_hcd->pdev->dev.parent,
+	LOGN(tcm_hcd->pdev->dev.parent,
 			"Status report code = 0x%02x\n",
 			tcm_hcd->status_report_code);
 
-	LOGD(tcm_hcd->pdev->dev.parent,
+	LOGN(tcm_hcd->pdev->dev.parent,
 			"Payload length = %d\n",
 			tcm_hcd->payload_length);
 
@@ -1564,6 +1568,7 @@ retry:
 			tcm_hcd->payload_length = 0;
 			UNLOCK_BUFFER(tcm_hcd->in);
 			retval = 0;
+			mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
 			goto exit;
 		default:
 			LOGE(tcm_hcd->pdev->dev.parent,
@@ -1604,6 +1609,7 @@ retry:
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to do continued read\n");
+		mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
 		goto exit;
 	};
 
@@ -1621,11 +1627,12 @@ check_padding:
 				tcm_hcd->in.buf[total_length - 1]);
 		UNLOCK_BUFFER(tcm_hcd->in);
 		retval = -EIO;
+		mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
 		goto exit;
 	}
 
 	UNLOCK_BUFFER(tcm_hcd->in);
-
+	mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
 #ifdef PREDICTIVE_READING
 	total_length = MAX(total_length, MIN_READ_LENGTH);
 	tcm_hcd->read_length = MIN(total_length, tcm_hcd->rd_chunk_size);
@@ -1644,9 +1651,6 @@ exit:
 			complete(&response_complete);
 		}
 	}
-
-	mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
-
 	return retval;
 }
 
@@ -2103,6 +2107,7 @@ static int ovt_tcm_enable_irq(struct ovt_tcm_hcd *tcm_hcd, bool en, bool ns)
 	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 	static bool irq_freed = true;
 
+	return 0; //for irq is register in tpkit side
 	mutex_lock(&tcm_hcd->irq_en_mutex);
 
 	if (en) {
