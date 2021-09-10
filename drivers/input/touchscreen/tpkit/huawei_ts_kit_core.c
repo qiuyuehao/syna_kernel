@@ -2784,7 +2784,8 @@ static int ts_kit_irq_init(void)
 
     atomic_set(&g_ts_kit_platform_data.state, TS_WORK);//avoid 1st irq unable to handler
     atomic_set(&g_ts_kit_platform_data.power_state, TS_WORK);
-    error = request_irq(g_ts_kit_platform_data.irq_id, ts_irq_handler, irq_flags | IRQF_NO_SUSPEND, "ts", &g_ts_kit_platform_data);
+	TS_LOG_INFO("ts_kit_irq_init irq_flags:%x\n", irq_flags);
+    error = request_irq(g_ts_kit_platform_data.irq_id, ts_irq_handler, 0x2008 | IRQF_NO_SUSPEND, "ts", &g_ts_kit_platform_data);
     if (error)
     {
         TS_LOG_ERR("ts request_irq failed\n");
