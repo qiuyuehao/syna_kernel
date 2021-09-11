@@ -2762,6 +2762,7 @@ static int ts_kit_irq_init(void)
     unsigned int irq_flags;
 
     g_ts_kit_platform_data.irq_id = gpio_to_irq(g_ts_kit_platform_data.irq_gpio);
+	gpio_direction_input(g_ts_kit_platform_data.irq_gpio);
 
     switch (g_ts_kit_platform_data.chip_data->irq_config)
     {

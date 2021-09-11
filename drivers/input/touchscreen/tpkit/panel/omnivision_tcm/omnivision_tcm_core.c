@@ -1512,7 +1512,6 @@ static int ovt_tcm_read_message(struct ovt_tcm_hcd *tcm_hcd,
 	unsigned int total_length;
 	struct ovt_tcm_message_header *header;
 
-	msleep(300);
 	mutex_lock(&tcm_hcd->rw_ctrl_mutex);
 
 	if (in_buf != NULL) {
