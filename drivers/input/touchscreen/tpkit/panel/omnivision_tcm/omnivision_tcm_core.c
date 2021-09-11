@@ -56,7 +56,7 @@
 
 #define ENABLE_IRQ_DELAY_MS 20
 
-#define FALL_BACK_ON_POLLING
+//#define FALL_BACK_ON_POLLING
 
 #define POLLING_DELAY_MS 5
 
@@ -125,6 +125,15 @@ static int ovt_tcm_init_chip(void)
 	int retval = NO_ERR;
 
 	//irq not register here now, called by ts init task, after detect ok, before ovt_tcm_fw_update_boot().
+	uint8 r_byte = 0;
+	ovt_tcm_read_message(g_tcm_hcd, &r_byte, sizeof(r_byte));
+	TS_LOG_INFO("read one byte when init chip:%x\n", r_byte);
+
+	if (r_byte == 0xa5) {
+		g_tcm_hcd->sensor_type = TYPE_ROMBOOT;
+	} else {
+		g_tcm_hcd->sensor_type = TYPE_F35;
+	}
 	retval = zeroflash_do_hostdownload(g_tcm_hcd);
 	if (retval >= 0) {
 		retval = g_tcm_hcd->identify(g_tcm_hcd, true);
@@ -1096,7 +1105,11 @@ static void ovt_tcm_dispatch_message(struct ovt_tcm_hcd *tcm_hcd)
 			// 			"Helper thread is busy\n");
 			// }
 			tcm_hcd->sensor_type = TYPE_ROMBOOT;
-			zeroflash_do_romboot_firmware_download();
+			retval = zeroflash_do_hostdownload(tcm_hcd);
+			if (retval >= 0) {
+				retval = g_tcm_hcd->identify(g_tcm_hcd, true);
+				retval = touch_init(g_tcm_hcd);
+			}
 			return;
 		}
 
@@ -2055,6 +2068,7 @@ static void ovt_tcm_polling_work(struct work_struct *work)
 	if (!tcm_hcd->do_polling)
 		return;
 #endif
+	TS_LOG_INFO("polling to get message\n");
 	retval = tcm_hcd->read_message(tcm_hcd,
 			NULL,
 			0);
