@@ -120,6 +120,9 @@ static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 		return NO_ERR;
 	}
 }
+static int ovt_tcm_read_message(struct ovt_tcm_hcd *tcm_hcd,
+		unsigned char *in_buf, unsigned int length);
+
 static int ovt_tcm_init_chip(void)
 {
 	int retval = NO_ERR;
