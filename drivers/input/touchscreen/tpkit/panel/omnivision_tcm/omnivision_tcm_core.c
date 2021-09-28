@@ -141,9 +141,11 @@ static int ovt_tcm_init_chip(void)
 	if (retval >= 0) {
 		retval = g_tcm_hcd->identify(g_tcm_hcd, true);
 		retval = ovt_touch_init(g_tcm_hcd);
+		g_tcm_hcd->init_ok_flag = true;
 		return NO_ERR;
 	} else {
 		//should return error result here, but force to no error for dragon board
+		g_tcm_hcd->init_ok_flag = false;
 		return NO_ERR;
 	}
 	
@@ -157,11 +159,18 @@ static int ovt_tcm_fw_update_boot(char *file_name)
 static int ovt_tcm_input_config(struct input_dev *input_dev)
 {
 	//after ovt_tcm_init_chip, before ovt_tcm_fw_update_boot
-	ovt_touch_config_input_dev(input_dev);
+	g_tcm_hcd->input_dev = input_dev;
+	if (g_tcm_hcd->init_ok_flag)
+		ovt_touch_config_input_dev(input_dev);
+
 	return NO_ERR;
 }
 static int ovt_tcm_irq_bottom_half(struct ts_cmd_node *in_cmd,
 				     struct ts_cmd_node *out_cmd);
+
+static int ovt_tcm_resume(void);
+static int ovt_tcm_suspend(void);
+
 struct ts_device_ops ts_kit_ovt_tcm_ops = {
 	.chip_detect = ovt_tcm_chip_detect,
 	.chip_init = ovt_tcm_init_chip,
@@ -177,8 +186,8 @@ struct ts_device_ops ts_kit_ovt_tcm_ops = {
 //	    ovtptics_chip_get_capacitance_test_type,
 	//.chip_set_info_flag = ovt_tcm_set_info_flag,
 	//.chip_before_suspend = ovt_tcm_before_suspend,
-	//.chip_suspend = ovt_tcm_suspend,
-	//.chip_resume = ovt_tcm_resume,
+	.chip_suspend = ovt_tcm_suspend,
+	.chip_resume = ovt_tcm_resume,
 	//.chip_after_resume = ovt_tcm_after_resume,
 //	.chip_wakeup_gesture_enable_switch =
 //	    ovtptics_wakeup_gesture_enable_switch,
@@ -3426,9 +3435,10 @@ static void ovt_tcm_helper_work(struct work_struct *work)
 	return;
 }
 
-#if defined(CONFIG_PM) || defined(CONFIG_FB)
-static int ovt_tcm_resume(struct device *dev)
+
+static int ovt_tcm_resume(void)
 {
+#if 0
 	int retval;
 	struct ovt_tcm_module_handler *mod_handler;
 	struct ovt_tcm_hcd *tcm_hcd = dev_get_drvdata(dev);
@@ -3524,10 +3534,21 @@ exit:
 	tcm_hcd->in_suspend = false;
 
 	return retval;
+#endif
+	int retval = 0;
+	struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
+
+	if (!tcm_hcd->in_suspend)
+		return 0;
+	//gpio_direction_output(tcm_hcd->ovt_tcm_platform_data->reset_gpio, 1);
+	tcm_hcd->in_suspend = false;
+
+	return retval;
 }
 
-static int ovt_tcm_suspend(struct device *dev)
+static int ovt_tcm_suspend(void)
 {
+#if 0
 	struct ovt_tcm_module_handler *mod_handler;
 	struct ovt_tcm_hcd *tcm_hcd = dev_get_drvdata(dev);
 
@@ -3556,10 +3577,20 @@ static int ovt_tcm_suspend(struct device *dev)
 	tcm_hcd->in_suspend = true;
 
 	return 0;
-}
 #endif
+	int retval = 0;
+	struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
 
-#ifdef CONFIG_FB
+	if (tcm_hcd->in_suspend)
+		return 0;
+	//gpio_direction_output(tcm_hcd->ovt_tcm_platform_data->reset_gpio, 0);
+
+
+	tcm_hcd->in_suspend = true;
+	return retval;
+}
+
+#if 0
 static int ovt_tcm_early_suspend(struct device *dev)
 {
 	int retval;
@@ -4072,7 +4103,18 @@ static int ovt_tcm_irq_bottom_half(struct ts_cmd_node *in_cmd,
 	if (g_tcm_hcd->in.buf[1] == REPORT_TOUCH) {
 		fill_touch_info_data(info);
 		out_cmd->command = TS_INPUT_ALGO;
-		return 0;
+		return NO_ERR;
+	} else if (g_tcm_hcd->in.buf[1] == REPORT_IDENTIFY) {
+		if (g_tcm_hcd->in.buf[5] == MODE_ROMBOOTLOADER) {
+			retval = zeroflash_do_hostdownload(g_tcm_hcd);
+			if (retval >= 0) { //error
+				retval = g_tcm_hcd->identify(g_tcm_hcd, true);
+				retval = ovt_touch_init(g_tcm_hcd);
+				g_tcm_hcd->init_ok_flag = true;
+				ovt_touch_config_input_dev(g_tcm_hcd->input_dev);
+			}
+			goto exit;
+		}
 	}
 exit:
 	return retval;

@@ -474,6 +474,7 @@ struct ovt_tcm_hcd {
 	bool irq_enabled;
 	bool in_hdl_mode;
 	bool is_detected;
+	bool init_ok_flag;
 	bool wakeup_gesture_enabled;
     bool ovt_tcm_driver_removing;
 	unsigned char sensor_type;
@@ -506,6 +507,7 @@ struct ovt_tcm_hcd {
 #ifdef CONFIG_FB
 	struct notifier_block fb_notifier;
 #endif
+	struct input_dev *input_dev;
 	struct ovt_tcm_buffer in;
 	struct ovt_tcm_buffer out;
 	struct ovt_tcm_buffer resp;
