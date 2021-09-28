@@ -695,17 +695,20 @@ static void touch_report(void)
 	struct touch_data *touch_data;
 	struct object_data *object_data;
 	struct ovt_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd;
-	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
-	if (!touch_hcd->init_touch_ok)
-		return;
+	touch_hcd->input_dev = tcm_hcd->input_dev;
+	//const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
-	if (touch_hcd->input_dev == NULL)
-		return;
+	// if (!touch_hcd->init_touch_ok)
+	// 	return;
 
-	if (touch_hcd->suspend_touch)
-		return;
+	// if (touch_hcd->input_dev == NULL)
+	// 	return;
 
+	// if (touch_hcd->suspend_touch)
+	// 	return;
+	LOGE(tcm_hcd->pdev->dev.parent,
+				"about to parse report\n");
 	mutex_lock(&touch_hcd->report_mutex);
 
 	retval = touch_parse_report();
@@ -730,8 +733,8 @@ static void touch_report(void)
 	}
 #endif
 
-	if (tcm_hcd->in_suspend)
-		goto exit;
+	// if (tcm_hcd->in_suspend)
+	// 	goto exit;
 
 	touch_count = 0;
 
@@ -754,15 +757,6 @@ static void touch_report(void)
 		case GLOVED_FINGER:
 			x = object_data[idx].x_pos;
 			y = object_data[idx].y_pos;
-			if (bdata->swap_axes) {
-				temp = x;
-				x = y;
-				y = temp;
-			}
-			if (bdata->x_flip)
-				x = touch_hcd->input_params.max_x - x;
-			if (bdata->y_flip)
-				y = touch_hcd->input_params.max_y - y;
 #ifdef TYPE_B_PROTOCOL
 			input_mt_slot(touch_hcd->input_dev, idx);
 			input_mt_report_slot_state(touch_hcd->input_dev,
@@ -779,7 +773,7 @@ static void touch_report(void)
 #ifndef TYPE_B_PROTOCOL
 			input_mt_sync(touch_hcd->input_dev);
 #endif
-			LOGD(tcm_hcd->pdev->dev.parent,
+			LOGN(tcm_hcd->pdev->dev.parent,
 					"Finger %d: x = %d, y = %d\n",
 					idx, x, y);
 			touch_count++;
@@ -901,6 +895,7 @@ static int touch_get_input_params(void)
  */
 void ovt_touch_config_input_dev(struct input_dev *input_dev)
 {
+	TS_LOG_INFO("set input device feature\n");
 	set_bit(EV_SYN, input_dev->evbit);
 	set_bit(EV_KEY, input_dev->evbit);
 	set_bit(EV_ABS, input_dev->evbit);
@@ -911,10 +906,20 @@ void ovt_touch_config_input_dev(struct input_dev *input_dev)
 #endif
 
 	// the max value is from app info
-	input_set_abs_params(input_dev,
-			ABS_MT_POSITION_X, 0, touch_hcd->max_x, 0, 0);
-	input_set_abs_params(input_dev,
-			ABS_MT_POSITION_Y, 0, touch_hcd->max_y, 0, 0);
+	//if (g_tcm_hcd->init_ok_flag) 
+	{
+		input_set_abs_params(input_dev,
+				ABS_MT_POSITION_X, 0, touch_hcd->max_x, 0, 0);
+		input_set_abs_params(input_dev,
+				ABS_MT_POSITION_Y, 0, touch_hcd->max_y, 0, 0);
+	} 
+	// else {
+	// 	input_set_abs_params(input_dev,
+	// 			ABS_MT_POSITION_X, 0, 1080, 0, 0);
+	// 	input_set_abs_params(input_dev,
+	// 			ABS_MT_POSITION_Y, 0, 1920, 0, 0);		
+	// }
+
 	
 	input_set_abs_params(input_dev, ABS_PRESSURE, 0, 255, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_TRACKING_ID, 0, 15, 0, 0);

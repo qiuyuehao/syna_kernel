@@ -138,6 +138,7 @@ static int ovt_tcm_init_chip(void)
 	} else {
 		g_tcm_hcd->sensor_type = TYPE_F35;
 	}
+	retval = ovt_touch_init(g_tcm_hcd);
 	retval = zeroflash_do_hostdownload(g_tcm_hcd);
 	if (retval >= 0) {
 		retval = g_tcm_hcd->identify(g_tcm_hcd, true);
@@ -161,8 +162,8 @@ static int ovt_tcm_input_config(struct input_dev *input_dev)
 {
 	//after ovt_tcm_init_chip, before ovt_tcm_fw_update_boot
 	g_tcm_hcd->input_dev = input_dev;
-	if (g_tcm_hcd->init_ok_flag)
-		ovt_touch_config_input_dev(input_dev);
+	//if (g_tcm_hcd->init_ok_flag)
+	ovt_touch_config_input_dev(input_dev);
 
 	return NO_ERR;
 }

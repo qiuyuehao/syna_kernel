@@ -362,8 +362,10 @@ static ssize_t device_read(struct file *filp, char __user *buf,
 	// 	device_hcd->concurrent = false;
 	// }
 
-	// if (device_hcd->raw_mode)
-	// 	device_capture_touch_report(count);
+	if (device_hcd->raw_mode) {
+		device_capture_touch_report(count);
+	}
+		
 
 skip_concurrent:
 	UNLOCK_BUFFER(device_hcd->resp);
