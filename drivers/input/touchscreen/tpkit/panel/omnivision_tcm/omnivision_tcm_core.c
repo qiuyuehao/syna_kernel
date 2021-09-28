@@ -117,6 +117,7 @@ static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 		TS_LOG_ERR("fail to do sensor detection\n");
 		return RESULT_ERR;
 	} else {
+		ovt_tcm_device_init(g_tcm_hcd);
 		return NO_ERR;
 	}
 }

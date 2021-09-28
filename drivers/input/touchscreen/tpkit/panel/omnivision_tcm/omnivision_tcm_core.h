@@ -624,6 +624,7 @@ int touch_reinit(struct ovt_tcm_hcd *tcm_hcd);
 int touch_early_suspend(struct ovt_tcm_hcd *tcm_hcd);
 int touch_suspend(struct ovt_tcm_hcd *tcm_hcd);
 int touch_resume(struct ovt_tcm_hcd *tcm_hcd);
+int ovt_tcm_device_init(struct ovt_tcm_hcd *tcm_hcd);
 
 static inline int ovt_tcm_rmi_read(struct ovt_tcm_hcd *tcm_hcd,
 		unsigned short addr, unsigned char *data, unsigned int length)

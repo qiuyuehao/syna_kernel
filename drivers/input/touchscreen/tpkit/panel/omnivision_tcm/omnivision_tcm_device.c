@@ -345,14 +345,14 @@ static ssize_t device_read(struct file *filp, char __user *buf,
 	if (!device_hcd->concurrent)
 		goto skip_concurrent;
 
-	if (tcm_hcd->report_touch == NULL) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Unable to report touch\n");
-		device_hcd->concurrent = false;
-	}
+	// if (tcm_hcd->report_touch == NULL) {
+	// 	LOGE(tcm_hcd->pdev->dev.parent,
+	// 			"Unable to report touch\n");
+	// 	device_hcd->concurrent = false;
+	// }
 
-	if (device_hcd->raw_mode)
-		device_capture_touch_report(count);
+	// if (device_hcd->raw_mode)
+	// 	device_capture_touch_report(count);
 
 skip_concurrent:
 	UNLOCK_BUFFER(device_hcd->resp);
@@ -534,11 +534,11 @@ static const struct file_operations device_fops = {
 	.release = device_release,
 };
 
-static int device_init(struct ovt_tcm_hcd *tcm_hcd)
+int ovt_tcm_device_init(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int retval;
 	dev_t dev_num;
-	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
+	//const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
 	device_hcd = kzalloc(sizeof(*device_hcd), GFP_KERNEL);
 	if (!device_hcd) {
@@ -604,20 +604,20 @@ static int device_init(struct ovt_tcm_hcd *tcm_hcd)
 		goto err_create_device;
 	}
 
-	if (bdata->irq_gpio >= 0) {
-		retval = gpio_export(bdata->irq_gpio, false);
-		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to export GPIO\n");
-		} else {
-			retval = gpio_export_link(&tcm_hcd->pdev->dev,
-					"attn", bdata->irq_gpio);
-			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
-						"Failed to export GPIO link\n");
-			}
-		}
-	}
+	// if (bdata->irq_gpio >= 0) {
+	// 	retval = gpio_export(bdata->irq_gpio, false);
+	// 	if (retval < 0) {
+	// 		LOGE(tcm_hcd->pdev->dev.parent,
+	// 				"Failed to export GPIO\n");
+	// 	} else {
+	// 		retval = gpio_export_link(&tcm_hcd->pdev->dev,
+	// 				"attn", bdata->irq_gpio);
+	// 		if (retval < 0) {
+	// 			LOGE(tcm_hcd->pdev->dev.parent,
+	// 					"Failed to export GPIO link\n");
+	// 		}
+	// 	}
+	// }
 
 	return 0;
 
@@ -667,7 +667,7 @@ exit:
 
 	return 0;
 }
-
+#if 0
 static int device_reinit(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int retval;
@@ -714,3 +714,4 @@ module_exit(device_module_exit);
 MODULE_AUTHOR("omnivision, Inc.");
 MODULE_DESCRIPTION("omnivision TCM Device Module");
 MODULE_LICENSE("GPL v2");
+#endif
