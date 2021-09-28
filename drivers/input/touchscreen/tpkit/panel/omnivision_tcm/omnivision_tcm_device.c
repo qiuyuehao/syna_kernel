@@ -233,6 +233,8 @@ static int device_capture_touch_report_config(unsigned int count)
 	return 0;
 }
 
+static int irq_status = 1;
+
 #ifdef HAVE_UNLOCKED_IOCTL
 static long device_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 #else
@@ -249,13 +251,22 @@ static int device_ioctl(struct inode *inp, struct file *filp, unsigned int cmd,
 
 	switch (cmd) {
 	case DEVICE_IOC_RESET:
-		retval = tcm_hcd->reset_n_reinit(tcm_hcd, false, true);
+		//retval = tcm_hcd->reset_n_reinit(tcm_hcd, false, true);
 		break;
 	case DEVICE_IOC_IRQ:
-		if (arg == 0)
-			retval = tcm_hcd->enable_irq(tcm_hcd, false, false);
-		else if (arg == 1)
-			retval = tcm_hcd->enable_irq(tcm_hcd, true, NULL);
+		TS_LOG_INFO("Try to enable irq %ld\n", arg);
+		if (arg == 0) {
+		  if (irq_status) {
+			disable_irq(tcm_hcd->ovt_tcm_platform_data->irq_id);
+			irq_status = 0;
+		  }
+		}
+		else if (arg == 1) {
+		  if (irq_status == 0) {
+			irq_status = 1;
+			enable_irq(tcm_hcd->ovt_tcm_platform_data->irq_id);
+		  }
+		}
 		break;
 	case DEVICE_IOC_RAW:
 		if (arg == 0) {
