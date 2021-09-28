@@ -1192,7 +1192,7 @@ exit:
 }
 
 
-int touch_init(struct ovt_tcm_hcd *tcm_hcd)
+int ovt_touch_init(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int retval = 0;
 	if (touch_hcd == NULL) {
@@ -1250,7 +1250,7 @@ int touch_reinit(struct ovt_tcm_hcd *tcm_hcd)
 	int retval = 0;
 
 	if (!touch_hcd) {
-		retval = touch_init(tcm_hcd);
+		retval = ovt_touch_init(tcm_hcd);
 		return retval;
 	}
 

@@ -106,9 +106,9 @@ static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 		return RESULT_ERR;		
 	}
 
-	retval = zeroflash_init(g_tcm_hcd);
+	retval = ovt_zeroflash_init(g_tcm_hcd);
 	if (retval < 0) {
-		TS_LOG_ERR("ovt_tcm_chip_detect fail to do zeroflash_init\n");
+		TS_LOG_ERR("ovt_tcm_chip_detect fail to do ovt_zeroflash_init\n");
 		return RESULT_ERR;		
 	}
 	//already power on in ovt_tcm_probe
@@ -140,7 +140,7 @@ static int ovt_tcm_init_chip(void)
 	retval = zeroflash_do_hostdownload(g_tcm_hcd);
 	if (retval >= 0) {
 		retval = g_tcm_hcd->identify(g_tcm_hcd, true);
-		retval = touch_init(g_tcm_hcd);
+		retval = ovt_touch_init(g_tcm_hcd);
 		return NO_ERR;
 	} else {
 		//should return error result here, but force to no error for dragon board
@@ -243,7 +243,7 @@ exit: \
 	return retval; \
 }
 
-DECLARE_COMPLETION(response_complete);
+DECLARE_COMPLETION(ovt_response_complete);
 
 //static struct kobject *sysfs_dir;
 
@@ -1022,7 +1022,7 @@ static void ovt_tcm_dispatch_response(struct ovt_tcm_hcd *tcm_hcd)
 	atomic_set(&tcm_hcd->command_status, CMD_IDLE);
 
 exit:
-	complete(&response_complete);
+	complete(&ovt_response_complete);
 
 	return;
 }
@@ -1083,13 +1083,13 @@ static void ovt_tcm_dispatch_message(struct ovt_tcm_hcd *tcm_hcd)
 			case CMD_ROMBOOT_RUN_BOOTLOADER_FIRMWARE:
 				tcm_hcd->response_code = STATUS_OK;
 				atomic_set(&tcm_hcd->command_status, CMD_IDLE);
-				complete(&response_complete);
+				complete(&ovt_response_complete);
 				break;
 			default:
 				LOGN(tcm_hcd->pdev->dev.parent,
 						"Device has been reset\n");
 				atomic_set(&tcm_hcd->command_status, CMD_ERROR);
-				complete(&response_complete);
+				complete(&ovt_response_complete);
 				break;
 			}
 		} 
@@ -1111,7 +1111,7 @@ static void ovt_tcm_dispatch_message(struct ovt_tcm_hcd *tcm_hcd)
 			retval = zeroflash_do_hostdownload(tcm_hcd);
 			if (retval >= 0) {
 				retval = g_tcm_hcd->identify(g_tcm_hcd, true);
-				retval = touch_init(g_tcm_hcd);
+				retval = ovt_touch_init(g_tcm_hcd);
 			}
 			return;
 		}
@@ -1664,7 +1664,7 @@ exit:
 	if (retval < 0) {
 		if (atomic_read(&tcm_hcd->command_status) == CMD_BUSY) {
 			atomic_set(&tcm_hcd->command_status, CMD_ERROR);
-			complete(&response_complete);
+			complete(&ovt_response_complete);
 		}
 	}
 	return retval;
@@ -1734,9 +1734,9 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 	atomic_set(&tcm_hcd->command_status, CMD_BUSY);
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0))
-	reinit_completion(&response_complete);
+	reinit_completion(&ovt_response_complete);
 #else
-	INIT_COMPLETION(response_complete);
+	INIT_COMPLETION(ovt_response_complete);
 #endif
 
 	tcm_hcd->command = command;
@@ -1868,7 +1868,7 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 				&tcm_hcd->polling_work,
 				msecs_to_jiffies(POLLING_DELAY_MS));
 	}
-	retval = wait_for_completion_timeout(&response_complete,
+	retval = wait_for_completion_timeout(&ovt_response_complete,
 			msecs_to_jiffies(RESPONSE_TIMEOUT_MS));
 	if (polling_delay_ms) {
 		cancel_delayed_work_sync(&tcm_hcd->polling_work);
@@ -4065,7 +4065,7 @@ static int ovt_tcm_irq_bottom_half(struct ts_cmd_node *in_cmd,
 		retval = zeroflash_do_hostdownload(g_tcm_hcd);
 		if (retval >= 0) { //error
 			retval = g_tcm_hcd->identify(g_tcm_hcd, true);
-			retval = touch_init(g_tcm_hcd);
+			retval = ovt_touch_init(g_tcm_hcd);
 		}
 		goto exit;
 	}

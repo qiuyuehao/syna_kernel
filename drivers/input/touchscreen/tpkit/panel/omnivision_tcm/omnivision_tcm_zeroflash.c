@@ -194,7 +194,7 @@ struct zeroflash_hcd {
 	struct ovt_tcm_hcd *tcm_hcd;
 };
 
-DECLARE_COMPLETION(zeroflash_remove_complete);
+DECLARE_COMPLETION(ovt_zeroflash_remove_complete);
 
 STORE_PROTOTYPE(zeroflash, hdl)
 
@@ -1299,7 +1299,7 @@ down_load_config:
 		return retval;
 	}
 }
-int zeroflash_init(struct ovt_tcm_hcd *tcm_hcd)
+int ovt_zeroflash_init(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int retval = 0;
 	int idx;
@@ -1431,7 +1431,7 @@ static int zeroflash_remove(struct ovt_tcm_hcd *tcm_hcd)
 	zeroflash_hcd = NULL;
 
 exit:
-	complete(&zeroflash_remove_complete);
+	complete(&ovt_zeroflash_remove_complete);
 
 	return 0;
 }
@@ -1480,7 +1480,7 @@ static int zeroflash_reinit(struct ovt_tcm_hcd *tcm_hcd)
 	int retval;
 
 	if (!zeroflash_hcd && tcm_hcd->in_hdl_mode) {
-		retval = zeroflash_init(tcm_hcd);
+		retval = ovt_zeroflash_init(tcm_hcd);
 		return retval;
 	}
 
@@ -1489,7 +1489,7 @@ static int zeroflash_reinit(struct ovt_tcm_hcd *tcm_hcd)
 
 static struct ovt_tcm_module_cb zeroflash_module = {
 	.type = TCM_ZEROFLASH,
-	.init = zeroflash_init,
+	.init = ovt_zeroflash_init,
 	.remove = zeroflash_remove,
 	.syncbox = zeroflash_syncbox,
 #ifdef REPORT_NOTIFIER
@@ -1510,7 +1510,7 @@ static void __exit zeroflash_module_exit(void)
 {
 	ovt_tcm_add_module(&zeroflash_module, false);
 
-	wait_for_completion(&zeroflash_remove_complete);
+	wait_for_completion(&ovt_zeroflash_remove_complete);
 
 	return;
 }

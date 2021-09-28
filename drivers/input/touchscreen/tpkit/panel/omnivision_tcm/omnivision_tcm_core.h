@@ -600,7 +600,7 @@ struct ovt_tcm_hw_interface {
 extern struct ovt_tcm_hw_interface hw_if;
 extern int ovt_tcm_spi_probe(struct spi_device *spi);
 extern struct platform_device *ovt_tcm_spi_platform_device;
-extern int zeroflash_init(struct ovt_tcm_hcd *tcm_hcd);
+extern int ovt_zeroflash_init(struct ovt_tcm_hcd *tcm_hcd);
 extern int fill_touch_info_data(struct ts_fingers *info);
 extern int zeroflash_do_hostdownload(struct ovt_tcm_hcd *tcm_hcd);
 extern void ovt_tcm_simple_hw_reset(struct ovt_tcm_hcd *tcm_hcd);
@@ -616,7 +616,7 @@ void ovt_tcm_bus_exit(void);
 
 int ovt_tcm_add_module(struct ovt_tcm_module_cb *mod_cb, bool insert);
 
-int touch_init(struct ovt_tcm_hcd *tcm_hcd);
+int ovt_touch_init(struct ovt_tcm_hcd *tcm_hcd);
 int touch_remove(struct ovt_tcm_hcd *tcm_hcd);
 int touch_reinit(struct ovt_tcm_hcd *tcm_hcd);
 int touch_early_suspend(struct ovt_tcm_hcd *tcm_hcd);
