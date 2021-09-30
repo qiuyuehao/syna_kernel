@@ -58,7 +58,7 @@ struct device_hcd {
 	struct ovt_tcm_hcd *tcm_hcd;
 };
 
-DECLARE_COMPLETION(device_remove_complete);
+DECLARE_COMPLETION(ovt_device_remove_complete);
 
 static struct device_hcd *device_hcd;
 
@@ -676,7 +676,7 @@ static int device_remove(struct ovt_tcm_hcd *tcm_hcd)
 	device_hcd = NULL;
 
 exit:
-	complete(&device_remove_complete);
+	complete(&ovt_device_remove_complete);
 
 	return 0;
 }
@@ -716,7 +716,7 @@ static void __exit device_module_exit(void)
 {
 	ovt_tcm_add_module(&device_module, false);
 
-	wait_for_completion(&device_remove_complete);
+	wait_for_completion(&ovt_device_remove_complete);
 
 	return;
 }
