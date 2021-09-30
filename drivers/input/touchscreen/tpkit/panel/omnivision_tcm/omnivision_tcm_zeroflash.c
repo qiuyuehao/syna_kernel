@@ -1106,7 +1106,7 @@ retry_download:
 	}
 
 	atomic_set(&tcm_hcd->host_downloading, 1);
-
+	msleep(20000);
 	retval = zeroflash_get_fw_image();
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -1486,7 +1486,7 @@ static int zeroflash_reinit(struct ovt_tcm_hcd *tcm_hcd)
 
 	return 0;
 }
-
+#if 0
 static struct ovt_tcm_module_cb zeroflash_module = {
 	.type = TCM_ZEROFLASH,
 	.init = ovt_zeroflash_init,
@@ -1521,3 +1521,4 @@ module_exit(zeroflash_module_exit);
 MODULE_AUTHOR("omnivision, Inc.");
 MODULE_DESCRIPTION("omnivision TCM Zeroflash Module");
 MODULE_LICENSE("GPL v2");
+#endif
