@@ -88,6 +88,8 @@ static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 {
 	//after module init register to huawei ts kit, will call this detect, if return NO_ERR, will wakeup ts init task
 	int retval = 0;
+	unsigned char header = 0x0;
+
 	g_tcm_hcd->ovt_tcm_platform_data = data;
 	g_tcm_hcd->ovt_tcm_chip_data->ts_platform_data = data;
 
@@ -105,7 +107,7 @@ static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 		TS_LOG_ERR("ovt_tcm_chip_detect fail to do ovt_tcm_probe\n");
 		return RESULT_ERR;		
 	}
-
+#if 0
 	retval = ovt_zeroflash_init(g_tcm_hcd);
 	if (retval < 0) {
 		TS_LOG_ERR("ovt_tcm_chip_detect fail to do ovt_zeroflash_init\n");
@@ -119,8 +121,26 @@ static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 	} else {
 		ovt_tcm_device_init(g_tcm_hcd);
 		ovt_testing_init(g_tcm_hcd);
+		ovt_touch_init(g_tcm_hcd);
 		return NO_ERR;
 	}
+#else
+	//already power on in ovt_tcm_probe
+	ovt_zeroflash_init(g_tcm_hcd);
+	ovt_tcm_device_init(g_tcm_hcd);
+	ovt_testing_init(g_tcm_hcd);
+	ovt_touch_init(g_tcm_hcd);	
+	retval = ovt_tcm_sensor_detection(g_tcm_hcd);
+	if (retval < 0) {
+		TS_LOG_ERR("fail to do sensor detection\n");
+		return RESULT_ERR;
+	} else {
+		ovt_tcm_device_init(g_tcm_hcd);
+		ovt_testing_init(g_tcm_hcd);
+		ovt_touch_init(g_tcm_hcd);
+		return NO_ERR;
+	}
+#endif
 }
 static int ovt_tcm_read_message(struct ovt_tcm_hcd *tcm_hcd,
 		unsigned char *in_buf, unsigned int length);
@@ -139,7 +159,6 @@ static int ovt_tcm_init_chip(void)
 	} else {
 		g_tcm_hcd->sensor_type = TYPE_F35;
 	}
-	retval = ovt_touch_init(g_tcm_hcd);
 	retval = zeroflash_do_hostdownload(g_tcm_hcd);
 	if (retval >= 0) {
 		retval = g_tcm_hcd->identify(g_tcm_hcd, true);
@@ -173,6 +192,7 @@ static int ovt_tcm_irq_bottom_half(struct ts_cmd_node *in_cmd,
 
 static int ovt_tcm_resume(void);
 static int ovt_tcm_suspend(void);
+
 static int ovt_tcm_mmi_test(struct ts_rawdata_info *info,
 				 struct ts_cmd_node *out_cmd)
 {
@@ -1342,8 +1362,8 @@ static int ovt_tcm_raw_read(struct ovt_tcm_hcd *tcm_hcd,
 		retval = ovt_tcm_read(tcm_hcd,
 				in_buf,
 				length);
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Invalid length information\n");
+		// LOGE(tcm_hcd->pdev->dev.parent,
+		// 		"Invalid length information\n");
 		return retval;
 	}
 
@@ -3851,7 +3871,7 @@ static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd)
 	if (tcm_hcd->wr_chunk_size == 0)
 		tcm_hcd->wr_chunk_size = max_write_size;
 
-	if (tcm_hcd->id_info.mode == MODE_ROMBOOTLOADER) {
+	if (tcm_hcd->id_info.mode == MODE_ROMBOOTLOADER || tcm_hcd->id_info.mode == MODE_HOSTDOWNLOAD_FIRMWARE) {
 		tcm_hcd->in_hdl_mode = true;
 		tcm_hcd->sensor_type = TYPE_ROMBOOT;
 		tcm_hcd->rd_chunk_size = HDL_RD_CHUNK_SIZE;
@@ -3860,6 +3880,8 @@ static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd)
 					"RomBoot mode\n");
 	} else if (tcm_hcd->id_info.mode == MODE_APPLICATION_FIRMWARE) {
 		tcm_hcd->sensor_type = TYPE_FLASH;
+		tcm_hcd->rd_chunk_size = RD_CHUNK_SIZE;
+		tcm_hcd->wr_chunk_size = WR_CHUNK_SIZE;
 		LOGN(tcm_hcd->pdev->dev.parent,
 				"Application mode (build id = %d)\n",
 				tcm_hcd->packrat_number);
@@ -3917,8 +3939,10 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	tcm_hcd->set_dynamic_config = ovt_tcm_set_dynamic_config;
 	tcm_hcd->get_data_location = ovt_tcm_get_data_location;
 
-	tcm_hcd->rd_chunk_size = RD_CHUNK_SIZE;
-	tcm_hcd->wr_chunk_size = WR_CHUNK_SIZE;
+	// tcm_hcd->rd_chunk_size = RD_CHUNK_SIZE;
+	// tcm_hcd->wr_chunk_size = WR_CHUNK_SIZE;
+	tcm_hcd->rd_chunk_size = HDL_RD_CHUNK_SIZE;
+	tcm_hcd->wr_chunk_size = HDL_WR_CHUNK_SIZE;
 	tcm_hcd->is_detected = false;
 	tcm_hcd->wakeup_gesture_enabled = WAKEUP_GESTURE;
 
