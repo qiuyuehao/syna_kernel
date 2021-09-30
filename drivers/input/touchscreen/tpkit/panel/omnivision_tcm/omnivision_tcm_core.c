@@ -118,6 +118,7 @@ static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 		return RESULT_ERR;
 	} else {
 		ovt_tcm_device_init(g_tcm_hcd);
+		ovt_testing_init(g_tcm_hcd);
 		return NO_ERR;
 	}
 }
@@ -172,7 +173,32 @@ static int ovt_tcm_irq_bottom_half(struct ts_cmd_node *in_cmd,
 
 static int ovt_tcm_resume(void);
 static int ovt_tcm_suspend(void);
+static int ovt_tcm_mmi_test(struct ts_rawdata_info *info,
+				 struct ts_cmd_node *out_cmd)
+{
+	int retval = 0;
+	TS_LOG_INFO("++++ ovt_tcm_mmi_test in\n");
+	retval = ovt_tcm_testing(info);
+	if (retval < 0) {
+		TS_LOG_ERR("Failed to ovt_tcm_testing\n");
+		return retval;
+	}		
+	return NO_ERR;
+}
 
+static int ovt_tcm_get_cal_data(struct ts_calibration_data_info *info,
+				 struct ts_cmd_node *out_cmd)
+{
+	struct ovt_tcm_app_info *app_info;
+	
+	TS_LOG_INFO("syna_tcm_get_cal_data called\n");
+
+	app_info = &g_tcm_hcd->app_info;
+	info->tx_num = le2_to_uint(app_info->num_of_image_rows);
+	info->rx_num = le2_to_uint(app_info->num_of_image_cols);
+
+	return 0;
+}
 struct ts_device_ops ts_kit_ovt_tcm_ops = {
 	.chip_detect = ovt_tcm_chip_detect,
 	.chip_init = ovt_tcm_init_chip,
@@ -193,8 +219,8 @@ struct ts_device_ops ts_kit_ovt_tcm_ops = {
 	//.chip_after_resume = ovt_tcm_after_resume,
 //	.chip_wakeup_gesture_enable_switch =
 //	    ovtptics_wakeup_gesture_enable_switch,
-	//.chip_get_rawdata = ovt_tcm_mmi_test,
-	//.chip_get_calibration_data = ovt_tcm_get_cal_data,
+	.chip_get_rawdata = ovt_tcm_mmi_test,
+	.chip_get_calibration_data = ovt_tcm_get_cal_data,
 };
 
 

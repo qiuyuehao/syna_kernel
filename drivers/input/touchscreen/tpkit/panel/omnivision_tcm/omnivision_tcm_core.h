@@ -606,6 +606,8 @@ extern int ovt_zeroflash_init(struct ovt_tcm_hcd *tcm_hcd);
 extern int fill_touch_info_data(struct ts_fingers *info);
 extern int zeroflash_do_hostdownload(struct ovt_tcm_hcd *tcm_hcd);
 extern void ovt_tcm_simple_hw_reset(struct ovt_tcm_hcd *tcm_hcd);
+extern int ovt_testing_init(struct ovt_tcm_hcd *tcm_hcd);
+extern int ovt_tcm_testing(struct ts_rawdata_info *info);
 
 typedef unsigned char uint8;
 typedef char int8;

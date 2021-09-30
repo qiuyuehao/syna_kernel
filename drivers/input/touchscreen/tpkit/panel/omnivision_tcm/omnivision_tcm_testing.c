@@ -88,6 +88,8 @@ enum test_code {
 	TEST_PT29_HYBRID_ABS_NOISE = 0x1D,
 };
 
+#define OVT_TCM_TEST_BUF_LEN 50
+static char ovt_tcm_mmi_test_result[OVT_TCM_TEST_BUF_LEN] = { 0 };
 struct testing_hcd {
 	bool result;
 	unsigned char report_type;
@@ -116,11 +118,313 @@ struct testing_hcd {
 
 };
 
+static struct testing_hcd *testing_hcd;
+int ovt_testing_init(struct ovt_tcm_hcd *tcm_hcd)
+{
+	int retval = 0;
+	int idx;
+
+	testing_hcd = kzalloc(sizeof(*testing_hcd), GFP_KERNEL);
+	if (!testing_hcd) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to allocate memory for testing_hcd\n");
+		return -ENOMEM;
+	}
+
+	testing_hcd->tcm_hcd = tcm_hcd;
+
+
+	INIT_BUFFER(testing_hcd->out, false);
+	INIT_BUFFER(testing_hcd->resp, false);
+	INIT_BUFFER(testing_hcd->report, false);
+	INIT_BUFFER(testing_hcd->process, false);
+	INIT_BUFFER(testing_hcd->output, false);
+#if 0
+	testing_hcd->sysfs_dir = kobject_create_and_add(SYSFS_DIR_NAME,
+			tcm_hcd->sysfs_dir);
+	if (!testing_hcd->sysfs_dir) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to create sysfs directory\n");
+		retval = -EINVAL;
+		goto err_sysfs_create_dir;
+	}
+
+	for (idx = 0; idx < ARRAY_SIZE(attrs); idx++) {
+		retval = sysfs_create_file(testing_hcd->sysfs_dir,
+				&(*attrs[idx]).attr);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Failed to create sysfs file\n");
+			goto err_sysfs_create_file;
+		}
+	}
+
+	retval = sysfs_create_bin_file(testing_hcd->sysfs_dir, &bin_attr);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to create sysfs bin file\n");
+		goto err_sysfs_create_bin_file;
+	}
+
+	return 0;
+
+err_sysfs_create_bin_file:
+err_sysfs_create_file:
+	for (idx--; idx >= 0; idx--)
+		sysfs_remove_file(testing_hcd->sysfs_dir, &(*attrs[idx]).attr);
+
+	kobject_put(testing_hcd->sysfs_dir);
+
+err_sysfs_create_dir:
+	RELEASE_BUFFER(testing_hcd->output);
+	RELEASE_BUFFER(testing_hcd->process);
+	RELEASE_BUFFER(testing_hcd->report);
+	RELEASE_BUFFER(testing_hcd->resp);
+	RELEASE_BUFFER(testing_hcd->out);
+
+	kfree(testing_hcd);
+	testing_hcd = NULL;
+#endif
+	return retval;
+}
+static int ovt_testing_full_raw_cap(void)
+{
+	int retval;
+	unsigned int idx; 
+	signed short data;
+	unsigned int timeout;
+	unsigned int data_length;
+	unsigned int row;
+	unsigned int col;
+	unsigned int rows;
+	unsigned int cols;
+	unsigned int limits_rows;
+	unsigned int limits_cols;
+	unsigned int frame_size_words;
+	struct ovt_tcm_app_info *app_info;
+	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+
+
+	// if (tcm_hcd->id_info.mode != MODE_APPLICATION ||
+	// 		tcm_hcd->app_status != APP_STATUS_OK) {
+	// 	return -ENODEV;
+	// }
+
+	app_info = &tcm_hcd->app_info;
+	rows = le2_to_uint(app_info->num_of_image_rows);
+	cols = le2_to_uint(app_info->num_of_image_cols);
+
+	retval = ovt_tcm_alloc_mem(tcm_hcd,
+			&testing_hcd->out,
+			1);
+	if (retval < 0) {
+		TS_LOG_ERR(
+				"Failed to allocate memory for testing_hcd->out.buf\n");
+		goto exit;
+	}
+
+	testing_hcd->out.buf[0] = TEST_PT5_FULL_RAW_CAP;
+
+	retval = tcm_hcd->write_message(tcm_hcd,
+			CMD_PRODUCTION_TEST,
+			testing_hcd->out.buf,
+			1,
+			&testing_hcd->resp.buf,
+			&testing_hcd->resp.buf_size,
+			&testing_hcd->resp.data_length,
+			NULL,
+			0);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write command %s %s\n",
+				STR(CMD_PRODUCTION_TEST), STR(TEST_PT5_FULL_RAW_CAP));
+		goto exit;
+	}
+
+	data_length = testing_hcd->resp.buf[2] | testing_hcd->resp.buf[3] << 8;
+	TS_LOG_INFO("%d\n", data_length);
+
+
+	limits_rows = sizeof(pt5_hi_limits) / sizeof(pt5_hi_limits[0]);
+	limits_cols = sizeof(pt5_hi_limits[0]) / sizeof(pt5_hi_limits[0][0]);
+
+	if (rows > limits_rows || cols > limits_cols) {
+		TS_LOG_ERR(
+				"Mismatching limits data\n");
+		retval = -EINVAL;
+		goto exit;
+	}
+
+	idx = 0;
+	testing_hcd->result = true;
+
+	TS_LOG_ERR("full raw data begin\n");
+	for (row = 0; row < rows; row++) {
+		for (col = 0; col < cols; col++) {
+			data = (signed short)le2_to_uint(&testing_hcd->resp.buf[idx * 2]);
+			TS_LOG_ERR("data[%d]: %d, ", idx, data);
+			if ((data > pt5_hi_limits[row][col]) || (data < pt5_lo_limits[row][col])) {
+				TS_LOG_ERR("overlow_data = %8u, row = %d, col = %d\n", data, row, col);
+				testing_hcd->result = false;
+				retval = -EINVAL;
+				strncat(ovt_tcm_mmi_test_result, "2F-", MAX_STR_LEN);
+				goto exit;
+			}
+			idx++;
+		}
+	}
+	TS_LOG_ERR("full raw data end\n");
+
+	strncat(ovt_tcm_mmi_test_result, "2P-", MAX_STR_LEN);
+
+exit:
+	return retval;
+}
+
+static int ovt_testing_noise(void)
+{
+	int retval;
+	unsigned int idx; 
+	signed short data;
+	unsigned int timeout;
+	unsigned int data_length;
+	unsigned int row;
+	unsigned int col;
+	unsigned int rows;
+	unsigned int cols;
+	unsigned int limits_rows;
+	unsigned int limits_cols;
+	unsigned int frame_size_words;
+	struct ovt_tcm_app_info *app_info;
+	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+
+	// if (tcm_hcd->id_info.mode != MODE_APPLICATION ||
+	// 		tcm_hcd->app_status != APP_STATUS_OK) {
+	// 	return -ENODEV;
+	// }
+	retval = -1;
+
+	app_info = &tcm_hcd->app_info;
+	rows = le2_to_uint(app_info->num_of_image_rows);
+	cols = le2_to_uint(app_info->num_of_image_cols);
+
+
+
+	retval = ovt_tcm_alloc_mem(tcm_hcd,
+			&testing_hcd->out,
+			1);
+	if (retval < 0) {
+		TS_LOG_ERR(
+				"Failed to allocate memory for testing_hcd->out.buf\n");
+		goto exit;
+	}
+
+	testing_hcd->out.buf[0] = TEST_PT10_DELTA_NOISE;
+
+	retval = tcm_hcd->write_message(tcm_hcd,
+			CMD_PRODUCTION_TEST,
+			testing_hcd->out.buf,
+			1,
+			&testing_hcd->resp.buf,
+			&testing_hcd->resp.buf_size,
+			&testing_hcd->resp.data_length,
+			NULL,
+			0);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to write command %s  %s\n",
+				STR(CMD_PRODUCTION_TEST), STR(TEST_PT10_DELTA_NOISE));
+		goto exit;
+	}
+
+	data_length = testing_hcd->resp.data_length;
+	TS_LOG_INFO("%d\n", data_length);
+
+
+
+	limits_rows = sizeof(pt10_limits) / sizeof(pt10_limits[0]);
+	limits_cols = sizeof(pt10_limits[0]) / sizeof(pt10_limits[0][0]);
+
+	idx = 0;
+	testing_hcd->result = true;
+
+	//TS_LOG_ERR("noise data begin\n");
+	for (row = 0; row < rows; row++) {
+		for (col = 0; col < cols; col++) {
+			data = (signed short)le2_to_uint(&testing_hcd->resp.buf[idx * 2]);
+			TS_LOG_ERR("noise data[%d]: %d,   %x , %x ", idx, data, testing_hcd->resp.buf[idx * 2], testing_hcd->resp.buf[idx * 2 + 1]);
+			/*if (data > pt10_limits[row][col]) {
+				TS_LOG_INFO("overlow_data = %8u, row = %d, col = %d\n", data, row, col);
+				testing_hcd->result = false;                  
+				strncat(ovt_tcm_mmi_test_result, "2F-", MAX_STR_LEN);
+				goto exit;
+			}*/
+			idx++;
+		}
+	}
+	//TS_LOG_ERR("noise data end\n");
+	strncat(ovt_tcm_mmi_test_result, "2P-", MAX_STR_LEN);
+
+exit:
+	return retval;
+}
+
+int ovt_tcm_testing(struct ts_rawdata_info *info)
+{
+	int retval = NO_ERR;
+	unsigned int rows;
+	unsigned int cols;
+	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+	struct ovt_tcm_app_info *app_info;
+	
+	TS_LOG_INFO("ovt_tcm_testing called\n");
+
+	testing_hcd->tcm_hcd = tcm_hcd;
+	app_info = &tcm_hcd->app_info;
+
+	rows = le2_to_uint(app_info->num_of_image_rows);
+	cols = le2_to_uint(app_info->num_of_image_cols);
+
+	// if (tcm_hcd->id_info.mode != MODE_APPLICATION ||
+	// 	tcm_hcd->app_status != APP_STATUS_OK) {
+	// 		memcpy(ovt_tcm_mmi_test_result, "0F-1F-2F-3F",
+	// 	       (strlen("0F-1F-2F-3F") + 1));
+	// 	return RESULT_ERR;
+	// } else {
+	memcpy(ovt_tcm_mmi_test_result, "0P-", (strlen("0P-") + 1));
+	//}
+	retval = ovt_testing_full_raw_cap();
+	if (retval < 0) {
+		TS_LOG_ERR("fail to do full raw cap");
+		strncat(ovt_tcm_mmi_test_result, "1F-", MAX_STR_LEN);
+		goto exit;
+	}
+
+	retval = ovt_testing_noise();
+	if (retval < 0) {
+		TS_LOG_ERR("fail to do full noise test");
+		strncat(ovt_tcm_mmi_test_result, "2F-", MAX_STR_LEN);
+		goto exit;
+	}
+	info->hybrid_buff[0] = rows;
+	info->hybrid_buff[1] = cols;
+	memcpy(&info->hybrid_buff[2], testing_hcd->resp.buf, rows * cols * sizeof(int));
+	
+	memcpy(info->result, ovt_tcm_mmi_test_result, strlen(ovt_tcm_mmi_test_result));
+	info->used_size = rows * cols + 2;
+	TS_LOG_INFO("info->used_size = %d\n", info->used_size);
+exit:
+
+	return 0;
+}
+
+
+
+#if 0
 DECLARE_COMPLETION(report_complete);
 
 DECLARE_COMPLETION(testing_remove_complete);
 
-static struct testing_hcd *testing_hcd;
 
 
 /* testing implementation */
@@ -1483,78 +1787,10 @@ static void testing_report(void)
 
 	return;
 }
+#endif
 
 
-static int testing_init(struct ovt_tcm_hcd *tcm_hcd)
-{
-	int retval;
-	int idx;
-
-	testing_hcd = kzalloc(sizeof(*testing_hcd), GFP_KERNEL);
-	if (!testing_hcd) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to allocate memory for testing_hcd\n");
-		return -ENOMEM;
-	}
-
-	testing_hcd->tcm_hcd = tcm_hcd;
-
-	testing_hcd->collect_reports = testing_collect_reports;
-
-	INIT_BUFFER(testing_hcd->out, false);
-	INIT_BUFFER(testing_hcd->resp, false);
-	INIT_BUFFER(testing_hcd->report, false);
-	INIT_BUFFER(testing_hcd->process, false);
-	INIT_BUFFER(testing_hcd->output, false);
-
-	testing_hcd->sysfs_dir = kobject_create_and_add(SYSFS_DIR_NAME,
-			tcm_hcd->sysfs_dir);
-	if (!testing_hcd->sysfs_dir) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to create sysfs directory\n");
-		retval = -EINVAL;
-		goto err_sysfs_create_dir;
-	}
-
-	for (idx = 0; idx < ARRAY_SIZE(attrs); idx++) {
-		retval = sysfs_create_file(testing_hcd->sysfs_dir,
-				&(*attrs[idx]).attr);
-		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to create sysfs file\n");
-			goto err_sysfs_create_file;
-		}
-	}
-
-	retval = sysfs_create_bin_file(testing_hcd->sysfs_dir, &bin_attr);
-	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to create sysfs bin file\n");
-		goto err_sysfs_create_bin_file;
-	}
-
-	return 0;
-
-err_sysfs_create_bin_file:
-err_sysfs_create_file:
-	for (idx--; idx >= 0; idx--)
-		sysfs_remove_file(testing_hcd->sysfs_dir, &(*attrs[idx]).attr);
-
-	kobject_put(testing_hcd->sysfs_dir);
-
-err_sysfs_create_dir:
-	RELEASE_BUFFER(testing_hcd->output);
-	RELEASE_BUFFER(testing_hcd->process);
-	RELEASE_BUFFER(testing_hcd->report);
-	RELEASE_BUFFER(testing_hcd->resp);
-	RELEASE_BUFFER(testing_hcd->out);
-
-	kfree(testing_hcd);
-	testing_hcd = NULL;
-
-	return retval;
-}
-
+#if 0
 static int testing_remove(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int idx;
@@ -1641,3 +1877,4 @@ module_exit(testing_module_exit);
 MODULE_AUTHOR("Omnivision, Inc.");
 MODULE_DESCRIPTION("Omnivision TCM Testing Module");
 MODULE_LICENSE("GPL v2");
+#endif
