@@ -540,8 +540,13 @@ static int zeroflash_get_fw_image(void)
 	int retval;
 	struct ovt_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
 
-	if (zeroflash_hcd->fw_entry != NULL)
-		return 0;
+	if (zeroflash_hcd->fw_entry != NULL) {
+		release_firmware(zeroflash_hcd->fw_entry);
+		zeroflash_hcd->fw_entry = NULL;
+		zeroflash_hcd->image = NULL;
+	} else {
+		msleep(20000); //power on case, sleep 20s to get the file system img
+	}
 	LOGN(tcm_hcd->pdev->dev.parent,"zeroflash_get_fw_image\n");
 	if (zeroflash_hcd->image == NULL) {
 		retval = request_firmware(&zeroflash_hcd->fw_entry,
@@ -1106,7 +1111,7 @@ retry_download:
 	}
 
 	atomic_set(&tcm_hcd->host_downloading, 1);
-	msleep(20000);
+
 	retval = zeroflash_get_fw_image();
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,

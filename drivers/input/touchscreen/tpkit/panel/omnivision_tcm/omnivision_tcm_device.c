@@ -654,7 +654,7 @@ err_register_chrdev_region:
 
 	return retval;
 }
-
+#if 0
 static int device_remove(struct ovt_tcm_hcd *tcm_hcd)
 {
 	if (!device_hcd)
@@ -680,7 +680,7 @@ exit:
 
 	return 0;
 }
-#if 0
+
 static int device_reinit(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int retval;
