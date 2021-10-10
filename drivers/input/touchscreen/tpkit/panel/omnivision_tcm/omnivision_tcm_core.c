@@ -1631,7 +1631,7 @@ retry:
 			break;
 		case STATUS_CONTINUED_READ:
 			LOGD(tcm_hcd->pdev->dev.parent,
-					"Out-of-sync continued read\n");
+					"Out-of-sync continued read");
 		case STATUS_IDLE:
 		case STATUS_BUSY:
 			tcm_hcd->payload_length = 0;
@@ -2708,7 +2708,7 @@ get_info:
 	case MODE_TDDI_BOOTLOADER:
 
 		LOGD(tcm_hcd->pdev->dev.parent,
-			"In bootloader mode\n");
+			"In bootloader mode");
 
 		retval = ovt_tcm_get_boot_info(tcm_hcd);
 		if (retval < 0) {
@@ -2720,7 +2720,7 @@ get_info:
 	case MODE_ROMBOOTLOADER:
 
 		LOGD(tcm_hcd->pdev->dev.parent,
-			"In rombootloader mode\n");
+			"In rombootloader mode");
 
 		retval = ovt_tcm_get_romboot_info(tcm_hcd);
 		if (retval < 0) {
@@ -3843,20 +3843,20 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	hw_if = pdev->dev.platform_data;
 	if (!hw_if) {
 		LOGE(&pdev->dev,
-				"Hardware interface not found\n");
+				"Hardware interface not found");
 		return -ENODEV;
 	}
 
 	bdata = hw_if->bdata;
 	if (!bdata) {
 		LOGE(&pdev->dev,
-				"Board data not found\n");
+				"Board data not found");
 		return -ENODEV;
 	}
 
 	if (!tcm_hcd) {
 		LOGE(&pdev->dev,
-				"Failed to allocate memory for tcm_hcd\n");
+				"Failed to allocate memory for tcm_hcd");
 		return -ENOMEM;
 	}
 
@@ -3923,7 +3923,7 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 			tcm_hcd->read_length + 1);
 	if (retval < 0) {
 		LOGE(&pdev->dev,
-				"Failed to allocate memory for tcm_hcd->in.buf\n");
+				"Failed to allocate memory for tcm_hcd->in.buf");
 		UNLOCK_BUFFER(tcm_hcd->in);
 	}
 

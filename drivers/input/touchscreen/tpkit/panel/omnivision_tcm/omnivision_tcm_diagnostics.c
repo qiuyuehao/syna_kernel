@@ -104,7 +104,7 @@ static ssize_t diag_sysfs_pid_store(struct device *dev,
 				PIDTYPE_PID);
 		if (!diag_hcd->task) {
 			TS_LOG_ERR(
-					"Failed to locate task\n");
+					"Failed to locate task");
 			retval = -EINVAL;
 			goto exit;
 		}
@@ -330,7 +330,7 @@ static ssize_t diag_sysfs_data_show(struct file *data_file,
 exit:
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to copy report data\n");
+				"Failed to copy report data");
 	} else {
 		retval = readlen;
 	}
@@ -354,7 +354,7 @@ static void diag_report(void)
 				tcm_hcd->report.buffer.data_length);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to allocate memory for diag_hcd->ping.buf\n");
+					"Failed to allocate memory for diag_hcd->ping.buf");
 			UNLOCK_BUFFER(diag_hcd->ping);
 			return;
 		}
@@ -366,7 +366,7 @@ static void diag_report(void)
 				tcm_hcd->report.buffer.data_length);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to copy report data\n");
+					"Failed to copy report data");
 			UNLOCK_BUFFER(diag_hcd->ping);
 			return;
 		}
@@ -385,7 +385,7 @@ static void diag_report(void)
 				tcm_hcd->report.buffer.data_length);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to allocate memory for diag_hcd->pong.buf\n");
+					"Failed to allocate memory for diag_hcd->pong.buf");
 			UNLOCK_BUFFER(diag_hcd->pong);
 			return;
 		}
@@ -397,7 +397,7 @@ static void diag_report(void)
 				tcm_hcd->report.buffer.data_length);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to copy report data\n");
+					"Failed to copy report data");
 			UNLOCK_BUFFER(diag_hcd->pong);
 			return;
 		}
@@ -424,7 +424,7 @@ static int diag_init(struct ovt_tcm_hcd *tcm_hcd)
 	diag_hcd = kzalloc(sizeof(*diag_hcd), GFP_KERNEL);
 	if (!diag_hcd) {
 		TS_LOG_ERR(
-				"Failed to allocate memory for diag_hcd\n");
+				"Failed to allocate memory for diag_hcd");
 		return -ENOMEM;
 	}
 
@@ -442,7 +442,7 @@ static int diag_init(struct ovt_tcm_hcd *tcm_hcd)
 			tcm_hcd->sysfs_dir);
 	if (!diag_hcd->sysfs_dir) {
 		TS_LOG_ERR(
-				"Failed to create sysfs directory\n");
+				"Failed to create sysfs directory");
 		retval = -EINVAL;
 		goto err_sysfs_create_dir;
 	}
@@ -452,7 +452,7 @@ static int diag_init(struct ovt_tcm_hcd *tcm_hcd)
 				&(*attrs[idx]).attr);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to create sysfs file\n");
+					"Failed to create sysfs file");
 			goto err_sysfs_create_file;
 		}
 	}
@@ -460,7 +460,7 @@ static int diag_init(struct ovt_tcm_hcd *tcm_hcd)
 	retval = sysfs_create_bin_file(diag_hcd->sysfs_dir, &bin_attr);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to create sysfs bin file\n");
+				"Failed to create sysfs bin file");
 		goto err_sysfs_create_bin_file;
 	}
 

@@ -94,7 +94,7 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 				&value);
 		if (retval < 0) {
 			LOGE(dev,
-					"Failed to read omnivision,power-on-state property\n");
+					"Failed to read omnivision,power-on-state property");
 			return retval;
 		} else {
 			bdata->power_on_state = value;
@@ -109,7 +109,7 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 				&value);
 		if (retval < 0) {
 			LOGE(dev,
-					"Failed to read omnivision,power-delay-ms property\n");
+					"Failed to read omnivision,power-delay-ms property");
 			return retval;
 		} else {
 			bdata->power_delay_ms = value;
@@ -132,7 +132,7 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 				&value);
 		if (retval < 0) {
 			LOGE(dev,
-					"Failed to read omnivision,reset-on-state property\n");
+					"Failed to read omnivision,reset-on-state property");
 			return retval;
 		} else {
 			bdata->reset_on_state = value;
@@ -147,7 +147,7 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 				&value);
 		if (retval < 0) {
 			LOGE(dev,
-					"Failed to read omnivision,reset-active-ms property\n");
+					"Failed to read omnivision,reset-active-ms property");
 			return retval;
 		} else {
 			bdata->reset_active_ms = value;
@@ -162,7 +162,7 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 				&value);
 		if (retval < 0) {
 			LOGE(dev,
-					"Unable to read omnivision,reset-delay-ms property\n");
+					"Unable to read omnivision,reset-delay-ms property");
 			return retval;
 		} else {
 			bdata->reset_delay_ms = value;
@@ -194,7 +194,7 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 				&value);
 		if (retval < 0) {
 			LOGE(dev,
-					"Unable to read omnivision,ubl-i2c-addr property\n");
+					"Unable to read omnivision,ubl-i2c-addr property");
 			return retval;
 		} else {
 			bdata->ubl_i2c_addr = value;
@@ -218,7 +218,7 @@ static int ovt_tcm_i2c_alloc_mem(struct ovt_tcm_hcd *tcm_hcd,
 		buf = kmalloc(size, GFP_KERNEL);
 		if (!buf) {
 			LOGE(&i2c->dev,
-					"Failed to allocate memory for buf\n");
+					"Failed to allocate memory for buf");
 			buf_size = 0;
 			return -ENOMEM;
 		}
@@ -292,7 +292,7 @@ static int ovt_tcm_i2c_rmi_write(struct ovt_tcm_hcd *tcm_hcd,
 	retval = ovt_tcm_i2c_alloc_mem(tcm_hcd, byte_count);
 	if (retval < 0) {
 		LOGE(&i2c->dev,
-				"Failed to allocate memory\n");
+				"Failed to allocate memory");
 		goto exit;
 	}
 
@@ -304,7 +304,7 @@ static int ovt_tcm_i2c_rmi_write(struct ovt_tcm_hcd *tcm_hcd,
 			length);
 	if (retval < 0) {
 		LOGE(&i2c->dev,
-				"Failed to copy write data\n");
+				"Failed to copy write data");
 		goto exit;
 	}
 
@@ -420,7 +420,7 @@ static int ovt_tcm_i2c_probe(struct i2c_client *i2c,
 	ovt_tcm_i2c_device = platform_device_alloc(PLATFORM_DRIVER_NAME, 0);
 	if (!ovt_tcm_i2c_device) {
 		LOGE(&i2c->dev,
-				"Failed to allocate platform device\n");
+				"Failed to allocate platform device");
 		return -ENOMEM;
 	}
 
@@ -428,7 +428,7 @@ static int ovt_tcm_i2c_probe(struct i2c_client *i2c,
 	hw_if.bdata = devm_kzalloc(&i2c->dev, sizeof(*hw_if.bdata), GFP_KERNEL);
 	if (!hw_if.bdata) {
 		LOGE(&i2c->dev,
-				"Failed to allocate memory for board data\n");
+				"Failed to allocate memory for board data");
 		return -ENOMEM;
 	}
 	parse_dt(&i2c->dev, hw_if.bdata);
@@ -450,7 +450,7 @@ static int ovt_tcm_i2c_probe(struct i2c_client *i2c,
 	retval = platform_device_add(ovt_tcm_i2c_device);
 	if (retval < 0) {
 		LOGE(&i2c->dev,
-				"Failed to add platform device\n");
+				"Failed to add platform device");
 		return retval;
 	}
 

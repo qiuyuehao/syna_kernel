@@ -209,7 +209,7 @@ static int recovery_parse_romboot_ihex(void)
 
 	if (!(recovery_hcd->ihex_buf)) {
 		TS_LOG_ERR(
-				"No ihex data\n");
+				"No ihex data");
 		return -ENOBUFS;
 	}
 
@@ -233,7 +233,7 @@ static int recovery_parse_romboot_ihex(void)
 				&data1);
 		if (retval != 7) {
 			TS_LOG_ERR(
-					"Failed to read ihex record\n");
+					"Failed to read ihex record");
 			return -EINVAL;
 		}
 
@@ -246,14 +246,14 @@ static int recovery_parse_romboot_ihex(void)
 			retval = recovery_add_romboot_data_entry(data0);
 			if (retval < 0) {
 				TS_LOG_ERR(
-						"Failed to add data entry for data0\n");
+						"Failed to add data entry for data0");
 				return retval;
 			}
 
 			retval = recovery_add_romboot_data_entry(data1);
 			if (retval < 0) {
 				TS_LOG_ERR(
-						"Failed to add data entry for data1\n");
+						"Failed to add data entry for data1");
 				return retval;
 			}
 
@@ -461,14 +461,14 @@ static void recovery_do_romboot_recovery(struct ovt_tcm_hcd *tcm_hcd)
 
 	if (tcm_hcd->id_info.mode != MODE_ROMBOOTLOADER) {
 		TS_LOG_ERR(
-				"Not in romboot\n");
+				"Not in romboot");
 		goto do_program_exit;
 	}
 
 	retval = recovery_parse_romboot_ihex();
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to parse ihex data\n");
+				"Failed to parse ihex data");
 		goto do_program_exit;
 	}
 
@@ -482,7 +482,7 @@ static void recovery_do_romboot_recovery(struct ovt_tcm_hcd *tcm_hcd)
 			recovery_hcd->image_info.app_firmware.size);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to copy payload\n");
+				"Failed to copy payload");
 		goto do_program_exit;
 	}
 
@@ -546,14 +546,14 @@ static ssize_t recovery_sysfs_f35_recovery_store(struct device *dev,
 
 	if (recovery_hcd->ihex_size == 0) {
 		TS_LOG_ERR(
-				"Failed to get ihex data\n");
+				"Failed to get ihex data");
 		retval = -EINVAL;
 		goto exit;
 	}
 
 	if (recovery_hcd->ihex_size % IHEX_RECORD_SIZE) {
 		TS_LOG_ERR(
-				"Invalid ihex data\n");
+				"Invalid ihex data");
 		retval = -EINVAL;
 		goto exit;
 	}
@@ -563,7 +563,7 @@ static ssize_t recovery_sysfs_f35_recovery_store(struct device *dev,
 	retval = recovery_do_f35_recovery();
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to do recovery\n");
+				"Failed to do recovery");
 		goto exit;
 	}
 
@@ -593,7 +593,7 @@ static ssize_t recovery_sysfs_ihex_store(struct file *data_file,
 			count);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to copy ihex data\n");
+				"Failed to copy ihex data");
 		recovery_hcd->ihex_size = 0;
 		goto exit;
 	}
@@ -623,7 +623,7 @@ static int recovery_device_reset(void)
 			sizeof(command));
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to write F$35 command\n");
+				"Failed to write F$35 command");
 		return retval;
 	}
 
@@ -638,7 +638,7 @@ static int recovery_add_data_entry(unsigned char data)
 
 	if (recovery_hcd->data_entries >= DATA_BUF_SIZE) {
 		TS_LOG_ERR(
-				"Reached data buffer size limit\n");
+				"Reached data buffer size limit");
 		return -EINVAL;
 	}
 
@@ -653,7 +653,7 @@ static int recovery_add_romboot_data_entry(unsigned char data)
 
 	if (recovery_hcd->data_entries >= DATA_ROMBOOT_BUF_SIZE) {
 		TS_LOG_ERR(
-				"Reached data buffer size limit\n");
+				"Reached data buffer size limit");
 		return -EINVAL;
 	}
 
@@ -675,14 +675,14 @@ static int recovery_add_padding(unsigned int *words)
 		retval = recovery_add_data_entry(0xff);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to add data entry\n");
+					"Failed to add data entry");
 			return retval;
 		}
 
 		retval = recovery_add_data_entry(0xff);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to add data entry\n");
+					"Failed to add data entry");
 			return retval;
 		}
 
@@ -731,7 +731,7 @@ static int recovery_parse_f35_ihex(void)
 				&data1);
 		if (retval != 7) {
 			TS_LOG_ERR(
-					"Failed to read ihex record\n");
+					"Failed to read ihex record");
 			return -EINVAL;
 		}
 
@@ -744,14 +744,14 @@ static int recovery_parse_f35_ihex(void)
 				retval = recovery_add_data_entry(addr);
 				if (retval < 0) {
 					TS_LOG_ERR(
-							"Failed to add data entry\n");
+							"Failed to add data entry");
 					return retval;
 				}
 
 				retval = recovery_add_data_entry(addr >> 8);
 				if (retval < 0) {
 					TS_LOG_ERR(
-							"Failed to add data entry\n");
+							"Failed to add data entry");
 					return retval;
 				}
 			}
@@ -759,14 +759,14 @@ static int recovery_parse_f35_ihex(void)
 			retval = recovery_add_data_entry(data0);
 			if (retval < 0) {
 				TS_LOG_ERR(
-						"Failed to add data entry\n");
+						"Failed to add data entry");
 				return retval;
 			}
 
 			retval = recovery_add_data_entry(data1);
 			if (retval < 0) {
 				TS_LOG_ERR(
-						"Failed to add data entry\n");
+						"Failed to add data entry");
 				return retval;
 			}
 
@@ -775,7 +775,7 @@ static int recovery_parse_f35_ihex(void)
 			retval = recovery_add_padding(&words);
 			if (retval < 0) {
 				TS_LOG_ERR(
-						"Failed to add padding\n");
+						"Failed to add padding");
 				return retval;
 			}
 
@@ -787,7 +787,7 @@ static int recovery_parse_f35_ihex(void)
 	retval = recovery_add_padding(&words);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to add padding\n");
+				"Failed to add padding");
 		return retval;
 	}
 
@@ -806,7 +806,7 @@ static int recovery_check_status(void)
 			sizeof(status));
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to read status\n");
+				"Failed to read status");
 		return retval;
 	}
 
@@ -852,7 +852,7 @@ static int recovery_write_flash(void)
 				entries_to_write);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to copy chunk data\n");
+					"Failed to copy chunk data");
 			return retval;
 		}
 
@@ -862,7 +862,7 @@ static int recovery_write_flash(void)
 				chunk_buf_size);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to write chunk data\n");
+					"Failed to write chunk data");
 			return retval;
 		}
 
@@ -873,7 +873,7 @@ static int recovery_write_flash(void)
 	retval = recovery_check_status();
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to get no error recovery mode status\n");
+				"Failed to get no error recovery mode status");
 		return retval;
 	}
 
@@ -902,7 +902,7 @@ static int recovery_poll_erase_completion(void)
 				sizeof(command));
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to write F$35 command\n");
+					"Failed to write F$35 command");
 			return retval;
 		}
 
@@ -913,7 +913,7 @@ static int recovery_poll_erase_completion(void)
 					sizeof(command));
 			if (retval < 0) {
 				TS_LOG_ERR(
-						"Failed to read command status\n");
+						"Failed to read command status");
 				return retval;
 			}
 
@@ -938,7 +938,7 @@ static int recovery_poll_erase_completion(void)
 				sizeof(status));
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to read flash status\n");
+					"Failed to read flash status");
 			return retval;
 		}
 
@@ -959,7 +959,7 @@ static int recovery_poll_erase_completion(void)
 exit:
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to get erase completion\n");
+				"Failed to get erase completion");
 	}
 
 	return retval;
@@ -979,7 +979,7 @@ static int recovery_erase_flash(void)
 			sizeof(command));
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to write F$35 command\n");
+				"Failed to write F$35 command");
 		return retval;
 	}
 
@@ -987,7 +987,7 @@ static int recovery_erase_flash(void)
 		retval = recovery_poll_erase_completion();
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to wait for erase completion\n");
+					"Failed to wait for erase completion");
 			return retval;
 		}
 	} else {
@@ -997,7 +997,7 @@ static int recovery_erase_flash(void)
 	retval = recovery_check_status();
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to get no error recovery mode status\n");
+				"Failed to get no error recovery mode status");
 		return retval;
 	}
 
@@ -1013,7 +1013,7 @@ static int recovery_set_up_recovery_mode(void)
 	retval = tcm_hcd->identify(tcm_hcd, true);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to do identification\n");
+				"Failed to do identification");
 		return retval;
 	}
 
@@ -1021,7 +1021,7 @@ static int recovery_set_up_recovery_mode(void)
 		retval = tcm_hcd->switch_mode(tcm_hcd, FW_MODE_BOOTLOADER);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to enter bootloader mode\n");
+					"Failed to enter bootloader mode");
 			return retval;
 		}
 	}
@@ -1056,7 +1056,7 @@ static int recovery_do_f35_recovery(void)
 	retval = recovery_parse_f35_ihex();
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to parse ihex data\n");
+				"Failed to parse ihex data");
 		return retval;
 	}
 
@@ -1064,7 +1064,7 @@ static int recovery_do_f35_recovery(void)
 		retval = recovery_set_up_recovery_mode();
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to set up recovery mode\n");
+					"Failed to set up recovery mode");
 			return retval;
 		}
 	}
@@ -1079,13 +1079,13 @@ static int recovery_do_f35_recovery(void)
 			sizeof(p_entry));
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to read PDT entry\n");
+				"Failed to read PDT entry");
 		return retval;
 	}
 
 	if (p_entry.fn_number != UBL_FN_NUMBER) {
 		TS_LOG_ERR(
-				"Failed to find F$35\n");
+				"Failed to find F$35");
 		return -ENODEV;
 	}
 
@@ -1095,37 +1095,37 @@ static int recovery_do_f35_recovery(void)
 	recovery_hcd->f35_addr.data_base = p_entry.data_base_addr;
 
 	TS_LOG_INFO(
-			"Start of recovery\n");
+			"Start of recovery");
 
 	retval = recovery_erase_flash();
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to erase flash\n");
+				"Failed to erase flash");
 		return retval;
 	}
 
 	TS_LOG_INFO(
-			"Flash erased\n");
+			"Flash erased");
 
 	retval = recovery_write_flash();
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to write to flash\n");
+				"Failed to write to flash");
 		return retval;
 	}
 
 	TS_LOG_INFO(
-			"Flash written\n");
+			"Flash written");
 
 	retval = recovery_device_reset();
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to do reset\n");
+				"Failed to do reset");
 		return retval;
 	}
 
 	TS_LOG_INFO(
-			"End of recovery\n");
+			"End of recovery");
 
 	if (recovery_hcd->set_up_recovery_mode)
 		return 0;
@@ -1137,14 +1137,14 @@ static int recovery_do_f35_recovery(void)
 	retval = tcm_hcd->enable_irq(tcm_hcd, true, NULL);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to enable interrupt\n");
+				"Failed to enable interrupt");
 		return retval;
 	}
 
 	retval = tcm_hcd->identify(tcm_hcd, true);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to do identification\n");
+				"Failed to do identification");
 		return retval;
 	}
 
@@ -1152,7 +1152,7 @@ static int recovery_do_f35_recovery(void)
 		retval = tcm_hcd->switch_mode(tcm_hcd, FW_MODE_APPLICATION);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to run application firmware\n");
+					"Failed to run application firmware");
 			return retval;
 		}
 	}
@@ -1168,21 +1168,21 @@ static int recovery_init(struct ovt_tcm_hcd *tcm_hcd)
 	recovery_hcd = kzalloc(sizeof(*recovery_hcd), GFP_KERNEL);
 	if (!recovery_hcd) {
 		TS_LOG_ERR(
-				"Failed to allocate memory for recovery_hcd\n");
+				"Failed to allocate memory for recovery_hcd");
 		return -ENOMEM;
 	}
 
 	recovery_hcd->ihex_buf = kzalloc(IHEX_BUF_SIZE, GFP_KERNEL);
 	if (!recovery_hcd->ihex_buf) {
 		TS_LOG_ERR(
-				"Failed to allocate memory for recovery_hcd->ihex_buf\n");
+				"Failed to allocate memory for recovery_hcd->ihex_buf");
 		goto err_allocate_ihex_buf;
 	}
 
 	recovery_hcd->data_buf = kzalloc(DATA_BUF_SIZE, GFP_KERNEL);
 	if (!recovery_hcd->data_buf) {
 		TS_LOG_ERR(
-				"Failed to allocate memory for recovery_hcd->data_buf\n");
+				"Failed to allocate memory for recovery_hcd->data_buf");
 		goto err_allocate_data_buf;
 	}
 
@@ -1201,7 +1201,7 @@ static int recovery_init(struct ovt_tcm_hcd *tcm_hcd)
 			tcm_hcd->sysfs_dir);
 	if (!recovery_hcd->sysfs_dir) {
 		TS_LOG_ERR(
-				"Failed to create sysfs directory\n");
+				"Failed to create sysfs directory");
 		retval = -EINVAL;
 		goto err_sysfs_create_dir;
 	}
@@ -1211,7 +1211,7 @@ static int recovery_init(struct ovt_tcm_hcd *tcm_hcd)
 				&(*attrs[idx]).attr);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to create sysfs file\n");
+					"Failed to create sysfs file");
 			goto err_sysfs_create_file;
 		}
 	}
@@ -1219,7 +1219,7 @@ static int recovery_init(struct ovt_tcm_hcd *tcm_hcd)
 	retval = sysfs_create_bin_file(recovery_hcd->sysfs_dir, &bin_attr);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to create sysfs bin file\n");
+				"Failed to create sysfs bin file");
 		goto err_sysfs_create_bin_file;
 	}
 

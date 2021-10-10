@@ -92,8 +92,8 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 		retval = of_property_read_u32(np, "omnivision,power-on-state",
 				&value);
 		if (retval < 0) {
-			LOGE(dev,
-					"Failed to read omnivision,power-on-state property\n");
+			TS_LOG_ERR(
+					"Failed to read omnivision,power-on-state property");
 			return retval;
 		} else {
 			bdata->power_on_state = value;
@@ -107,8 +107,8 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 		retval = of_property_read_u32(np, "omnivision,power-delay-ms",
 				&value);
 		if (retval < 0) {
-			LOGE(dev,
-					"Failed to read omnivision,power-delay-ms property\n");
+			TS_LOG_ERR(
+					"Failed to read omnivision,power-delay-ms property");
 			return retval;
 		} else {
 			bdata->power_delay_ms = value;
@@ -130,8 +130,8 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 		retval = of_property_read_u32(np, "omnivision,reset-on-state",
 				&value);
 		if (retval < 0) {
-			LOGE(dev,
-					"Failed to read omnivision,reset-on-state property\n");
+			TS_LOG_ERR(
+					"Failed to read omnivision,reset-on-state property");
 			return retval;
 		} else {
 			bdata->reset_on_state = value;
@@ -145,8 +145,8 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 		retval = of_property_read_u32(np, "omnivision,reset-active-ms",
 				&value);
 		if (retval < 0) {
-			LOGE(dev,
-					"Failed to read omnivision,reset-active-ms property\n");
+			TS_LOG_ERR(
+					"Failed to read omnivision,reset-active-ms property");
 			return retval;
 		} else {
 			bdata->reset_active_ms = value;
@@ -160,8 +160,8 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 		retval = of_property_read_u32(np, "omnivision,reset-delay-ms",
 				&value);
 		if (retval < 0) {
-			LOGE(dev,
-					"Unable to read omnivision,reset-delay-ms property\n");
+			TS_LOG_ERR(
+					"Unable to read omnivision,reset-delay-ms property");
 			return retval;
 		} else {
 			bdata->reset_delay_ms = value;
@@ -192,8 +192,8 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 		retval = of_property_read_u32(np, "omnivision,byte-delay-us",
 				&value);
 		if (retval < 0) {
-			LOGE(dev,
-					"Unable to read omnivision,byte-delay-us property\n");
+			TS_LOG_ERR(
+					"Unable to read omnivision,byte-delay-us property");
 			return retval;
 		} else {
 			bdata->byte_delay_us = value;
@@ -207,8 +207,8 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 		retval = of_property_read_u32(np, "omnivision,block-delay-us",
 				&value);
 		if (retval < 0) {
-			LOGE(dev,
-					"Unable to read omnivision,block-delay-us property\n");
+			TS_LOG_ERR(
+					"Unable to read omnivision,block-delay-us property");
 			return retval;
 		} else {
 			bdata->block_delay_us = value;
@@ -222,8 +222,8 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 		retval = of_property_read_u32(np, "omnivision,spi-mode",
 				&value);
 		if (retval < 0) {
-			LOGE(dev,
-					"Unable to read omnivision,spi-mode property\n");
+			TS_LOG_ERR(
+					"Unable to read omnivision,spi-mode property");
 			return retval;
 		} else {
 			bdata->spi_mode = value;
@@ -237,8 +237,8 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 		retval = of_property_read_u32(np, "omnivision,ubl-max-freq",
 				&value);
 		if (retval < 0) {
-			LOGE(dev,
-					"Unable to read omnivision,ubl-max-freq property\n");
+			TS_LOG_ERR(
+					"Unable to read omnivision,ubl-max-freq property");
 			return retval;
 		} else {
 			bdata->ubl_max_freq = value;
@@ -252,8 +252,8 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 		retval = of_property_read_u32(np, "omnivision,ubl-byte-delay-us",
 				&value);
 		if (retval < 0) {
-			LOGE(dev,
-					"Unable to read omnivision,ubl-byte-delay-us property\n");
+			TS_LOG_ERR(
+					"Unable to read omnivision,ubl-byte-delay-us property");
 			return retval;
 		} else {
 			bdata->ubl_byte_delay_us = value;
@@ -276,8 +276,8 @@ static int ovt_tcm_spi_alloc_mem(struct ovt_tcm_hcd *tcm_hcd,
 		kfree(xfer);
 		xfer = kcalloc(count, sizeof(*xfer), GFP_KERNEL);
 		if (!xfer) {
-			LOGE(&spi->dev,
-					"Failed to allocate memory for xfer\n");
+			TS_LOG_ERR(
+					"Failed to allocate memory for xfer");
 			xfer_count = 0;
 			return -ENOMEM;
 		}
@@ -291,8 +291,8 @@ static int ovt_tcm_spi_alloc_mem(struct ovt_tcm_hcd *tcm_hcd,
 			kfree(buf);
 		buf = kmalloc(size, GFP_KERNEL);
 		if (!buf) {
-			LOGE(&spi->dev,
-					"Failed to allocate memory for buf\n");
+			TS_LOG_ERR(
+					"Failed to allocate memory for buf");
 			buf_size = 0;
 			return -ENOMEM;
 		}
@@ -324,8 +324,8 @@ static int ovt_tcm_spi_rmi_read(struct ovt_tcm_hcd *tcm_hcd,
 	else
 		retval = ovt_tcm_spi_alloc_mem(tcm_hcd, byte_count, 3);
 	if (retval < 0) {
-		LOGE(&spi->dev,
-				"Failed to allocate memory\n");
+		TS_LOG_ERR(
+				"Failed to allocate memory");
 		goto exit;
 	}
 
@@ -370,7 +370,7 @@ static int ovt_tcm_spi_rmi_read(struct ovt_tcm_hcd *tcm_hcd,
 	if (retval == 0) {
 		retval = length;
 	} else {
-		LOGE(&spi->dev,
+		TS_LOG_ERR(
 				"Failed to complete SPI transfer, error = %d\n",
 				retval);
 	}
@@ -401,8 +401,8 @@ static int ovt_tcm_spi_rmi_write(struct ovt_tcm_hcd *tcm_hcd,
 
 	retval = ovt_tcm_spi_alloc_mem(tcm_hcd, 1, byte_count);
 	if (retval < 0) {
-		LOGE(&spi->dev,
-				"Failed to allocate memory\n");
+		TS_LOG_ERR(
+				"Failed to allocate memory");
 		goto exit;
 	}
 
@@ -414,8 +414,8 @@ static int ovt_tcm_spi_rmi_write(struct ovt_tcm_hcd *tcm_hcd,
 			length,
 			length);
 	if (retval < 0) {
-		LOGE(&spi->dev,
-				"Failed to copy write data\n");
+		TS_LOG_ERR(
+				"Failed to copy write data");
 		goto exit;
 	}
 
@@ -432,7 +432,7 @@ static int ovt_tcm_spi_rmi_write(struct ovt_tcm_hcd *tcm_hcd,
 	if (retval == 0) {
 		retval = length;
 	} else {
-		LOGE(&spi->dev,
+		TS_LOG_ERR(
 				"Failed to complete SPI transfer, error = %d\n",
 				retval);
 	}
@@ -468,7 +468,7 @@ static int ovt_tcm_spi_read(struct ovt_tcm_hcd *tcm_hcd, unsigned char *data,
 		retval = ovt_tcm_spi_alloc_mem(tcm_hcd, length, 1);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to allocate memory\n");
+				"Failed to allocate memory");
 		goto exit;
 	}
 
@@ -497,7 +497,7 @@ static int ovt_tcm_spi_read(struct ovt_tcm_hcd *tcm_hcd, unsigned char *data,
 	if (retval == 0) {
 		retval = length;
 	} else {
-		LOGE(&spi->dev,
+		TS_LOG_ERR(
 				"Failed to complete SPI transfer, error = %d\n",
 				retval);
 	}
@@ -526,8 +526,8 @@ static int ovt_tcm_spi_write(struct ovt_tcm_hcd *tcm_hcd, unsigned char *data,
 	else
 		retval = ovt_tcm_spi_alloc_mem(tcm_hcd, length, 0);
 	if (retval < 0) {
-		LOGE(&spi->dev,
-				"Failed to allocate memory\n");
+		TS_LOG_ERR(
+				"Failed to allocate memory");
 		goto exit;
 	}
 
@@ -552,7 +552,7 @@ static int ovt_tcm_spi_write(struct ovt_tcm_hcd *tcm_hcd, unsigned char *data,
 	if (retval == 0) {
 		retval = length;
 	} else {
-		LOGE(&spi->dev,
+		TS_LOG_ERR(
 				"Failed to complete SPI transfer, error = %d\n",
 				retval);
 	}
@@ -568,23 +568,23 @@ int ovt_tcm_spi_probe(struct spi_device *spi)
 	int retval;
 
 	if (spi->master->flags & SPI_MASTER_HALF_DUPLEX) {
-		LOGE(&spi->dev,
-				"Full duplex not supported by host\n");
+		TS_LOG_ERR(
+				"Full duplex not supported by host");
 		return -EIO;
 	}
 
 	ovt_tcm_spi_platform_device = platform_device_alloc(PLATFORM_DRIVER_NAME, 0);
 	if (!ovt_tcm_spi_platform_device) {
-		LOGE(&spi->dev,
-				"Failed to allocate platform device\n");
+		TS_LOG_ERR(
+				"Failed to allocate platform device");
 		return -ENOMEM;
 	}
 
 #ifdef CONFIG_OF
 	hw_if.bdata = devm_kzalloc(&spi->dev, sizeof(*hw_if.bdata), GFP_KERNEL);
 	if (!hw_if.bdata) {
-		LOGE(&spi->dev,
-				"Failed to allocate memory for board data\n");
+		TS_LOG_ERR(
+				"Failed to allocate memory for board data");
 		return -ENOMEM;
 	}
 	parse_dt(&spi->dev, hw_if.bdata);
@@ -619,8 +619,8 @@ int ovt_tcm_spi_probe(struct spi_device *spi)
 	dev_set_name(&(spi->dev), "ovt_tcm_spi_device_TS_KIT");
 	retval = spi_setup(spi);
 	if (retval < 0) {
-		LOGE(&spi->dev,
-				"Failed to set up SPI protocol driver\n");
+		TS_LOG_ERR(
+				"Failed to set up SPI protocol driver");
 		return retval;
 	}
 
@@ -629,8 +629,8 @@ int ovt_tcm_spi_probe(struct spi_device *spi)
 
 	retval = platform_device_add(ovt_tcm_spi_platform_device);
 	if (retval < 0) {
-		LOGE(&spi->dev,
-				"Failed to add platform device\n");
+		TS_LOG_ERR(
+				"Failed to add platform device");
 		return retval;
 	}
 
