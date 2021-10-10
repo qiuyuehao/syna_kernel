@@ -123,7 +123,7 @@ static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 		g_tcm_hcd->is_detected = true;
 		return NO_ERR;
 	} else {
-		return NO_ERR;
+		return RESULT_ERR;
 	}
 
 }
