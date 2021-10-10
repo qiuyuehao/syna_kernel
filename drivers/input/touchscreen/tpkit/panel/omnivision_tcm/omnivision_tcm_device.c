@@ -103,7 +103,7 @@ static void device_capture_touch_report(unsigned int count)
 				remaining_size);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to allocate memory for device_hcd->report.buf\n");
+					"Failed to allocate memory for device_hcd->report.buf");
 			report = false;
 			goto exit;
 		}
@@ -133,7 +133,7 @@ static void device_capture_touch_report(unsigned int count)
 				size);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to copy touch report data\n");
+					"Failed to copy touch report data");
 			report = false;
 			goto exit;
 		} else {
@@ -175,7 +175,7 @@ static int device_capture_touch_report_config(unsigned int count)
 	if (device_hcd->raw_mode) {
 		if (count < 3) {
 			TS_LOG_ERR(
-					"Invalid write data\n");
+					"Invalid write data");
 			return -EINVAL;
 		}
 
@@ -183,7 +183,7 @@ static int device_capture_touch_report_config(unsigned int count)
 
 		if (count - 3 < size) {
 			TS_LOG_ERR(
-					"Incomplete write data\n");
+					"Incomplete write data");
 			return -EINVAL;
 		}
 
@@ -209,7 +209,7 @@ static int device_capture_touch_report_config(unsigned int count)
 			size);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to allocate memory for tcm_hcd->config.buf\n");
+				"Failed to allocate memory for tcm_hcd->config.buf");
 		UNLOCK_BUFFER(tcm_hcd->config);
 		return retval;
 	}
@@ -221,7 +221,7 @@ static int device_capture_touch_report_config(unsigned int count)
 			size);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to copy touch report config data\n");
+				"Failed to copy touch report config data");
 		UNLOCK_BUFFER(tcm_hcd->config);
 		return retval;
 	}
@@ -321,7 +321,7 @@ static ssize_t device_read(struct file *filp, char __user *buf,
 				count);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to allocate memory for device_hcd->resp.buf\n");
+					"Failed to allocate memory for device_hcd->resp.buf");
 			UNLOCK_BUFFER(device_hcd->resp);
 			goto exit;
 		}
@@ -331,14 +331,14 @@ static ssize_t device_read(struct file *filp, char __user *buf,
 				count);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to read message\n");
+					"Failed to read message");
 			UNLOCK_BUFFER(device_hcd->resp);
 			goto exit;
 		}
 	} else {
 		if (count != device_hcd->resp.data_length) {
 			TS_LOG_ERR(
-					"Invalid length information\n");
+					"Invalid length information");
 			UNLOCK_BUFFER(device_hcd->resp);
 			retval = -EINVAL;
 			goto exit;
@@ -347,7 +347,7 @@ static ssize_t device_read(struct file *filp, char __user *buf,
 
 	if (copy_to_user(buf, device_hcd->resp.buf, count)) {
 		TS_LOG_ERR(
-				"Failed to copy data to user space\n");
+				"Failed to copy data to user space");
 		UNLOCK_BUFFER(device_hcd->resp);
 		retval = -EINVAL;
 		goto exit;
@@ -358,7 +358,7 @@ static ssize_t device_read(struct file *filp, char __user *buf,
 
 	// if (tcm_hcd->report_touch == NULL) {
 	// 	TS_LOG_ERR(
-	// 			"Unable to report touch\n");
+	// 			"Unable to report touch");
 	// 	device_hcd->concurrent = false;
 	// }
 
@@ -396,14 +396,14 @@ static ssize_t device_write(struct file *filp, const char __user *buf,
 			count == 1 ? count + 1 : count);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to allocate memory for device_hcd->out.buf\n");
+				"Failed to allocate memory for device_hcd->out.buf");
 		UNLOCK_BUFFER(device_hcd->out);
 		goto exit;
 	}
 
 	if (copy_from_user(device_hcd->out.buf, buf, count)) {
 		TS_LOG_ERR(
-				"Failed to copy data from user space\n");
+				"Failed to copy data from user space");
 		UNLOCK_BUFFER(device_hcd->out);
 		retval = -EINVAL;
 		goto exit;
@@ -447,7 +447,7 @@ static ssize_t device_write(struct file *filp, const char __user *buf,
 		retval = device_capture_touch_report_config(count);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to capture touch report config\n");
+					"Failed to capture touch report config");
 		}
 	}
 
@@ -521,7 +521,7 @@ static int device_create_class(void)
 
 	if (IS_ERR(device_hcd->class)) {
 		TS_LOG_ERR(
-				"Failed to create class\n");
+				"Failed to create class");
 		return -ENODEV;
 	}
 
@@ -556,7 +556,7 @@ int ovt_tcm_device_init(struct ovt_tcm_hcd *tcm_hcd)
 	device_hcd = kzalloc(sizeof(*device_hcd), GFP_KERNEL);
 	if (!device_hcd) {
 		TS_LOG_ERR(
-				"Failed to allocate memory for device_hcd\n");
+				"Failed to allocate memory for device_hcd");
 		return -ENOMEM;
 	}
 
@@ -574,7 +574,7 @@ int ovt_tcm_device_init(struct ovt_tcm_hcd *tcm_hcd)
 				PLATFORM_DRIVER_NAME);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to register char device\n");
+					"Failed to register char device");
 			goto err_register_chrdev_region;
 		}
 	} else {
@@ -582,7 +582,7 @@ int ovt_tcm_device_init(struct ovt_tcm_hcd *tcm_hcd)
 				PLATFORM_DRIVER_NAME);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to allocate char device\n");
+					"Failed to allocate char device");
 			goto err_alloc_chrdev_region;
 		}
 
@@ -596,14 +596,14 @@ int ovt_tcm_device_init(struct ovt_tcm_hcd *tcm_hcd)
 	retval = cdev_add(&device_hcd->char_dev, dev_num, 1);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to add char device\n");
+				"Failed to add char device");
 		goto err_add_chardev;
 	}
 
 	retval = device_create_class();
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to create class\n");
+				"Failed to create class");
 		goto err_create_class;
 	}
 
@@ -612,7 +612,7 @@ int ovt_tcm_device_init(struct ovt_tcm_hcd *tcm_hcd)
 			MINOR(device_hcd->dev_num));
 	if (IS_ERR(device_hcd->device)) {
 		TS_LOG_ERR(
-				"Failed to create device\n");
+				"Failed to create device");
 		retval = -ENODEV;
 		goto err_create_device;
 	}
@@ -621,13 +621,13 @@ int ovt_tcm_device_init(struct ovt_tcm_hcd *tcm_hcd)
 	// 	retval = gpio_export(bdata->irq_gpio, false);
 	// 	if (retval < 0) {
 	// 		TS_LOG_ERR(
-	// 				"Failed to export GPIO\n");
+	// 				"Failed to export GPIO");
 	// 	} else {
 	// 		retval = gpio_export_link(&tcm_hcd->pdev->dev,
 	// 				"attn", bdata->irq_gpio);
 	// 		if (retval < 0) {
 	// 			TS_LOG_ERR(
-	// 					"Failed to export GPIO link\n");
+	// 					"Failed to export GPIO link");
 	// 		}
 	// 	}
 	// }

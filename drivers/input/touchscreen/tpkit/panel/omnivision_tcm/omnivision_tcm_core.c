@@ -100,13 +100,13 @@ static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 
 	retval = ovt_tcm_spi_probe(data->spi);
 	if (retval < 0) {
-		TS_LOG_ERR("ovt_tcm_chip_detect fail to do spi probe\n");
+		TS_LOG_ERR("ovt_tcm_chip_detect fail to do spi probe");
 		return RESULT_ERR;
 	}
 
 	retval = ovt_tcm_probe(ovt_tcm_spi_platform_device);
 	if (retval < 0) {
-		TS_LOG_ERR("ovt_tcm_chip_detect fail to do ovt_tcm_probe\n");
+		TS_LOG_ERR("ovt_tcm_chip_detect fail to do ovt_tcm_probe");
 		return RESULT_ERR;		
 	}
 
@@ -134,7 +134,7 @@ static int ovt_tcm_init_chip(void)
 {
 	int retval = NO_ERR;
 	unsigned char first_message[64];
-	TS_LOG_INFO("ovt_tcm_init_chip enter \n");
+	TS_LOG_INFO("ovt_tcm_init_chip enter ");
 	//irq not register here now, called by ts init task, after detect ok, before ovt_tcm_fw_update_boot().
 	// uint8 r_byte = 0;
 	ovt_zeroflash_init(g_tcm_hcd);
@@ -161,7 +161,7 @@ static int ovt_tcm_fw_update_boot(char *file_name)
 {
 	//irq register now irq pin should be high now, after ovt_tcm_input_config, should set x, y max again
 	int retval = NO_ERR;
-	TS_LOG_INFO("ovt_tcm_fw_update_boot enter \n");
+	TS_LOG_INFO("ovt_tcm_fw_update_boot enter ");
 	retval = zeroflash_do_hostdownload(g_tcm_hcd);
 	if (retval >= 0) {
 		retval = g_tcm_hcd->identify(g_tcm_hcd, true);
@@ -174,7 +174,7 @@ static int ovt_tcm_fw_update_boot(char *file_name)
 static int ovt_tcm_input_config(struct input_dev *input_dev)
 {
 	//after ovt_tcm_init_chip, before ovt_tcm_fw_update_boot
-	TS_LOG_INFO("ovt_tcm_input_config enter \n");
+	TS_LOG_INFO("ovt_tcm_input_config enter ");
 	g_tcm_hcd->input_dev = input_dev;
 
 	ovt_touch_init(g_tcm_hcd);
@@ -192,10 +192,10 @@ static int ovt_tcm_mmi_test(struct ts_rawdata_info *info,
 				 struct ts_cmd_node *out_cmd)
 {
 	int retval = 0;
-	TS_LOG_INFO("++++ ovt_tcm_mmi_test in\n");
+	TS_LOG_INFO("++++ ovt_tcm_mmi_test in");
 	retval = ovt_tcm_testing(info);
 	if (retval < 0) {
-		TS_LOG_ERR("Failed to ovt_tcm_testing\n");
+		TS_LOG_ERR("Failed to ovt_tcm_testing");
 		return retval;
 	}		
 	return NO_ERR;
@@ -206,7 +206,7 @@ static int ovt_tcm_get_cal_data(struct ts_calibration_data_info *info,
 {
 	struct ovt_tcm_app_info *app_info;
 	
-	TS_LOG_INFO("syna_tcm_get_cal_data called\n");
+	TS_LOG_INFO("syna_tcm_get_cal_data called");
 
 	app_info = &g_tcm_hcd->app_info;
 	info->tx_num = le2_to_uint(app_info->num_of_image_rows);
@@ -254,7 +254,7 @@ static ssize_t ovt_tcm_sysfs_##c_name##_show(struct device *dev, \
 	retval = tcm_hcd->get_dynamic_config(tcm_hcd, id, &value); \
 	if (retval < 0) { \
 		TS_LOG_ERR( \
-				"Failed to get dynamic config\n"); \
+				"Failed to get dynamic config"); \
 		goto exit; \
 	} \
 \
@@ -283,7 +283,7 @@ static ssize_t ovt_tcm_sysfs_##c_name##_store(struct device *dev, \
 	retval = tcm_hcd->set_dynamic_config(tcm_hcd, id, input); \
 	if (retval < 0) { \
 		TS_LOG_ERR( \
-				"Failed to set dynamic config\n"); \
+				"Failed to set dynamic config"); \
 		goto exit; \
 	} \
 \
@@ -367,7 +367,7 @@ static ssize_t ovt_tcm_sysfs_info_show(struct device *dev,
 	retval = tcm_hcd->identify(tcm_hcd, true);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to do identification\n");
+				"Failed to do identification");
 		goto exit;
 	}
 
@@ -463,7 +463,7 @@ static ssize_t ovt_tcm_sysfs_info_show(struct device *dev,
 			sizeof(tcm_hcd->id_info.part_number));
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to copy part number string\n");
+				"Failed to copy part number string");
 		goto exit;
 	}
 	buf += sizeof(tcm_hcd->id_info.part_number);
@@ -505,7 +505,7 @@ static ssize_t ovt_tcm_sysfs_info_appfw_show(struct device *dev,
 
 	mutex_lock(&tcm_hcd->extif_mutex);
 	TS_LOG_ERR(
-				"ovt_tcm_sysfs_info_appfw_show test start,disable irq\n");
+				"ovt_tcm_sysfs_info_appfw_show test start,disable irq");
 	tcm_hcd->enable_irq(tcm_hcd, false, false);
 	{
 		unsigned char *resp_buf = NULL;
@@ -523,11 +523,11 @@ static ssize_t ovt_tcm_sysfs_info_appfw_show(struct device *dev,
 	tcm_hcd->enable_irq(tcm_hcd,true, false);
 
 	TS_LOG_ERR(
-				"ovt_tcm_sysfs_info_appfw_show test end,enable irq\n");
+				"ovt_tcm_sysfs_info_appfw_show test end,enable irq");
 	retval = ovt_tcm_get_app_info(tcm_hcd);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to get app info\n");
+				"Failed to get app info");
 		goto exit;
 	}
 
@@ -723,14 +723,14 @@ static ssize_t ovt_tcm_sysfs_irq_en_store(struct device *dev,
 		retval = tcm_hcd->enable_irq(tcm_hcd, false, true);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to disable interrupt\n");
+					"Failed to disable interrupt");
 			goto exit;
 		}
 	} else if (input == 1) {
 		retval = tcm_hcd->enable_irq(tcm_hcd, true, NULL);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to enable interrupt\n");
+					"Failed to enable interrupt");
 			goto exit;
 		}
 	} else {
@@ -771,7 +771,7 @@ static ssize_t ovt_tcm_sysfs_reset_store(struct device *dev,
 	retval = tcm_hcd->reset_n_reinit(tcm_hcd, hw_reset, true);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to do reset and reinit\n");
+				"Failed to do reset and reinit");
 		goto exit;
 	}
 
@@ -1044,7 +1044,7 @@ static void ovt_tcm_dispatch_response(struct ovt_tcm_hcd *tcm_hcd)
 			tcm_hcd->payload_length);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to allocate memory for tcm_hcd->resp.buf\n");
+				"Failed to allocate memory for tcm_hcd->resp.buf");
 		UNLOCK_BUFFER(tcm_hcd->resp);
 		atomic_set(&tcm_hcd->command_status, CMD_ERROR);
 		goto exit;
@@ -1059,7 +1059,7 @@ static void ovt_tcm_dispatch_response(struct ovt_tcm_hcd *tcm_hcd)
 			tcm_hcd->payload_length);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to copy payload\n");
+				"Failed to copy payload");
 		UNLOCK_BUFFER(tcm_hcd->in);
 		UNLOCK_BUFFER(tcm_hcd->resp);
 		atomic_set(&tcm_hcd->command_status, CMD_ERROR);
@@ -1107,7 +1107,7 @@ static void ovt_tcm_dispatch_message(struct ovt_tcm_hcd *tcm_hcd)
 				MIN(sizeof(tcm_hcd->id_info), payload_length));
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to copy identification info\n");
+					"Failed to copy identification info");
 			UNLOCK_BUFFER(tcm_hcd->in);
 			return;
 		}
@@ -1139,7 +1139,7 @@ static void ovt_tcm_dispatch_message(struct ovt_tcm_hcd *tcm_hcd)
 				break;
 			default:
 				TS_LOG_INFO(
-						"Device has been reset\n");
+						"Device has been reset");
 				atomic_set(&tcm_hcd->command_status, CMD_ERROR);
 				complete(&ovt_response_complete);
 				break;
@@ -1152,7 +1152,7 @@ static void ovt_tcm_dispatch_message(struct ovt_tcm_hcd *tcm_hcd)
 			retval = wait_for_completion_timeout(tcm_hcd->helper.helper_completion,
 				msecs_to_jiffies(500));
 			if (retval == 0) {
-				TS_LOG_ERR( "timeout to wait for helper completion\n");
+				TS_LOG_ERR( "timeout to wait for helper completion");
 				return;
 			}
 			if (atomic_read(&tcm_hcd->helper.task) ==
@@ -1163,7 +1163,7 @@ static void ovt_tcm_dispatch_message(struct ovt_tcm_hcd *tcm_hcd)
 						&tcm_hcd->helper.work);
 			} else {
 				TS_LOG_INFO(
-						"Helper thread is busy\n");
+						"Helper thread is busy");
 			}
 			return;
 		}
@@ -1185,7 +1185,7 @@ static void ovt_tcm_dispatch_message(struct ovt_tcm_hcd *tcm_hcd)
 		/* To avoid the identify report dispatching during the HDL. */
 		if (atomic_read(&tcm_hcd->host_downloading)) {
 			TS_LOG_INFO(
-					"Switched to TCM mode and going to download the configs\n");
+					"Switched to TCM mode and going to download the configs");
 			return;
 		}
 	}
@@ -1231,7 +1231,7 @@ static int ovt_tcm_continued_read(struct ovt_tcm_hcd *tcm_hcd)
 			total_length + 1);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to reallocate memory for tcm_hcd->in.buf\n");
+				"Failed to reallocate memory for tcm_hcd->in.buf");
 		UNLOCK_BUFFER(tcm_hcd->in);
 		return retval;
 	}
@@ -1269,7 +1269,7 @@ static int ovt_tcm_continued_read(struct ovt_tcm_hcd *tcm_hcd)
 				xfer_length + 2);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to allocate memory for tcm_hcd->temp.buf\n");
+					"Failed to allocate memory for tcm_hcd->temp.buf");
 			UNLOCK_BUFFER(tcm_hcd->temp);
 			UNLOCK_BUFFER(tcm_hcd->in);
 			return retval;
@@ -1280,7 +1280,7 @@ static int ovt_tcm_continued_read(struct ovt_tcm_hcd *tcm_hcd)
 				xfer_length + 2);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to read from device\n");
+					"Failed to read from device");
 			UNLOCK_BUFFER(tcm_hcd->temp);
 			UNLOCK_BUFFER(tcm_hcd->in);
 			return retval;
@@ -1314,7 +1314,7 @@ static int ovt_tcm_continued_read(struct ovt_tcm_hcd *tcm_hcd)
 				xfer_length);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to copy payload\n");
+					"Failed to copy payload");
 			UNLOCK_BUFFER(tcm_hcd->temp);
 			UNLOCK_BUFFER(tcm_hcd->in);
 			return retval;
@@ -1358,7 +1358,7 @@ static int ovt_tcm_raw_read(struct ovt_tcm_hcd *tcm_hcd,
 				in_buf,
 				length);
 		// TS_LOG_ERR(
-		// 		"Invalid length information\n");
+		// 		"Invalid length information");
 		return retval;
 	}
 
@@ -1398,7 +1398,7 @@ static int ovt_tcm_raw_read(struct ovt_tcm_hcd *tcm_hcd,
 				xfer_length + 2);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to allocate memory for tcm_hcd->temp.buf\n");
+					"Failed to allocate memory for tcm_hcd->temp.buf");
 			UNLOCK_BUFFER(tcm_hcd->temp);
 			return retval;
 		}
@@ -1408,7 +1408,7 @@ static int ovt_tcm_raw_read(struct ovt_tcm_hcd *tcm_hcd,
 				xfer_length + 2);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to read from device\n");
+					"Failed to read from device");
 			UNLOCK_BUFFER(tcm_hcd->temp);
 			return retval;
 		}
@@ -1438,7 +1438,7 @@ static int ovt_tcm_raw_read(struct ovt_tcm_hcd *tcm_hcd,
 		}
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to copy data\n");
+					"Failed to copy data");
 			UNLOCK_BUFFER(tcm_hcd->temp);
 			return retval;
 		}
@@ -1503,7 +1503,7 @@ static int ovt_tcm_raw_write(struct ovt_tcm_hcd *tcm_hcd,
 				xfer_length + 1);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to allocate memory for tcm_hcd->out.buf\n");
+					"Failed to allocate memory for tcm_hcd->out.buf");
 			UNLOCK_BUFFER(tcm_hcd->out);
 			return retval;
 		}
@@ -1521,7 +1521,7 @@ static int ovt_tcm_raw_write(struct ovt_tcm_hcd *tcm_hcd,
 					xfer_length);
 			if (retval < 0) {
 				TS_LOG_ERR(
-						"Failed to copy data\n");
+						"Failed to copy data");
 				UNLOCK_BUFFER(tcm_hcd->out);
 				return retval;
 			}
@@ -1532,7 +1532,7 @@ static int ovt_tcm_raw_write(struct ovt_tcm_hcd *tcm_hcd,
 				xfer_length + 1);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to write to device\n");
+					"Failed to write to device");
 			UNLOCK_BUFFER(tcm_hcd->out);
 			return retval;
 		}
@@ -1582,7 +1582,7 @@ retry:
 			tcm_hcd->read_length);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to read from device\n");
+				"Failed to read from device");
 		UNLOCK_BUFFER(tcm_hcd->in);
 		if (retry) {
 			usleep_range(READ_RETRY_US_MIN, READ_RETRY_US_MAX);
@@ -1677,7 +1677,7 @@ retry:
 	retval = ovt_tcm_continued_read(tcm_hcd);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to do continued read\n");
+				"Failed to do continued read");
 		mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
 		goto exit;
 	};
@@ -1761,7 +1761,7 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 
 	if (!tcm_hcd->do_polling && current->pid == tcm_hcd->isr_pid) {
 		TS_LOG_ERR(
-				"Invalid execution context\n");
+				"Invalid execution context");
 		return -EINVAL;
 	}
 
@@ -1843,7 +1843,7 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 				xfer_length + 1);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to allocate memory for tcm_hcd->out.buf\n");
+					"Failed to allocate memory for tcm_hcd->out.buf");
 			UNLOCK_BUFFER(tcm_hcd->out);
 			mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
 			goto exit;
@@ -1862,7 +1862,7 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 						xfer_length - 2);
 				if (retval < 0) {
 					TS_LOG_ERR(
-							"Failed to copy payload\n");
+							"Failed to copy payload");
 					UNLOCK_BUFFER(tcm_hcd->out);
 					mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
 					goto exit;
@@ -1878,7 +1878,7 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 					xfer_length);
 			if (retval < 0) {
 				TS_LOG_ERR(
-						"Failed to copy payload\n");
+						"Failed to copy payload");
 				UNLOCK_BUFFER(tcm_hcd->out);
 				mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
 				goto exit;
@@ -1890,7 +1890,7 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 				xfer_length + 1);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to write to device\n");
+					"Failed to write to device");
 			UNLOCK_BUFFER(tcm_hcd->out);
 			mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
 			goto exit;
@@ -1935,7 +1935,7 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 		// 	//hardware reset TP here
 		// 	if (atomic_read(&tcm_hcd->host_downloading) == 0) {
 		// 		TS_LOG_ERR(
-		// 		"app info cmd timed out, hw reset TP\n");
+		// 		"app info cmd timed out, hw reset TP");
 		// 		gpio_set_value(tcm_hcd->ovt_tcm_platform_data->reset_gpio, 0);
 		// 		msleep(5);
 		// 		gpio_set_value(tcm_hcd->ovt_tcm_platform_data->reset_gpio, 1);        
@@ -2001,7 +2001,7 @@ static int ovt_tcm_wait_hdl(struct ovt_tcm_hcd *tcm_hcd)
 			msecs_to_jiffies(HOST_DOWNLOAD_TIMEOUT_MS));
 	if (retval == 0) {
 		TS_LOG_ERR(
-				"Timed out waiting for completion of host download\n");
+				"Timed out waiting for completion of host download");
 		atomic_set(&tcm_hcd->host_downloading, 0);
 		retval = -EIO;
 	} else {
@@ -2087,7 +2087,7 @@ static void ovt_tcm_watchdog_work(struct work_struct *work)
 
 	if (retval < 0 || marker != MESSAGE_MARKER) {
 		TS_LOG_ERR(
-				"Failed to read from device\n");
+				"Failed to read from device");
 
 		tcm_hcd->watchdog.count++;
 
@@ -2095,7 +2095,7 @@ static void ovt_tcm_watchdog_work(struct work_struct *work)
 			retval = tcm_hcd->reset_n_reinit(tcm_hcd, true, false);
 			if (retval < 0) {
 				TS_LOG_ERR(
-						"Failed to do reset and reinit\n");
+						"Failed to do reset and reinit");
 			}
 			tcm_hcd->watchdog.count = 0;
 		}
@@ -2122,13 +2122,13 @@ static void ovt_tcm_polling_work(struct work_struct *work)
 	if (!tcm_hcd->do_polling)
 		return;
 #endif
-	TS_LOG_INFO("polling to get message\n");
+	TS_LOG_INFO("polling to get message");
 	retval = tcm_hcd->read_message(tcm_hcd,
 			NULL,
 			0);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to read message\n");
+				"Failed to read message");
 		// if (retval == -ENXIO && tcm_hcd->hw_if->bus_io->type == BUS_SPI)
 		// 	ovt_tcm_check_hdl(tcm_hcd, REPORT_HDL_F35);
 	}
@@ -2163,7 +2163,7 @@ static irqreturn_t ovt_tcm_isr(int irq, void *data)
 			ovt_tcm_check_hdl(tcm_hcd, REPORT_HDL_F35);
 		else
 			TS_LOG_ERR(
-				"Failed to read message\n");
+				"Failed to read message");
 	}
 
 exit:
@@ -2182,14 +2182,14 @@ static int ovt_tcm_enable_irq(struct ovt_tcm_hcd *tcm_hcd, bool en, bool ns)
 	if (en) {
 		if (tcm_hcd->irq_enabled) {
 			LOGD(tcm_hcd->pdev->dev.parent,
-					"Interrupt already enabled\n");
+					"Interrupt already enabled");
 			retval = 0;
 			goto exit;
 		}
 
 		if (bdata->irq_gpio < 0) {
 			TS_LOG_ERR(
-					"Invalid IRQ GPIO\n");
+					"Invalid IRQ GPIO");
 			retval = -EINVAL;
 			goto queue_polling_work;
 		}
@@ -2200,7 +2200,7 @@ static int ovt_tcm_enable_irq(struct ovt_tcm_hcd *tcm_hcd, bool en, bool ns)
 					PLATFORM_DRIVER_NAME, tcm_hcd);
 			if (retval < 0) {
 				TS_LOG_ERR(
-						"Failed to create interrupt thread\n");
+						"Failed to create interrupt thread");
 			}
 		} else {
 			enable_irq(tcm_hcd->irq);
@@ -2225,7 +2225,7 @@ queue_polling_work:
 	} else {
 		if (!tcm_hcd->irq_enabled) {
 			LOGD(tcm_hcd->pdev->dev.parent,
-					"Interrupt already disabled\n");
+					"Interrupt already disabled");
 			retval = 0;
 			goto exit;
 		}
@@ -2271,7 +2271,7 @@ static int ovt_tcm_set_gpio(struct ovt_tcm_hcd *tcm_hcd, int gpio,
 		retval = snprintf(label, 16, "tcm_gpio_%d\n", gpio);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to set GPIO label\n");
+					"Failed to set GPIO label");
 			return retval;
 		}
 
@@ -2310,7 +2310,7 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 				true, 0, 0);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to configure interrupt GPIO\n");
+					"Failed to configure interrupt GPIO");
 			goto err_set_gpio_irq;
 		}
 	}
@@ -2320,7 +2320,7 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 				true, 1, !bdata->power_on_state);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to configure power GPIO\n");
+					"Failed to configure power GPIO");
 			goto err_set_gpio_power;
 		}
 	}
@@ -2330,7 +2330,7 @@ static int ovt_tcm_config_gpio(struct ovt_tcm_hcd *tcm_hcd)
 				true, 1, !bdata->reset_on_state);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to configure reset GPIO\n");
+					"Failed to configure reset GPIO");
 			goto err_set_gpio_reset;
 		}
 	}
@@ -2375,7 +2375,7 @@ static int ovt_tcm_enable_regulator(struct ovt_tcm_hcd *tcm_hcd, bool en)
 		retval = regulator_enable(tcm_hcd->bus_reg);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to enable bus regulator\n");
+					"Failed to enable bus regulator");
 			goto exit;
 		}
 	}
@@ -2384,7 +2384,7 @@ static int ovt_tcm_enable_regulator(struct ovt_tcm_hcd *tcm_hcd, bool en)
 		retval = regulator_enable(tcm_hcd->pwr_reg);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to enable power regulator\n");
+					"Failed to enable power regulator");
 			goto disable_bus_reg;
 		}
 		msleep(bdata->power_delay_ms);
@@ -2418,7 +2418,7 @@ static int ovt_tcm_get_regulator(struct ovt_tcm_hcd *tcm_hcd, bool get)
 				bdata->bus_reg_name);
 		if (IS_ERR(tcm_hcd->bus_reg)) {
 			TS_LOG_ERR(
-					"Failed to get bus regulator\n");
+					"Failed to get bus regulator");
 			retval = PTR_ERR(tcm_hcd->bus_reg);
 			goto regulator_put;
 		}
@@ -2429,7 +2429,7 @@ static int ovt_tcm_get_regulator(struct ovt_tcm_hcd *tcm_hcd, bool get)
 				bdata->pwr_reg_name);
 		if (IS_ERR(tcm_hcd->pwr_reg)) {
 			TS_LOG_ERR(
-					"Failed to get power regulator\n");
+					"Failed to get power regulator");
 			retval = PTR_ERR(tcm_hcd->pwr_reg);
 			goto regulator_put;
 		}
@@ -2488,7 +2488,7 @@ get_app_info:
 			MIN(sizeof(tcm_hcd->app_info), resp_length));
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to copy application info\n");
+				"Failed to copy application info");
 		goto exit;
 	}
 
@@ -2544,7 +2544,7 @@ static int ovt_tcm_get_boot_info(struct ovt_tcm_hcd *tcm_hcd)
 			MIN(sizeof(tcm_hcd->boot_info), resp_length));
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to copy boot info\n");
+				"Failed to copy boot info");
 		goto exit;
 	}
 
@@ -2589,7 +2589,7 @@ static int ovt_tcm_get_romboot_info(struct ovt_tcm_hcd *tcm_hcd)
 			MIN(sizeof(tcm_hcd->romboot_info), resp_length));
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to copy boot info\n");
+				"Failed to copy boot info");
 		goto exit;
 	}
 
@@ -2672,7 +2672,7 @@ id_info:
 			MIN(sizeof(tcm_hcd->id_info), resp_length));
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to copy identification info\n");
+				"Failed to copy identification info");
 		goto exit;
 	}
 
@@ -2693,7 +2693,7 @@ get_info:
 		retval = ovt_tcm_get_app_info(tcm_hcd);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to get application info and retry\n");
+					"Failed to get application info and retry");
 			if (0) {
 				retry_cnt--;
 				tcm_hcd->read_message(tcm_hcd,NULL,0);  //read out message
@@ -2713,7 +2713,7 @@ get_info:
 		retval = ovt_tcm_get_boot_info(tcm_hcd);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to get boot info\n");
+					"Failed to get boot info");
 			goto exit;
 		}
 		break;
@@ -2725,7 +2725,7 @@ get_info:
 		retval = ovt_tcm_get_romboot_info(tcm_hcd);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to get application info\n");
+					"Failed to get application info");
 			goto exit;
 		}
 		break;
@@ -2775,7 +2775,7 @@ retry:
 
 	if (tcm_hcd->id_info.mode != MODE_PRODUCTIONTEST_FIRMWARE) {
 		TS_LOG_ERR(
-				"Failed to run production test firmware\n");
+				"Failed to run production test firmware");
 		if (retry) {
 			retry = false;
 			goto retry;
@@ -2829,7 +2829,7 @@ retry:
 	retval = tcm_hcd->identify(tcm_hcd, false);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to do identification\n");
+				"Failed to do identification");
 		goto exit;
 	}
 
@@ -2897,13 +2897,13 @@ static int ovt_tcm_run_bootloader_firmware(struct ovt_tcm_hcd *tcm_hcd)
 		retval = tcm_hcd->identify(tcm_hcd, false);
 		if (retval < 0) {
 			TS_LOG_ERR(
-				"Failed to do identification\n");
+				"Failed to do identification");
 		goto exit;
 		}
 
 		if (IS_FW_MODE(tcm_hcd->id_info.mode)) {
 			TS_LOG_ERR(
-					"Failed to enter bootloader mode\n");
+					"Failed to enter bootloader mode");
 			retval = -EINVAL;
 			goto exit;
 		}
@@ -2933,7 +2933,7 @@ static int ovt_tcm_switch_mode(struct ovt_tcm_hcd *tcm_hcd,
 		retval = ovt_tcm_run_bootloader_firmware(tcm_hcd);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to switch to bootloader mode\n");
+					"Failed to switch to bootloader mode");
 			goto exit;
 		}
 		break;
@@ -2941,7 +2941,7 @@ static int ovt_tcm_switch_mode(struct ovt_tcm_hcd *tcm_hcd,
 		retval = ovt_tcm_run_application_firmware(tcm_hcd);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to switch to application mode\n");
+					"Failed to switch to application mode");
 			goto exit;
 		}
 		break;
@@ -2949,13 +2949,13 @@ static int ovt_tcm_switch_mode(struct ovt_tcm_hcd *tcm_hcd,
 		retval = ovt_tcm_run_production_test_firmware(tcm_hcd);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to switch to production test mode\n");
+					"Failed to switch to production test mode");
 			goto exit;
 		}
 		break;
 	default:
 		TS_LOG_ERR(
-				"Invalid firmware mode\n");
+				"Invalid firmware mode");
 		retval = -EINVAL;
 		goto exit;
 	}
@@ -3004,7 +3004,7 @@ static int ovt_tcm_get_dynamic_config(struct ovt_tcm_hcd *tcm_hcd,
 
 	if (resp_length < 2) {
 		TS_LOG_ERR(
-				"Invalid data length\n");
+				"Invalid data length");
 		retval = -EINVAL;
 		goto exit;
 	}
@@ -3080,7 +3080,7 @@ static int ovt_tcm_get_data_location(struct ovt_tcm_hcd *tcm_hcd,
 		break;
 	default:
 		TS_LOG_ERR(
-				"Invalid flash area\n");
+				"Invalid flash area");
 		return -EINVAL;
 	}
 
@@ -3105,7 +3105,7 @@ static int ovt_tcm_get_data_location(struct ovt_tcm_hcd *tcm_hcd,
 
 	if (resp_length != 4) {
 		TS_LOG_ERR(
-				"Invalid data length\n");
+				"Invalid data length");
 		retval = -EINVAL;
 		goto exit;
 	}
@@ -3209,7 +3209,7 @@ static int ovt_tcm_reset_and_reinit(struct ovt_tcm_hcd *tcm_hcd,
 	if (hw) {
 		if (bdata->reset_gpio < 0) {
 			TS_LOG_ERR(
-					"Hardware reset unavailable\n");
+					"Hardware reset unavailable");
 			retval = -EINVAL;
 			goto exit;
 		}
@@ -3220,7 +3220,7 @@ static int ovt_tcm_reset_and_reinit(struct ovt_tcm_hcd *tcm_hcd,
 		retval = ovt_tcm_reset(tcm_hcd);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to do reset\n");
+					"Failed to do reset");
 			goto exit;
 		}
 	}
@@ -3234,7 +3234,7 @@ static int ovt_tcm_reset_and_reinit(struct ovt_tcm_hcd *tcm_hcd,
 		retval = ovt_tcm_wait_hdl(tcm_hcd);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to wait for completion of host download\n");
+					"Failed to wait for completion of host download");
 			return retval;
 		}
 
@@ -3250,7 +3250,7 @@ static int ovt_tcm_reset_and_reinit(struct ovt_tcm_hcd *tcm_hcd,
 	retval = tcm_hcd->identify(tcm_hcd, false);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to do identification\n");
+				"Failed to do identification");
 		goto exit;
 	}
 
@@ -3275,7 +3275,7 @@ static int ovt_tcm_reset_and_reinit(struct ovt_tcm_hcd *tcm_hcd,
 	retval = tcm_hcd->identify(tcm_hcd, false);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to do identification\n");
+				"Failed to do identification");
 		goto exit;
 	}
 
@@ -3318,7 +3318,7 @@ get_features:
 				MIN(sizeof(tcm_hcd->features), resp_length));
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to copy feature description\n");
+					"Failed to copy feature description");
 		}
 	}
 
@@ -3437,7 +3437,7 @@ static int ovt_tcm_resume(void)
 			retval = ovt_tcm_wait_hdl(tcm_hcd);
 			if (retval < 0) {
 				TS_LOG_ERR(
-						"Failed to wait for completion of host download\n");
+						"Failed to wait for completion of host download");
 				goto exit;
 			}
 			goto mod_resume;
@@ -3463,14 +3463,14 @@ static int ovt_tcm_resume(void)
 	retval = tcm_hcd->sleep(tcm_hcd, false);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to exit deep sleep\n");
+				"Failed to exit deep sleep");
 		goto exit;
 	}
 
 	retval = ovt_tcm_rezero(tcm_hcd);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to rezero\n");
+				"Failed to rezero");
 		goto exit;
 	}
 
@@ -3480,7 +3480,7 @@ do_reset:
 	retval = tcm_hcd->reset_n_reinit(tcm_hcd, false, true);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to do reset and reinit\n");
+				"Failed to do reset and reinit");
 		goto exit;
 	}
 
@@ -3601,7 +3601,7 @@ static int ovt_tcm_early_suspend(struct device *dev)
 		retval = tcm_hcd->sleep(tcm_hcd, true);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to enter deep sleep\n");
+					"Failed to enter deep sleep");
 			return retval;
 		}
 	}
@@ -3647,7 +3647,7 @@ static int ovt_tcm_fb_notifier_cb(struct notifier_block *nb,
 				);
 			if (retval == 0) {
 				TS_LOG_ERR(
-						"Timed out waiting for completion of flashing firmware\n");
+						"Timed out waiting for completion of flashing firmware");
 				atomic_set(&tcm_hcd->firmware_flashing, 0);
 				return -EIO;
 			} else {
@@ -3702,7 +3702,7 @@ f35_boot_recheck:
 						sizeof(fn_number));
 			if (retval < 0) {
 				TS_LOG_ERR(
-				"Failed to read F35 function number\n");
+				"Failed to read F35 function number");
 				tcm_hcd->is_detected = false;
 				return -ENODEV;
 			}
@@ -3750,7 +3750,7 @@ static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd)
 			retval = ovt_tcm_check_f35(tcm_hcd);
 			if (retval < 0) {
 				TS_LOG_ERR(
-					"Failed to read TCM message, default to F35\n");
+					"Failed to read TCM message, default to F35");
 				retval = 0; // force to F35 here, because on dragon board, when run ovt_tcm_sensor_detection, the display still off, maybe dragon doesn't have little kernel code.
 				//return retval;
 			}
@@ -3760,12 +3760,12 @@ static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd)
 			tcm_hcd->rd_chunk_size = HDL_RD_CHUNK_SIZE;
 			tcm_hcd->wr_chunk_size = HDL_WR_CHUNK_SIZE;
 			TS_LOG_INFO(
-					"F35 mode\n");
+					"F35 mode");
 
 			return retval;
 		} else {
 			TS_LOG_ERR(
-				"Failed to read TCM message\n");
+				"Failed to read TCM message");
 
 			return retval;
 		}
@@ -3793,7 +3793,7 @@ static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd)
 				MIN(sizeof(tcm_hcd->id_info), payload_length));
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to copy identification info\n");
+				"Failed to copy identification info");
 		UNLOCK_BUFFER(tcm_hcd->in);
 		return retval;
 	}
@@ -3814,7 +3814,7 @@ static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd)
 		tcm_hcd->rd_chunk_size = HDL_RD_CHUNK_SIZE;
 		tcm_hcd->wr_chunk_size = HDL_WR_CHUNK_SIZE;
 		TS_LOG_INFO(
-					"RomBoot mode\n");
+					"RomBoot mode");
 	} else if (tcm_hcd->id_info.mode == MODE_APPLICATION_FIRMWARE) {
 		tcm_hcd->sensor_type = TYPE_FLASH;
 		tcm_hcd->rd_chunk_size = RD_CHUNK_SIZE;
@@ -3947,19 +3947,19 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	retval = ovt_tcm_get_regulator(tcm_hcd, true);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to get regulators\n");
+				"Failed to get regulators");
 	}
 
 	retval = ovt_tcm_enable_regulator(tcm_hcd, true);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to enable regulators\n");
+				"Failed to enable regulators");
 	}
 
 	retval = ovt_tcm_config_gpio(tcm_hcd);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to configure GPIO's\n");
+				"Failed to configure GPIO's");
 	}
 
 #endif
@@ -4084,7 +4084,7 @@ static int ovt_tcm_irq_bottom_half(struct ts_cmd_node *in_cmd,
 	out_cmd->cmd_param.pub_params.algo_param.algo_order =
 	    tcm_hcd->ovt_tcm_chip_data->algo_id;
 
-	TS_LOG_INFO("ovt_tcm_irq_bottom_half\n");
+	TS_LOG_INFO("ovt_tcm_irq_bottom_half");
 
 	retval = g_tcm_hcd->read_message(g_tcm_hcd, NULL, 0);
 	if (retval < 0) {
@@ -4152,11 +4152,11 @@ static int __init ovt_tcm_module_init(void)
 	struct device_node* child = NULL;
 	struct device_node* root = NULL;
 
-	TS_LOG_INFO("ovt_tcm_module_init called\n");
+	TS_LOG_INFO("ovt_tcm_module_init called");
 	
 	root = of_find_compatible_node(NULL, NULL, "huawei,ts_kit");
 	if (!root) {
-		TS_LOG_ERR("can not find_compatible_node huawei,ts_kit error\n");
+		TS_LOG_ERR("can not find_compatible_node huawei,ts_kit error");
 		retval = -EINVAL;
 		goto out;
 	}
@@ -4171,7 +4171,7 @@ static int __init ovt_tcm_module_init(void)
 	}
 
 	if (!found) {
-		TS_LOG_ERR(" not found chip omnivision child node in huawei ts kit  !\n");
+		TS_LOG_ERR(" not found chip omnivision child node in huawei ts kit  !");
 		retval = -EINVAL;
 		goto out;
 	}
@@ -4180,13 +4180,13 @@ static int __init ovt_tcm_module_init(void)
 	g_tcm_hcd = tcm_hcd;
 
 	if (!tcm_hcd) {
-		TS_LOG_ERR("Failed to allocate memory for tcm_hcd\n");
+		TS_LOG_ERR("Failed to allocate memory for tcm_hcd");
 		return -ENOMEM;
 	}
 
 	tcm_hcd->ovt_tcm_chip_data = kzalloc(sizeof(struct ts_kit_device_data), GFP_KERNEL);
 	if (!tcm_hcd->ovt_tcm_chip_data) {
-		TS_LOG_ERR("Failed to allocate memory for tcm_hcd chip data\n");
+		TS_LOG_ERR("Failed to allocate memory for tcm_hcd chip data");
 		return -ENOMEM;
 	}
 
@@ -4196,7 +4196,7 @@ static int __init ovt_tcm_module_init(void)
 	retval = huawei_ts_chip_register(tcm_hcd->ovt_tcm_chip_data);
 	if(retval)
 	{
-	  TS_LOG_ERR(" ovtptics chip register fail !\n");
+	  TS_LOG_ERR(" ovtptics chip register fail !");
 	  goto out;
 	}
 

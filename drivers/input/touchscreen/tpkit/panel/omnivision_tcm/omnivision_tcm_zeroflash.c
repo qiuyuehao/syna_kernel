@@ -218,7 +218,7 @@ static int zeroflash_wait_hdl(struct ovt_tcm_hcd *tcm_hcd)
 			msecs_to_jiffies(HOST_DOWNLOAD_TIMEOUT_MS));
 	if (retval == 0) {
 		TS_LOG_ERR(
-				"Timed out waiting for completion of host download\n");
+				"Timed out waiting for completion of host download");
 		atomic_set(&tcm_hcd->host_downloading, 0);
 		retval = -EIO;
 	} else {
@@ -243,12 +243,12 @@ static ssize_t zeroflash_sysfs_hdl_store(struct device *dev,
 		retval = tcm_hcd->reset(tcm_hcd);
 		if (retval < 0)
 			TS_LOG_ERR(
-				"Failed to trigger the host download by reset\n");
+				"Failed to trigger the host download by reset");
 
 		retval = zeroflash_wait_hdl(tcm_hcd);
 		if (retval < 0)
 			TS_LOG_ERR(
-				"Failed to wait for completion of host download\n");
+				"Failed to wait for completion of host download");
 
 		if (zeroflash_hcd->fw_entry) {
 			release_firmware(zeroflash_hcd->fw_entry);
@@ -259,7 +259,7 @@ static ssize_t zeroflash_sysfs_hdl_store(struct device *dev,
 
 	} else {
 		TS_LOG_ERR(
-			"Invalid HDL devices\n");
+			"Invalid HDL devices");
 	}
 	return count;
 }
@@ -281,7 +281,7 @@ re_check:
 			sizeof(fn_number));
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to read RMI function number\n");
+				"Failed to read RMI function number");
 		return retval;
 	}
 
@@ -295,7 +295,7 @@ re_check:
 			goto re_check;
 		}
 		TS_LOG_ERR(
-				"Failed to find F$35\n");
+				"Failed to find F$35");
 		return -ENODEV;
 	}
 
@@ -308,7 +308,7 @@ re_check:
 			sizeof(p_entry));
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to read PDT entry\n");
+				"Failed to read PDT entry");
 		return retval;
 	}
 
@@ -323,7 +323,7 @@ re_check:
 			sizeof(query));
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to read F$35 query\n");
+				"Failed to read F$35 query");
 		return retval;
 	}
 
@@ -333,7 +333,7 @@ re_check:
 		zeroflash_hcd->has_hdl = true;
 	} else {
 		TS_LOG_ERR(
-				"Host download not supported\n");
+				"Host download not supported");
 		zeroflash_hcd->has_hdl = false;
 		return -ENODEV;
 	}
@@ -344,7 +344,7 @@ re_check:
 			sizeof(data));
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to read F$35 data\n");
+				"Failed to read F$35 data");
 		goto exit;
 	}
 
@@ -387,7 +387,7 @@ static int zeroflash_parse_fw_image(void)
 	magic_value = le4_to_uint(header->magic_value);
 	if (magic_value != IMAGE_FILE_MAGIC_VALUE) {
 		TS_LOG_ERR(
-				"Invalid image file magic value\n");
+				"Invalid image file magic value");
 		return -EINVAL;
 	}
 
@@ -415,7 +415,7 @@ static int zeroflash_parse_fw_image(void)
 
 			if (checksum != (crc32(~0, content, length) ^ ~0)) {
 				TS_LOG_ERR(
-						"Boot config checksum error\n");
+						"Boot config checksum error");
 				return -EINVAL;
 			}
 			image_info->boot_config.size = length;
@@ -432,13 +432,13 @@ static int zeroflash_parse_fw_image(void)
 
 			if (tcm_hcd->sensor_type != TYPE_F35) {
 				TS_LOG_ERR(
-						"Improper descriptor, F35_APP_CODE_ID\n");
+						"Improper descriptor, F35_APP_CODE_ID");
 				return -EINVAL;
 			}
 
 			if (checksum != (crc32(~0, content, length) ^ ~0)) {
 				TS_LOG_ERR(
-						"HDL_F35 firmware checksum error\n");
+						"HDL_F35 firmware checksum error");
 				return -EINVAL;
 			}
 			image_info->app_firmware.size = length;
@@ -457,13 +457,13 @@ static int zeroflash_parse_fw_image(void)
 
 			if (tcm_hcd->sensor_type != TYPE_ROMBOOT) {
 				TS_LOG_ERR(
-						"Improper descriptor, ROMBOOT_APP_CODE_ID\n");
+						"Improper descriptor, ROMBOOT_APP_CODE_ID");
 				return -EINVAL;
 			}
 
 			if (checksum != (crc32(~0, content, length) ^ ~0)) {
 				TS_LOG_ERR(
-						"HDL_ROMBoot firmware checksum error\n");
+						"HDL_ROMBoot firmware checksum error");
 				return -EINVAL;
 			}
 			image_info->app_firmware.size = length;
@@ -481,7 +481,7 @@ static int zeroflash_parse_fw_image(void)
 
 			if (checksum != (crc32(~0, content, length) ^ ~0)) {
 				TS_LOG_ERR(
-						"Application config checksum error\n");
+						"Application config checksum error");
 				return -EINVAL;
 			}
 			image_info->app_config.size = length;
@@ -499,7 +499,7 @@ static int zeroflash_parse_fw_image(void)
 
 			if (checksum != (crc32(~0, content, length) ^ ~0)) {
 				TS_LOG_ERR(
-						"Display config checksum error\n");
+						"Display config checksum error");
 				return -EINVAL;
 			}
 			image_info->disp_config.size = length;
@@ -516,7 +516,7 @@ static int zeroflash_parse_fw_image(void)
 
 			if (checksum != (crc32(~0, content, length) ^ ~0)) {
 				TS_LOG_ERR(
-						"open_short config checksum error\n");
+						"open_short config checksum error");
 				return -EINVAL;
 			}
 			zeroflash_hcd->has_open_short_config = true;
@@ -547,7 +547,7 @@ static int zeroflash_get_fw_image(void)
 	} else {
 		msleep(10000); //power on case, sleep 10s to get the file system img
 	}
-	TS_LOG_INFO("zeroflash_get_fw_image\n");
+	TS_LOG_INFO("zeroflash_get_fw_image");
 	if (zeroflash_hcd->image == NULL) {
 		retval = request_firmware(&zeroflash_hcd->fw_entry,
 				FW_IMAGE_NAME,
@@ -569,7 +569,7 @@ static int zeroflash_get_fw_image(void)
 	retval = zeroflash_parse_fw_image();
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to parse firmware image\n");
+				"Failed to parse firmware image");
 		release_firmware(zeroflash_hcd->fw_entry);
 		zeroflash_hcd->fw_entry = NULL;
 		zeroflash_hcd->image = NULL;
@@ -617,13 +617,13 @@ static int zeroflash_download_open_short_config(void)
 	static unsigned int retry_count;
 
 	TS_LOG_INFO(
-			"Downloading open_short config\n");
+			"Downloading open_short config");
 
 	image_info = &zeroflash_hcd->image_info;
 
 	if (image_info->open_short_config.size == 0) {
 		TS_LOG_ERR(
-				"No open_short config in image file\n");
+				"No open_short config in image file");
 		return -EINVAL;
 	}
 
@@ -634,7 +634,7 @@ static int zeroflash_download_open_short_config(void)
 			image_info->open_short_config.size + 2);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to allocate memory for open_short config\n");
+				"Failed to allocate memory for open_short config");
 		goto unlock_out;
 	}
 
@@ -663,7 +663,7 @@ static int zeroflash_download_open_short_config(void)
 			image_info->open_short_config.size);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to copy open_short config data\n");
+				"Failed to copy open_short config data");
 		goto unlock_out;
 	}
 
@@ -700,12 +700,12 @@ static int zeroflash_download_open_short_config(void)
 			sizeof(zeroflash_hcd->fw_status));
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to copy firmware status\n");
+				"Failed to copy firmware status");
 		goto unlock_resp;
 	}
 
 	TS_LOG_INFO(
-			"open_short config downloaded\n");
+			"open_short config downloaded");
 
 	retval = 0;
 
@@ -727,13 +727,13 @@ static int zeroflash_download_disp_config(void)
 	static unsigned int retry_count;
 
 	TS_LOG_INFO(
-			"Downloading display config\n");
+			"Downloading display config");
 
 	image_info = &zeroflash_hcd->image_info;
 
 	if (image_info->disp_config.size == 0) {
 		TS_LOG_ERR(
-				"No display config in image file\n");
+				"No display config in image file");
 		return -EINVAL;
 	}
 
@@ -744,7 +744,7 @@ static int zeroflash_download_disp_config(void)
 			image_info->disp_config.size + 2);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to allocate memory for display config\n");
+				"Failed to allocate memory for display config");
 		goto unlock_out;
 	}
 
@@ -773,7 +773,7 @@ static int zeroflash_download_disp_config(void)
 			image_info->disp_config.size);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to copy display config data\n");
+				"Failed to copy display config data");
 		goto unlock_out;
 	}
 
@@ -810,12 +810,12 @@ static int zeroflash_download_disp_config(void)
 			sizeof(zeroflash_hcd->fw_status));
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to copy firmware status\n");
+				"Failed to copy firmware status");
 		goto unlock_resp;
 	}
 
 	TS_LOG_INFO(
-			"Display config downloaded\n");
+			"Display config downloaded");
 
 	retval = 0;
 
@@ -838,13 +838,13 @@ static int zeroflash_download_app_config(void)
 	static unsigned int retry_count;
 
 	TS_LOG_INFO(
-			"Downloading application config\n");
+			"Downloading application config");
 
 	image_info = &zeroflash_hcd->image_info;
 
 	if (image_info->app_config.size == 0) {
 		TS_LOG_ERR(
-				"No application config in image file\n");
+				"No application config in image file");
 		return -EINVAL;
 	}
 
@@ -859,7 +859,7 @@ static int zeroflash_download_app_config(void)
 			image_info->app_config.size + 2 + padding);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to allocate memory for application config\n");
+				"Failed to allocate memory for application config");
 		goto unlock_out;
 	}
 
@@ -888,7 +888,7 @@ static int zeroflash_download_app_config(void)
 			image_info->app_config.size);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to copy application config data\n");
+				"Failed to copy application config data");
 		goto unlock_out;
 	}
 
@@ -926,12 +926,12 @@ static int zeroflash_download_app_config(void)
 			sizeof(zeroflash_hcd->fw_status));
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to copy firmware status\n");
+				"Failed to copy firmware status");
 		goto unlock_resp;
 	}
 
 	TS_LOG_INFO(
-			"Application config downloaded\n");
+			"Application config downloaded");
 
 	retval = 0;
 
@@ -952,19 +952,19 @@ int zeroflash_download_config_directly(void)
 	retval = zeroflash_get_fw_image();
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to get firmware image\n");
+				"Failed to get firmware image");
 		return retval;
 	}
 
 	TS_LOG_INFO(
-			"Start of config download\n");
+			"Start of config download");
 
 	if (zeroflash_hcd->fw_status.need_app_config) {
 		retval = zeroflash_download_app_config();
 		if (retval < 0) {
 			atomic_set(&tcm_hcd->host_downloading, 0);
 			TS_LOG_ERR(
-					"Failed to download application config, abort\n");
+					"Failed to download application config, abort");
 			return retval;
 		}
 		goto exit;
@@ -975,7 +975,7 @@ int zeroflash_download_config_directly(void)
 		if (retval < 0) {
 			atomic_set(&tcm_hcd->host_downloading, 0);
 			TS_LOG_ERR(
-					"Failed to download display config, abort\n");
+					"Failed to download display config, abort");
 			return retval;
 		}
 		goto exit;
@@ -988,7 +988,7 @@ int zeroflash_download_config_directly(void)
 		if (retval < 0) {
 			atomic_set(&tcm_hcd->host_downloading, 0);
 			TS_LOG_ERR(
-					"Failed to download open_short config, abort\n");
+					"Failed to download open_short config, abort");
 			return retval;
 		}
 		goto exit;
@@ -996,7 +996,7 @@ int zeroflash_download_config_directly(void)
 
 exit:
 	TS_LOG_INFO(
-			"End of config download\n");
+			"End of config download");
 
     if (tcm_hcd->ovt_tcm_driver_removing == 1)
         return retval;
@@ -1015,13 +1015,13 @@ static int zeroflash_download_app_fw(void)
 #endif
 
 	TS_LOG_INFO(
-			"Downloading application firmware\n");
+			"Downloading application firmware");
 
 	image_info = &zeroflash_hcd->image_info;
 
 	if (image_info->app_firmware.size == 0) {
 		TS_LOG_ERR(
-				"No application firmware in image file\n");
+				"No application firmware in image file");
 		return -EINVAL;
 	}
 
@@ -1032,7 +1032,7 @@ static int zeroflash_download_app_fw(void)
 			image_info->app_firmware.size);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to allocate memory for application firmware\n");
+				"Failed to allocate memory for application firmware");
 		UNLOCK_BUFFER(zeroflash_hcd->out);
 		return retval;
 	}
@@ -1044,7 +1044,7 @@ static int zeroflash_download_app_fw(void)
 			image_info->app_firmware.size);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to copy application firmware data\n");
+				"Failed to copy application firmware data");
 		UNLOCK_BUFFER(zeroflash_hcd->out);
 		return retval;
 	}
@@ -1068,7 +1068,7 @@ static int zeroflash_download_app_fw(void)
 			sizeof(command));
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to write F$35 command\n");
+				"Failed to write F$35 command");
 		UNLOCK_BUFFER(zeroflash_hcd->out);
 		return retval;
 	}
@@ -1079,7 +1079,7 @@ static int zeroflash_download_app_fw(void)
 			zeroflash_hcd->out.data_length);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to write application firmware data\n");
+				"Failed to write application firmware data");
 		UNLOCK_BUFFER(zeroflash_hcd->out);
 		return retval;
 	}
@@ -1087,7 +1087,7 @@ static int zeroflash_download_app_fw(void)
 	UNLOCK_BUFFER(zeroflash_hcd->out);
 
 	TS_LOG_INFO(
-			"Application firmware downloaded and fw should return identify report next\n");
+			"Application firmware downloaded and fw should return identify report next");
 
 	return 0;
 }
@@ -1101,12 +1101,12 @@ int zeroflash_do_f35_firmware_download(void)
 
 retry_download:
 	TS_LOG_INFO(
-			"Prepare F35 firmware download\n");
+			"Prepare F35 firmware download");
 
 	retval = zeroflash_check_uboot();
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to find valid uboot\n");
+				"Failed to find valid uboot");
 		goto exit;
 	}
 
@@ -1115,18 +1115,18 @@ retry_download:
 	retval = zeroflash_get_fw_image();
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to get firmware image\n");
+				"Failed to get firmware image");
 		goto exit;
 	}
 
 	TS_LOG_INFO(
-			"Start of firmware download\n");
+			"Start of firmware download");
 
 	/* perform firmware downloading */
 	retval = zeroflash_download_app_fw();
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to download application firmware, so reset tp \n");
+				"Failed to download application firmware, so reset tp ");
 		goto exit;
 	}
 	msleep(20);
@@ -1135,7 +1135,7 @@ retry_download:
 		retval = tcm_hcd->read_message(tcm_hcd,NULL, 0);
 		if (retval < 0) {
 			TS_LOG_INFO(
-				"fail of firmware download\n");
+				"fail of firmware download");
 			if (retry_count--) {
 				ovt_tcm_simple_hw_reset(tcm_hcd);
 				goto retry_download;
@@ -1144,7 +1144,7 @@ retry_download:
 		} else {
 			if (tcm_hcd->in.buf[1] == REPORT_IDENTIFY) {
 				TS_LOG_INFO(
-					"success of firmware download\n");
+					"success of firmware download");
 			}
 			retval = 0;
 		}
@@ -1165,7 +1165,7 @@ int zeroflash_do_romboot_firmware_download(void)
 	struct ovt_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
 
 	TS_LOG_INFO(
-			"Prepare ROMBOOT firmware download\n");
+			"Prepare ROMBOOT firmware download");
 
 	atomic_set(&tcm_hcd->host_downloading, 1);
 	resp_buf = NULL;
@@ -1175,7 +1175,7 @@ int zeroflash_do_romboot_firmware_download(void)
 		retval = tcm_hcd->enable_irq(tcm_hcd, true, NULL);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to enable interrupt\n");
+					"Failed to enable interrupt");
 		}
 	}
 
@@ -1183,15 +1183,15 @@ int zeroflash_do_romboot_firmware_download(void)
 	TS_LOG_INFO("tcm mode = %d\n",tcm_hcd->id_info.mode);
 	if (tcm_hcd->id_info.mode != MODE_ROMBOOTLOADER) {
 		TS_LOG_ERR(
-				"Not in romboot mode\n");
+				"Not in romboot mode");
 		atomic_set(&tcm_hcd->host_downloading, 0);
 		goto exit;
 	}
-	TS_LOG_INFO("about to request firmware\n");
+	TS_LOG_INFO("about to request firmware");
 	retval = zeroflash_get_fw_image();
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to request romboot.img\n");
+				"Failed to request romboot.img");
 		goto exit;
 	}
 
@@ -1217,7 +1217,7 @@ int zeroflash_do_romboot_firmware_download(void)
 			zeroflash_hcd->image_info.app_firmware.size);
 	if (retval < 0) {
 		TS_LOG_ERR(
-				"Failed to copy payload\n");
+				"Failed to copy payload");
 		goto exit;
 	}
 
@@ -1269,7 +1269,7 @@ int zeroflash_do_config_download_entry(void)
 			struct firmware_status *fw_status;
 
 			TS_LOG_INFO(
-				"read the status report\n");
+				"read the status report");
 			fw_status = &(zeroflash_hcd->fw_status);
 
 			retval = secure_memcpy((unsigned char *)fw_status,
@@ -1280,7 +1280,7 @@ int zeroflash_do_config_download_entry(void)
 
 			if (retval < 0) {
 				TS_LOG_ERR(
-						"Failed to copy firmware status\n");
+						"Failed to copy firmware status");
 				return retval;
 			}
 down_load_config:
@@ -1314,7 +1314,7 @@ int ovt_zeroflash_init(struct ovt_tcm_hcd *tcm_hcd)
 	zeroflash_hcd = kzalloc(sizeof(*zeroflash_hcd), GFP_KERNEL);
 	if (!zeroflash_hcd) {
 		TS_LOG_ERR(
-				"Failed to allocate memory for zeroflash_hcd\n");
+				"Failed to allocate memory for zeroflash_hcd");
 		return -ENOMEM;
 	}
 
@@ -1339,7 +1339,7 @@ int ovt_zeroflash_init(struct ovt_tcm_hcd *tcm_hcd)
 			tcm_hcd->sysfs_dir);
 	if (!zeroflash_hcd->sysfs_dir) {
 		TS_LOG_ERR(
-				"Failed to create sysfs directory\n");
+				"Failed to create sysfs directory");
 		return -EINVAL;
 	}
 
@@ -1348,7 +1348,7 @@ int ovt_zeroflash_init(struct ovt_tcm_hcd *tcm_hcd)
 				&(*attrs[idx]).attr);
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to create sysfs file\n");
+					"Failed to create sysfs file");
 		}
 	}
  */
@@ -1377,7 +1377,7 @@ int zeroflash_do_hostdownload(struct ovt_tcm_hcd *tcm_hcd)
 	//update the firmware here power on update firmware here
 	//irq shutdown by ts kit
 	int retval = 0;
-	TS_LOG_ERR("zeroflash_do_hostdownload\n");
+	TS_LOG_ERR("zeroflash_do_hostdownload");
 	//do hostdownload here and init
 	switch(tcm_hcd->sensor_type) {
 		case TYPE_F35:
@@ -1461,7 +1461,7 @@ static int zeroflash_syncbox(struct ovt_tcm_hcd *tcm_hcd)
 
 		if (retval < 0) {
 			TS_LOG_ERR(
-					"Failed to copy firmware status\n");
+					"Failed to copy firmware status");
 			return retval;
 		}
 		zeroflash_download_config();
