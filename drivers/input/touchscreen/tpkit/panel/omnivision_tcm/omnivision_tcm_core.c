@@ -58,7 +58,7 @@
 
 //#define FALL_BACK_ON_POLLING
 
-#define POLLING_DELAY_MS 5
+#define POLLING_DELAY_MS 20
 
 #define MODE_SWITCH_DELAY_MS 100
 
@@ -83,6 +83,8 @@ static int ovt_tcm_probe(struct platform_device *pdev);
 static int ovt_tcm_raw_read(struct ovt_tcm_hcd *tcm_hcd,
 		unsigned char *in_buf, unsigned int length);
 static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd);
+static int ovt_tcm_read_message(struct ovt_tcm_hcd *tcm_hcd,
+		unsigned char *in_buf, unsigned int length);
 
 static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 {
@@ -125,19 +127,19 @@ static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 		return NO_ERR;
 	}
 #else
+
+	gpio_set_value(tcm_hcd->hw_if->bdata->reset_gpio, 0);
+	msleep(5);
+	gpio_set_value(tcm_hcd->hw_if->bdata->reset_gpio, 1);        
+	msleep(100);
+
+	ovt_tcm_read_message(g_tcm_hcd, &header, sizeof(header));
+	TS_LOG_INFO("read one byte when sensor detect:%x\n", header);
 	//already power on in ovt_tcm_probe
-	ovt_zeroflash_init(g_tcm_hcd);
-	ovt_tcm_device_init(g_tcm_hcd);
-	ovt_testing_init(g_tcm_hcd);
-	ovt_touch_init(g_tcm_hcd);	
-	retval = ovt_tcm_sensor_detection(g_tcm_hcd);
-	if (retval < 0) {
-		TS_LOG_ERR("fail to do sensor detection\n");
-		return RESULT_ERR;
+	if (header == 0xa5) {
+		g_tcm_hcd->sensor_type = TYPE_ROMBOOT;
+		return NO_ERR;
 	} else {
-		// ovt_tcm_device_init(g_tcm_hcd);
-		// ovt_testing_init(g_tcm_hcd);
-		// ovt_touch_init(g_tcm_hcd);
 		return NO_ERR;
 	}
 #endif
@@ -148,41 +150,55 @@ static int ovt_tcm_read_message(struct ovt_tcm_hcd *tcm_hcd,
 static int ovt_tcm_init_chip(void)
 {
 	int retval = NO_ERR;
-
+	unsigned char first_message[64];
+	TS_LOG_INFO("ovt_tcm_init_chip enter \n");
 	//irq not register here now, called by ts init task, after detect ok, before ovt_tcm_fw_update_boot().
-	uint8 r_byte = 0;
-	ovt_tcm_read_message(g_tcm_hcd, &r_byte, sizeof(r_byte));
-	TS_LOG_INFO("read one byte when init chip:%x\n", r_byte);
-
-	if (r_byte == 0xa5) {
+	// uint8 r_byte = 0;
+	ovt_zeroflash_init(g_tcm_hcd);
+	ovt_tcm_device_init(g_tcm_hcd);
+	ovt_testing_init(g_tcm_hcd);
+	//ovt_touch_init(g_tcm_hcd);
+	//read out one message to let int pin go high
+	//msleep(35000);
+	ovt_tcm_read_message(g_tcm_hcd, first_message, sizeof(first_message));
+	TS_LOG_INFO("read first message:%x  %x   %x  %x\n", first_message[0], first_message[1], first_message[2], first_message[3]);
+	if (first_message[0] == 0xa5 && first_message[1] == 0x10) {
+		secure_memcpy((unsigned char *)&g_tcm_hcd->id_info,
+				sizeof(g_tcm_hcd->id_info),
+				&first_message[MESSAGE_HEADER_SIZE],
+				sizeof(first_message) - MESSAGE_HEADER_SIZE,
+				sizeof(g_tcm_hcd->id_info));
+	}
+	if (tcm_hcd->id_info.mode == MODE_ROMBOOTLOADER) {
 		g_tcm_hcd->sensor_type = TYPE_ROMBOOT;
-	} else {
-		g_tcm_hcd->sensor_type = TYPE_F35;
 	}
-	retval = zeroflash_do_hostdownload(g_tcm_hcd);
-	if (retval >= 0) {
-		retval = g_tcm_hcd->identify(g_tcm_hcd, true);
-		retval = ovt_touch_init(g_tcm_hcd);
-		g_tcm_hcd->init_ok_flag = true;
-		return NO_ERR;
-	} else {
-		//should return error result here, but force to no error for dragon board
-		g_tcm_hcd->init_ok_flag = false;
-		return NO_ERR;
-	}
-	
+	// retval = zeroflash_do_hostdownload(g_tcm_hcd);
+	// if (retval >= 0) {
+	// 	retval = g_tcm_hcd->identify(g_tcm_hcd, true);
+	// 	retval = ovt_touch_init(g_tcm_hcd);
+	// }
+	return NO_ERR;
 }
 static int ovt_tcm_fw_update_boot(char *file_name)
 {
-	//irq register now
+	//irq register now irq pin should be high now
+	int retval = NO_ERR;
+	TS_LOG_INFO("ovt_tcm_fw_update_boot enter \n");
+	retval = zeroflash_do_hostdownload(g_tcm_hcd);
+	if (retval >= 0) {
+		retval = g_tcm_hcd->identify(g_tcm_hcd, true);
+		//retval = ovt_touch_init(g_tcm_hcd);
+	}
 	return NO_ERR;
 }
 
 static int ovt_tcm_input_config(struct input_dev *input_dev)
 {
 	//after ovt_tcm_init_chip, before ovt_tcm_fw_update_boot
+	TS_LOG_INFO("ovt_tcm_input_config enter \n");
 	g_tcm_hcd->input_dev = input_dev;
 	//if (g_tcm_hcd->init_ok_flag)
+	ovt_touch_init(g_tcm_hcd);
 	ovt_touch_config_input_dev(input_dev);
 
 	return NO_ERR;
@@ -301,7 +317,7 @@ exit: \
 }
 
 DECLARE_COMPLETION(ovt_response_complete);
-
+DECLARE_COMPLETION(helper_complete);
 //static struct kobject *sysfs_dir;
 
 static struct ovt_tcm_module_pool mod_pool;
@@ -1154,21 +1170,21 @@ static void ovt_tcm_dispatch_message(struct ovt_tcm_hcd *tcm_hcd)
 		if ((tcm_hcd->id_info.mode == MODE_ROMBOOTLOADER) &&
 				tcm_hcd->in_hdl_mode) {
 
-			// if (atomic_read(&tcm_hcd->helper.task) ==
-			// 		HELP_NONE) {
-			// 	atomic_set(&tcm_hcd->helper.task,
-			// 			HELP_SEND_ROMBOOT_HDL);
-			// 	queue_work(tcm_hcd->helper.workqueue,
-			// 			&tcm_hcd->helper.work);
-			// } else {
-			// 	LOGN(tcm_hcd->pdev->dev.parent,
-			// 			"Helper thread is busy\n");
-			// }
-			tcm_hcd->sensor_type = TYPE_ROMBOOT;
-			retval = zeroflash_do_hostdownload(tcm_hcd);
-			if (retval >= 0) {
-				retval = g_tcm_hcd->identify(g_tcm_hcd, true);
-				retval = ovt_touch_init(g_tcm_hcd);
+			retval = wait_for_completion_timeout(tcm_hcd->helper.helper_completion,
+				msecs_to_jiffies(500));
+			if (retval == 0) {
+				LOGE(tcm_hcd->pdev->dev.parent, "timeout to wait for helper completion\n");
+				return;
+			}
+			if (atomic_read(&tcm_hcd->helper.task) ==
+					HELP_NONE) {
+				atomic_set(&tcm_hcd->helper.task,
+						HELP_SEND_ROMBOOT_HDL);
+				queue_work(tcm_hcd->helper.workqueue,
+						&tcm_hcd->helper.work);
+			} else {
+				LOGN(tcm_hcd->pdev->dev.parent,
+						"Helper thread is busy\n");
 			}
 			return;
 		}
@@ -1613,6 +1629,7 @@ retry:
 			goto retry;
 		}
 		mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
+		msleep(100);
 		goto exit;
 	}
 
@@ -1935,18 +1952,17 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Timed out waiting for response (command 0x%02x)\n",
 				tcm_hcd->command);
-		if (tcm_hcd->command == CMD_GET_APPLICATION_INFO) {
-			//hardware reset TP here
-			if (atomic_read(&tcm_hcd->host_downloading) == 0) {
-				const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
-				LOGE(tcm_hcd->pdev->dev.parent,
-				"app info cmd timed out, hw reset TP\n");
-				gpio_set_value(bdata->reset_gpio, 0);
-				msleep(5);
-				gpio_set_value(bdata->reset_gpio, 1);        
-				msleep(5);
-			}			
-		}
+		// if (tcm_hcd->command == CMD_GET_APPLICATION_INFO) {
+		// 	//hardware reset TP here
+		// 	if (atomic_read(&tcm_hcd->host_downloading) == 0) {
+		// 		LOGE(tcm_hcd->pdev->dev.parent,
+		// 		"app info cmd timed out, hw reset TP\n");
+		// 		gpio_set_value(tcm_hcd->ovt_tcm_platform_data->reset_gpio, 0);
+		// 		msleep(5);
+		// 		gpio_set_value(tcm_hcd->ovt_tcm_platform_data->reset_gpio, 1);        
+		// 		msleep(5);
+		// 	}			
+		// }
 		retval = -ETIME;
 		goto exit;
 	}
@@ -2134,8 +2150,8 @@ static void ovt_tcm_polling_work(struct work_struct *work)
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to read message\n");
-		if (retval == -ENXIO && tcm_hcd->hw_if->bus_io->type == BUS_SPI)
-			ovt_tcm_check_hdl(tcm_hcd, REPORT_HDL_F35);
+		// if (retval == -ENXIO && tcm_hcd->hw_if->bus_io->type == BUS_SPI)
+		// 	ovt_tcm_check_hdl(tcm_hcd, REPORT_HDL_F35);
 	}
 
 	if (!(tcm_hcd->in_suspend && retval < 0)) {
@@ -2699,7 +2715,7 @@ get_info:
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
 					"Failed to get application info and retry\n");
-			if (retry_cnt) {
+			if (0) {
 				retry_cnt--;
 				tcm_hcd->read_message(tcm_hcd,NULL,0);  //read out message
 				msleep(100);
@@ -3394,92 +3410,34 @@ static void ovt_tcm_helper_work(struct work_struct *work)
 {
 	int retval;
 	unsigned char task;
-	struct ovt_tcm_module_handler *mod_handler;
 	struct ovt_tcm_helper *helper =
 			container_of(work, struct ovt_tcm_helper, work);
-	struct ovt_tcm_hcd *tcm_hcd =
-			container_of(helper, struct ovt_tcm_hcd, helper);
+	struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0))
+	reinit_completion(helper->helper_completion);
+#else
+	INIT_COMPLETION(*(helper->helper_completion));
+#endif
 
 	task = atomic_read(&helper->task);
     if (tcm_hcd->ovt_tcm_driver_removing) return;
 
 	switch (task) {
-
-	/* this helper can help to run the application firmware */
-	case HELP_RUN_APPLICATION_FIRMWARE:
-		mutex_lock(&tcm_hcd->reset_mutex);
-
-#ifdef WATCHDOG_SW
-		tcm_hcd->update_watchdog(tcm_hcd, false);
-#endif
-		retval = ovt_tcm_run_application_firmware(tcm_hcd);
-		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to switch to application mode\n");
-		}
-#ifdef WATCHDOG_SW
-		tcm_hcd->update_watchdog(tcm_hcd, true);
-#endif
-		mutex_unlock(&tcm_hcd->reset_mutex);
-		break;
-
-	/* the reinit helper is used to notify all installed modules to */
-	/* do the re-initialization process, since the HDL is completed */
-	case HELP_SEND_REINIT_NOTIFICATION:
-		mutex_lock(&tcm_hcd->reset_mutex);
-
-		/* do identify to ensure application firmware is running */
-		retval = tcm_hcd->identify(tcm_hcd, true);
-		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
-					"Application firmware is not running\n");
-			mutex_unlock(&tcm_hcd->reset_mutex);
-			break;
-		}
-
-		/* init the touch reporting here */
-		/* since the HDL is completed */
-		retval = touch_reinit(tcm_hcd);
-		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to initialze touch reporting\n");
-			mutex_unlock(&tcm_hcd->reset_mutex);		
-			break;
-		}
-
-		mutex_lock(&mod_pool.mutex);
-		if (!list_empty(&mod_pool.list)) {
-			list_for_each_entry(mod_handler, &mod_pool.list, link) {
-				if (!mod_handler->insert &&
-						!mod_handler->detach &&
-						(mod_handler->mod_cb->reinit))
-					mod_handler->mod_cb->reinit(tcm_hcd);
+		case HELP_SEND_ROMBOOT_HDL:
+			tcm_hcd->sensor_type = TYPE_ROMBOOT;
+			retval = zeroflash_do_hostdownload(tcm_hcd);
+			if (retval >= 0) {
+				retval = tcm_hcd->identify(tcm_hcd, true);
+				retval = ovt_touch_init(tcm_hcd);
+				ovt_touch_config_input_dev(tcm_hcd->input_dev);
 			}
-		}
-		mutex_unlock(&mod_pool.mutex);
-		mutex_unlock(&tcm_hcd->reset_mutex);
-		wake_up_interruptible(&tcm_hcd->hdl_wq);
-		break;
-
-	/* this helper is used to reinit the touch reporting */
-	case HELP_TOUCH_REINIT:
-		retval = touch_reinit(tcm_hcd);
-		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to re-initialze touch reporting\n");
-		}
-		break;
-
-	/* this helper is used to trigger a romboot hdl */
-	case HELP_SEND_ROMBOOT_HDL:
-		ovt_tcm_check_hdl(tcm_hcd, REPORT_HDL_ROMBOOT);
-		break;
-	default:
-		break;
+			break;
+		default:
+			break;
 	}
-
 	atomic_set(&helper->task, HELP_NONE);
-
+	complete(helper->helper_completion);
 	return;
 }
 
@@ -3996,6 +3954,9 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 
 	atomic_set(&tcm_hcd->helper.task, HELP_NONE);
 
+	tcm_hcd->helper.helper_completion = &helper_complete;
+	complete(tcm_hcd->helper.helper_completion);
+
 	device_init_wakeup(&pdev->dev, 1);
 
 	init_waitqueue_head(&tcm_hcd->hdl_wq);
@@ -4003,7 +3964,7 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	init_waitqueue_head(&tcm_hcd->reflash_wq);
 	atomic_set(&tcm_hcd->firmware_flashing, 0);
 
-
+#if 1
 	retval = ovt_tcm_get_regulator(tcm_hcd, true);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
@@ -4022,10 +3983,14 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 				"Failed to configure GPIO's\n");
 	}
 
-
+#endif
 	tcm_hcd->polling_workqueue =
 			create_singlethread_workqueue("ovt_tcm_polling");
 	INIT_DELAYED_WORK(&tcm_hcd->polling_work, ovt_tcm_polling_work);
+
+	tcm_hcd->helper.workqueue =
+			create_singlethread_workqueue("ovt_tcm_helper");
+	INIT_WORK(&tcm_hcd->helper.work, ovt_tcm_helper_work);
 
 	return 0;
 }

@@ -545,7 +545,7 @@ static int zeroflash_get_fw_image(void)
 		zeroflash_hcd->fw_entry = NULL;
 		zeroflash_hcd->image = NULL;
 	} else {
-		msleep(20000); //power on case, sleep 20s to get the file system img
+		msleep(10000); //power on case, sleep 10s to get the file system img
 	}
 	LOGN(tcm_hcd->pdev->dev.parent,"zeroflash_get_fw_image\n");
 	if (zeroflash_hcd->image == NULL) {

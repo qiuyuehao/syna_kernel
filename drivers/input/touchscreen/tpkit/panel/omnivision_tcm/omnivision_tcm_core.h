@@ -360,6 +360,7 @@ struct ovt_tcm_helper {
 	atomic_t task;
 	struct work_struct work;
 	struct workqueue_struct *workqueue;
+	struct completion *helper_completion;
 };
 
 struct ovt_tcm_watchdog {
