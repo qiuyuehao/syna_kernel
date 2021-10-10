@@ -109,41 +109,23 @@ static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 		TS_LOG_ERR("ovt_tcm_chip_detect fail to do ovt_tcm_probe\n");
 		return RESULT_ERR;		
 	}
-#if 0
-	retval = ovt_zeroflash_init(g_tcm_hcd);
-	if (retval < 0) {
-		TS_LOG_ERR("ovt_tcm_chip_detect fail to do ovt_zeroflash_init\n");
-		return RESULT_ERR;		
-	}
-	//already power on in ovt_tcm_probe
-	retval = ovt_tcm_sensor_detection(g_tcm_hcd);
-	if (retval < 0) {
-		TS_LOG_ERR("fail to do sensor detection\n");
-		return RESULT_ERR;
-	} else {
-		ovt_tcm_device_init(g_tcm_hcd);
-		ovt_testing_init(g_tcm_hcd);
-		ovt_touch_init(g_tcm_hcd);
-		return NO_ERR;
-	}
-#else
 
-	gpio_set_value(tcm_hcd->hw_if->bdata->reset_gpio, 0);
+	gpio_set_value(tcm_hcd->ovt_tcm_platform_data->reset_gpio, 0);
 	msleep(5);
-	gpio_set_value(tcm_hcd->hw_if->bdata->reset_gpio, 1);        
+	gpio_set_value(tcm_hcd->ovt_tcm_platform_data->reset_gpio, 1);        
 	msleep(200);
 
 	ovt_tcm_read_message(g_tcm_hcd, &header, sizeof(header));
 	TS_LOG_INFO("read one byte when sensor detect:%x\n", header);
-	//already power on in ovt_tcm_probe
+
 	if (header == 0xa5) {
 		g_tcm_hcd->sensor_type = TYPE_ROMBOOT;
 		g_tcm_hcd->is_detected = true;
 		return NO_ERR;
 	} else {
-		return RESULT_ERR;
+		return NO_ERR;
 	}
-#endif
+
 }
 static int ovt_tcm_read_message(struct ovt_tcm_hcd *tcm_hcd,
 		unsigned char *in_buf, unsigned int length);
@@ -158,9 +140,7 @@ static int ovt_tcm_init_chip(void)
 	ovt_zeroflash_init(g_tcm_hcd);
 	ovt_tcm_device_init(g_tcm_hcd);
 	ovt_testing_init(g_tcm_hcd);
-	//ovt_touch_init(g_tcm_hcd);
-	//read out one message to let int pin go high
-	//msleep(35000);
+
 	ovt_tcm_read_message(g_tcm_hcd, first_message, sizeof(first_message));
 	TS_LOG_INFO("read first message:%x  %x   %x  %x\n", first_message[0], first_message[1], first_message[2], first_message[3]);
 	if (first_message[0] == 0xa5 && first_message[1] == 0x10) {
@@ -174,16 +154,12 @@ static int ovt_tcm_init_chip(void)
 		g_tcm_hcd->sensor_type = TYPE_ROMBOOT;
 		g_tcm_hcd->is_detected = true;
 	}
-	// retval = zeroflash_do_hostdownload(g_tcm_hcd);
-	// if (retval >= 0) {
-	// 	retval = g_tcm_hcd->identify(g_tcm_hcd, true);
-	// 	retval = ovt_touch_init(g_tcm_hcd);
-	// }
+
 	return NO_ERR;
 }
 static int ovt_tcm_fw_update_boot(char *file_name)
 {
-	//irq register now irq pin should be high now
+	//irq register now irq pin should be high now, after ovt_tcm_input_config, should set x, y max again
 	int retval = NO_ERR;
 	TS_LOG_INFO("ovt_tcm_fw_update_boot enter \n");
 	retval = zeroflash_do_hostdownload(g_tcm_hcd);
@@ -200,7 +176,7 @@ static int ovt_tcm_input_config(struct input_dev *input_dev)
 	//after ovt_tcm_init_chip, before ovt_tcm_fw_update_boot
 	TS_LOG_INFO("ovt_tcm_input_config enter \n");
 	g_tcm_hcd->input_dev = input_dev;
-	//if (g_tcm_hcd->init_ok_flag)
+
 	ovt_touch_init(g_tcm_hcd);
 	ovt_touch_config_input_dev(input_dev);
 
