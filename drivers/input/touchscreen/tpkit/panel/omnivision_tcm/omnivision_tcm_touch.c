@@ -199,7 +199,7 @@ static int touch_get_report_data(unsigned int offset,
 	struct ovt_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd;
 
 	if (bits == 0 || bits > 32) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Invalid number of bits\n");
 		return -EINVAL;
 	}
@@ -321,7 +321,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get timestamp\n");
 				return retval;
 			}
@@ -332,7 +332,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &obj);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get object index\n");
 				return retval;
 			}
@@ -342,7 +342,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get object classification\n");
 				return retval;
 			}
@@ -353,7 +353,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get object x position\n");
 				return retval;
 			}
@@ -364,7 +364,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get object y position\n");
 				return retval;
 			}
@@ -375,7 +375,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get object z\n");
 				return retval;
 			}
@@ -386,7 +386,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get object x width\n");
 				return retval;
 			}
@@ -397,7 +397,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get object y width\n");
 				return retval;
 			}
@@ -408,7 +408,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get object tx position\n");
 				return retval;
 			}
@@ -419,7 +419,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get object rx position\n");
 				return retval;
 			}
@@ -430,7 +430,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get object force\n");
 				return retval;
 			}
@@ -441,12 +441,12 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get object force\n");
 				return retval;
 			}
 			touch_data->fingerprint_area_meet = data;
-			LOGN(tcm_hcd->pdev->dev.parent,
+			TS_LOG_INFO(
 					"fingerprint_area_meet = %x\n",
 					touch_data->fingerprint_area_meet);
 			offset += bits;
@@ -455,7 +455,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get 0D buttons state\n");
 				return retval;
 			}
@@ -466,7 +466,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get gesture double tap\n");
 				return retval;
 			}
@@ -477,7 +477,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get frame rate\n");
 				return retval;
 			}
@@ -488,7 +488,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get power IM\n");
 				return retval;
 			}
@@ -499,7 +499,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get CID IM\n");
 				return retval;
 			}
@@ -510,7 +510,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get rail IM\n");
 				return retval;
 			}
@@ -521,7 +521,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get CID variance IM\n");
 				return retval;
 			}
@@ -532,7 +532,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get NSM frequency\n");
 				return retval;
 			}
@@ -543,7 +543,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get NSM state\n");
 				return retval;
 			}
@@ -558,7 +558,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get number of active objects\n");
 				return retval;
 			}
@@ -568,7 +568,7 @@ static int touch_parse_report(void)
 			offset += bits;
 			if (touch_data->num_of_active_objects == 0) {
 				if (0 == end_of_foreach) {
-					LOGE(tcm_hcd->pdev->dev.parent,
+					TS_LOG_ERR(
 						"Invalid report, num_active and end_foreach are 0\n");
 					return 0;
 				}
@@ -579,7 +579,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to get num CPU cycles used since last frame\n");
 				return retval;
 			}
@@ -590,7 +590,7 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			retval = touch_get_report_data(offset, bits, &data);
 			if (retval < 0) {
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 						"Failed to detect face\n");
 				return retval;
 			}
@@ -666,7 +666,7 @@ int fill_touch_info_data(struct ts_fingers *info)
 			info->fingers[idx].minor = 10;
 			info->fingers[idx].sg = 0;
 			info->fingers[idx].pressure = 30;
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Finger %d: x = %d, y = %d, wx=%d, wy=%d, z=%d\n",
 					idx, x, y, wx, wy, z);
 			touch_count++;
@@ -707,13 +707,13 @@ static void touch_report(void)
 
 	// if (touch_hcd->suspend_touch)
 	// 	return;
-	LOGE(tcm_hcd->pdev->dev.parent,
+	TS_LOG_ERR(
 				"about to parse report\n");
 	mutex_lock(&touch_hcd->report_mutex);
 
 	retval = touch_parse_report();
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to parse touch report\n");
 		goto exit;
 	}
@@ -773,7 +773,7 @@ static void touch_report(void)
 #ifndef TYPE_B_PROTOCOL
 			input_mt_sync(touch_hcd->input_dev);
 #endif
-			LOGN(tcm_hcd->pdev->dev.parent,
+			TS_LOG_INFO(
 					"Finger %d: x = %d, y = %d\n",
 					idx, x, y);
 			touch_count++;
@@ -874,7 +874,7 @@ static int touch_get_input_params(void)
 			NULL,
 			20);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to write command %s\n",
 				STR(CMD_GET_TOUCH_REPORT_CONFIG));
 		UNLOCK_BUFFER(tcm_hcd->config);
@@ -939,7 +939,7 @@ static int touch_set_input_dev(void)
 	//touch_hcd->input_dev = input_allocate_device();
 	//touch_hcd->input_dev = g_ts_kit_platform_data.input_dev;
 	if (touch_hcd->input_dev == NULL) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to allocate input device\n");
 		return -ENODEV;
 	}
@@ -967,7 +967,7 @@ static int touch_set_input_dev(void)
 
 	retval = touch_set_input_params();
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to set input parameters\n");
 		input_free_device(touch_hcd->input_dev);
 		touch_hcd->input_dev = NULL;
@@ -976,7 +976,7 @@ static int touch_set_input_dev(void)
 
 	retval = input_register_device(touch_hcd->input_dev);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to register input device\n");
 		input_free_device(touch_hcd->input_dev);
 		touch_hcd->input_dev = NULL;
@@ -1008,7 +1008,7 @@ static int touch_set_report_config(void)
 	length = le2_to_uint(app_info->max_touch_report_config_size);
 
 	if (length < TOUCH_REPORT_CONFIG_SIZE) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Invalid maximum touch report config size\n");
 		return -EINVAL;
 	}
@@ -1019,7 +1019,7 @@ static int touch_set_report_config(void)
 			&touch_hcd->out,
 			length);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to allocate memory for touch_hcd->out.buf\n");
 		UNLOCK_BUFFER(touch_hcd->out);
 		return retval;
@@ -1054,7 +1054,7 @@ static int touch_set_report_config(void)
 			NULL,
 			20);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to write command %s\n",
 				STR(CMD_SET_TOUCH_REPORT_CONFIG));
 		UNLOCK_BUFFER(touch_hcd->resp);
@@ -1065,7 +1065,7 @@ static int touch_set_report_config(void)
 	UNLOCK_BUFFER(touch_hcd->resp);
 	UNLOCK_BUFFER(touch_hcd->out);
 
-	LOGN(tcm_hcd->pdev->dev.parent,
+	TS_LOG_INFO(
 			"Set touch config done\n");
 
 	return 0;
@@ -1091,7 +1091,7 @@ static int touch_check_input_params(void)
 		size *= touch_hcd->max_objects;
 		touch_hcd->touch_data.object_data = kzalloc(size, GFP_KERNEL);
 		if (!touch_hcd->touch_data.object_data) {
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Failed to allocate memory for touch_hcd->touch_data.object_data\n");
 			return -ENOMEM;
 		}
@@ -1122,7 +1122,7 @@ static int touch_set_input_reporting(void)
 
 	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) ||
 			tcm_hcd->app_status != APP_STATUS_OK) {
-		LOGN(tcm_hcd->pdev->dev.parent,
+		TS_LOG_INFO(
 				"Identifying mode = 0x%02x\n",
 				tcm_hcd->id_info.mode);
 		return -EINVAL;
@@ -1134,14 +1134,14 @@ static int touch_set_input_reporting(void)
 
 	retval = touch_set_report_config();
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to set report config\n");
 		goto exit;
 	}
 
 	retval = touch_get_input_params();
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to get input parameters\n");
 		goto exit;
 	}
@@ -1151,7 +1151,7 @@ static int touch_set_input_reporting(void)
 	kfree(touch_hcd->prev_status);
 	touch_hcd->prev_status = kzalloc(touch_hcd->max_objects, GFP_KERNEL);
 	if (!touch_hcd->prev_status) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to allocate memory for touch_hcd->prev_status\n");
 		return -ENOMEM;
 	}
@@ -1161,17 +1161,17 @@ static int touch_set_input_reporting(void)
 	size *= touch_hcd->max_objects;
 	touch_hcd->touch_data.object_data = kzalloc(size, GFP_KERNEL);
 	if (!touch_hcd->touch_data.object_data) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to allocate memory for touch_hcd->touch_data.object_data\n");
 		return -ENOMEM;
 	}
 /* 	retval = touch_check_input_params();
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to check input parameters\n");
 		goto exit;
 	} else if (retval == 0) {
-		LOGN(tcm_hcd->pdev->dev.parent,
+		TS_LOG_INFO(
 				"Input parameters unchanged\n");
 		goto exit;
 	}
@@ -1183,7 +1183,7 @@ static int touch_set_input_reporting(void)
 
 	retval = touch_set_input_dev();
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to set up input device\n");
 		goto exit;
 	} */
@@ -1203,7 +1203,7 @@ int ovt_touch_init(struct ovt_tcm_hcd *tcm_hcd)
 	if (touch_hcd == NULL) {
 		touch_hcd = kzalloc(sizeof(*touch_hcd), GFP_KERNEL);
 		if (!touch_hcd) {
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Failed to allocate memory for touch_hcd\n");
 			return -ENOMEM;
 		}
@@ -1216,7 +1216,7 @@ int ovt_touch_init(struct ovt_tcm_hcd *tcm_hcd)
 
 	retval = touch_set_input_reporting();
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to set up input reporting\n");
 		goto exit;
 	}
@@ -1262,7 +1262,7 @@ int touch_reinit(struct ovt_tcm_hcd *tcm_hcd)
 	touch_free_objects();
 
 	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode)) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Application mode is not running (firmware mode = %d)\n",
 				tcm_hcd->id_info.mode);
 		return 0;
@@ -1270,14 +1270,14 @@ int touch_reinit(struct ovt_tcm_hcd *tcm_hcd)
 
 	retval = tcm_hcd->identify(tcm_hcd, false);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to do identification\n");
 		return retval;
 	}
 
 	retval = touch_set_input_reporting();
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to set up input reporting\n");
 	}
 
@@ -1322,7 +1322,7 @@ int touch_suspend(struct ovt_tcm_hcd *tcm_hcd)
 				DC_IN_WAKEUP_GESTURE_MODE,
 				1);
 		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Failed to enable wakeup gesture mode\n");
 			return retval;
 		}
@@ -1350,7 +1350,7 @@ int touch_resume(struct ovt_tcm_hcd *tcm_hcd)
 				DC_IN_WAKEUP_GESTURE_MODE,
 				0);
 		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Failed to disable wakeup gesture mode\n");
 			return retval;
 		}

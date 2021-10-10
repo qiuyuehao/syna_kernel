@@ -48,7 +48,7 @@ static ssize_t testing_sysfs_##t_name##_show(struct device *dev, \
 \
 	retval = testing_##t_name(); \
 	if (retval < 0) { \
-		LOGE(tcm_hcd->pdev->dev.parent, \
+		TS_LOG_ERR( \
 				"Failed to do "#t_name" test\n"); \
 		goto exit; \
 	} \
@@ -126,7 +126,7 @@ int ovt_testing_init(struct ovt_tcm_hcd *tcm_hcd)
 
 	testing_hcd = kzalloc(sizeof(*testing_hcd), GFP_KERNEL);
 	if (!testing_hcd) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to allocate memory for testing_hcd\n");
 		return -ENOMEM;
 	}
@@ -143,7 +143,7 @@ int ovt_testing_init(struct ovt_tcm_hcd *tcm_hcd)
 	testing_hcd->sysfs_dir = kobject_create_and_add(SYSFS_DIR_NAME,
 			tcm_hcd->sysfs_dir);
 	if (!testing_hcd->sysfs_dir) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to create sysfs directory\n");
 		retval = -EINVAL;
 		goto err_sysfs_create_dir;
@@ -153,7 +153,7 @@ int ovt_testing_init(struct ovt_tcm_hcd *tcm_hcd)
 		retval = sysfs_create_file(testing_hcd->sysfs_dir,
 				&(*attrs[idx]).attr);
 		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Failed to create sysfs file\n");
 			goto err_sysfs_create_file;
 		}
@@ -161,7 +161,7 @@ int ovt_testing_init(struct ovt_tcm_hcd *tcm_hcd)
 
 	retval = sysfs_create_bin_file(testing_hcd->sysfs_dir, &bin_attr);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to create sysfs bin file\n");
 		goto err_sysfs_create_bin_file;
 	}
@@ -235,7 +235,7 @@ static int ovt_testing_full_raw_cap(void)
 			NULL,
 			0);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to write command %s %s\n",
 				STR(CMD_PRODUCTION_TEST), STR(TEST_PT5_FULL_RAW_CAP));
 		goto exit;
@@ -331,7 +331,7 @@ static int ovt_testing_noise(void)
 			NULL,
 			0);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to write command %s  %s\n",
 				STR(CMD_PRODUCTION_TEST), STR(TEST_PT10_DELTA_NOISE));
 		goto exit;
@@ -540,7 +540,7 @@ static ssize_t testing_sysfs_data_show(struct file *data_file,
 			testing_hcd->output.buf_size - pos,
 			readlen);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 			"Failed to copy report data\n");
 	} else {
 		retval = readlen;
@@ -562,13 +562,13 @@ static int testing_run_prod_test_item(enum test_code test_code)
 			tcm_hcd->id_info.mode != MODE_PRODUCTIONTEST_FIRMWARE) {
 		retval = tcm_hcd->switch_mode(tcm_hcd, FW_MODE_PRODUCTION_TEST);
 		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Failed to run production test firmware\n");
 			return retval;
 		}
 	} else if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) ||
 			tcm_hcd->app_status != APP_STATUS_OK) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Identifying mode = 0x%02x\n",
 				tcm_hcd->id_info.mode);
 		return -ENODEV;
@@ -580,7 +580,7 @@ static int testing_run_prod_test_item(enum test_code test_code)
 			&testing_hcd->out,
 			1);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to allocate memory for testing_hcd->out.buf\n");
 		UNLOCK_BUFFER(testing_hcd->out);
 		return retval;
@@ -600,7 +600,7 @@ static int testing_run_prod_test_item(enum test_code test_code)
 			NULL,
 			0);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to write command %s\n",
 				STR(CMD_PRODUCTION_TEST));
 		UNLOCK_BUFFER(testing_hcd->resp);
@@ -638,7 +638,7 @@ static int testing_collect_reports(enum report_type report_type,
 			&testing_hcd->out,
 			1);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to allocate memory for testing_hcd->out.buf\n");
 		UNLOCK_BUFFER(testing_hcd->out);
 		goto exit;
@@ -658,7 +658,7 @@ static int testing_collect_reports(enum report_type report_type,
 			NULL,
 			0);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to write command %s\n",
 				STR(CMD_ENABLE_REPORT));
 		UNLOCK_BUFFER(testing_hcd->resp);
@@ -675,7 +675,7 @@ static int testing_collect_reports(enum report_type report_type,
 	retval = wait_for_completion_timeout(&report_complete,
 			msecs_to_jiffies(timeout));
 	if (retval == 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Timed out waiting for report collection\n");
 	} else {
 		completed = true;
@@ -697,7 +697,7 @@ static int testing_collect_reports(enum report_type report_type,
 			NULL,
 			0);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to write command %s\n",
 				STR(CMD_DISABLE_REPORT));
 		UNLOCK_BUFFER(testing_hcd->resp);
@@ -772,7 +772,7 @@ static void testing_standard_frame_output(bool image_only)
 			&testing_hcd->output,
 			output_size);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to allocate memory for testing_hcd->output.buf\n");
 		UNLOCK_BUFFER(testing_hcd->output);
 		return;
@@ -784,7 +784,7 @@ static void testing_standard_frame_output(bool image_only)
 			header_size,
 			header_size);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to copy header data\n");
 		UNLOCK_BUFFER(testing_hcd->output);
 		return;
@@ -800,7 +800,7 @@ static void testing_standard_frame_output(bool image_only)
 			testing_hcd->resp.buf_size,
 			testing_hcd->resp.data_length);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to copy test data\n");
 		UNLOCK_BUFFER(testing_hcd->resp);
 		UNLOCK_BUFFER(testing_hcd->output);
@@ -824,7 +824,7 @@ static int testing_device_id(void)
 	struct ovt_tcm_identification *id_info;
 	char *strptr = NULL;
 
-	LOGN(tcm_hcd->pdev->dev.parent,
+	TS_LOG_INFO(
 			"Start testing\n");
 	testing_hcd->result = false;
 
@@ -836,11 +836,11 @@ static int testing_device_id(void)
 	if (strptr != NULL)
 		testing_hcd->result = true;
 	else
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Device ID is mismatching, FW: %s (%s)\n",
 				id_info->part_number, device_id_limit);
 
-	LOGN(tcm_hcd->pdev->dev.parent,
+	TS_LOG_INFO(
 			"Result = %s\n", (testing_hcd->result)?"pass":"fail");
 	return 0;
 }
@@ -851,7 +851,7 @@ static int testing_config_id(void)
 	struct ovt_tcm_app_info *app_info;
 	int i;
 
-	LOGN(tcm_hcd->pdev->dev.parent,
+	TS_LOG_INFO(
 			"Start testing\n");
 	testing_hcd->result = false;
 
@@ -861,14 +861,14 @@ static int testing_config_id(void)
 	for (i = 0; i < sizeof(config_id_limit); i++) {
 		if (config_id_limit[i] !=
 				tcm_hcd->app_info.customer_config_id[i]) {
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Config ID is mismatching at byte %d\n",
 					i);
 			testing_hcd->result = false;
 		}
 	}
 
-	LOGN(tcm_hcd->pdev->dev.parent,
+	TS_LOG_INFO(
 			"Result = %s\n", (testing_hcd->result)?"pass":"fail");
 	return 0;
 }
@@ -881,7 +881,7 @@ static int testing_get_static_config(unsigned char *buf, unsigned int buf_len)
 	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
 
 	if (!buf) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"invalid parameter\n");
 		return -EINVAL;
 	}
@@ -899,14 +899,14 @@ static int testing_get_static_config(unsigned char *buf, unsigned int buf_len)
 					NULL,
 					0);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to write command %s\n",
 				STR(CMD_GET_STATIC_CONFIG));
 		goto exit;
 	}
 
 	if (testing_hcd->resp.data_length != buf_len) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Cfg size mismatch\n");
 		retval = -EINVAL;
 		goto exit;
@@ -918,7 +918,7 @@ static int testing_get_static_config(unsigned char *buf, unsigned int buf_len)
 				testing_hcd->resp.buf_size,
 				buf_len);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to copy cfg data\n");
 		goto exit;
 	}
@@ -980,7 +980,7 @@ static int testing_get_pins_mapping(unsigned char *cfg_data, int length)
 	int length_rx_guard = cfg_rxguardpins.length/8;
 
 	if (!cfg_data) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"invalid parameter\n");
 		return -EINVAL;
 	}
@@ -1120,7 +1120,7 @@ static int testing_pt01_trx_trx_short(void)
 	unsigned int satic_cfg_length;
 #endif
 
-	LOGN(tcm_hcd->pdev->dev.parent,
+	TS_LOG_INFO(
 			"Start testing\n");
 	testing_hcd->result = false;
 
@@ -1132,7 +1132,7 @@ static int testing_pt01_trx_trx_short(void)
 	if (!testing_hcd->satic_cfg_buf) {
 		satic_cfg_buf = kzalloc(satic_cfg_length, GFP_KERNEL);
 		if (!satic_cfg_buf) {
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Failed to allocate memory for satic_cfg_buf\n");
 			goto exit;
 		}
@@ -1140,7 +1140,7 @@ static int testing_pt01_trx_trx_short(void)
 		retval = testing_get_static_config(satic_cfg_buf,
 						satic_cfg_length);
 		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Failed to get static config\n");
 			goto exit;
 		}
@@ -1153,7 +1153,7 @@ static int testing_pt01_trx_trx_short(void)
 		(testing_hcd->guard_assigned <= 0)) {
 
 		if (!testing_hcd->satic_cfg_buf) {
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Failed to get proper satic_cfg\n");
 			goto exit;
 		}
@@ -1161,7 +1161,7 @@ static int testing_pt01_trx_trx_short(void)
 		retval = testing_get_pins_mapping(testing_hcd->satic_cfg_buf,
 							satic_cfg_length);
 		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Failed to get pins mapping\n");
 			goto exit;
 		}
@@ -1170,7 +1170,7 @@ static int testing_pt01_trx_trx_short(void)
 
 	retval = testing_run_prod_test_item(TEST_PT1_TRX_TRX_SHORTS);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to run test\n");
 		return -EIO;
 	}
@@ -1181,7 +1181,7 @@ static int testing_pt01_trx_trx_short(void)
 		sizeof(pt1_limits) / sizeof(pt1_limits[0]);
 
 	if (size < testing_hcd->resp.data_length) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Mismatching limits data\n");
 		UNLOCK_BUFFER(testing_hcd->resp);
 		retval = -EINVAL;
@@ -1208,7 +1208,7 @@ static int testing_pt01_trx_trx_short(void)
 			limit = CHECK_BIT(pt1_limits[i], j);
 			if (do_pin_test) {
 				if (CHECK_BIT(data, j) != limit) {
-					LOGE(tcm_hcd->pdev->dev.parent,
+					TS_LOG_ERR(
 							"pin-%2d : fail\n",
 							phy_pin);
 					testing_hcd->result = false;
@@ -1229,12 +1229,12 @@ exit:
 
 	if (tcm_hcd->features.dual_firmware) {
 		if (tcm_hcd->reset(tcm_hcd) < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Failed to do reset\n");
 		}
 	}
 
-	LOGN(tcm_hcd->pdev->dev.parent,
+	TS_LOG_INFO(
 			"Result = %s\n", (testing_hcd->result)?"pass":"fail");
 	return retval;
 }
@@ -1255,7 +1255,7 @@ static int testing_pt05_full_raw(void)
 	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
 	unsigned short data;
 
-	LOGN(tcm_hcd->pdev->dev.parent,
+	TS_LOG_INFO(
 			"Start testing\n");
 	testing_hcd->result = false;
 
@@ -1268,7 +1268,7 @@ static int testing_pt05_full_raw(void)
 
 	retval = testing_run_prod_test_item(TEST_PT5_FULL_RAW_CAP);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to run test\n");
 		goto exit;
 	}
@@ -1276,7 +1276,7 @@ static int testing_pt05_full_raw(void)
 	LOCK_BUFFER(testing_hcd->resp);
 
 	if (frame_size != testing_hcd->resp.data_length) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Frame size mismatch\n");
 		UNLOCK_BUFFER(testing_hcd->resp);
 		retval = -EINVAL;
@@ -1289,7 +1289,7 @@ static int testing_pt05_full_raw(void)
 		sizeof(pt5_hi_limits[0]) / sizeof(pt5_hi_limits[0][0]);
 
 	if (rows > limits_rows || cols > limits_cols) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Mismatching limits data\n");
 		UNLOCK_BUFFER(testing_hcd->resp);
 		retval = -EINVAL;
@@ -1302,7 +1302,7 @@ static int testing_pt05_full_raw(void)
 		sizeof(pt5_lo_limits[0]) / sizeof(pt5_lo_limits[0][0]);
 
 	if (rows > limits_rows || cols > limits_cols) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Mismatching limits data\n");
 		UNLOCK_BUFFER(testing_hcd->resp);
 		retval = -EINVAL;
@@ -1322,7 +1322,7 @@ static int testing_pt05_full_raw(void)
 			if (data  > pt5_hi_limits[row][col] ||
 					data  < pt5_lo_limits[row][col]) {
 
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 					"fail at (%2d, %2d) data = %5d, limit = (%4d, %4d)\n",
 					row, col, data, pt5_lo_limits[row][col],
 					pt5_hi_limits[row][col]);
@@ -1341,12 +1341,12 @@ static int testing_pt05_full_raw(void)
 exit:
 	if (tcm_hcd->features.dual_firmware) {
 		if (tcm_hcd->reset(tcm_hcd) < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Failed to do reset\n");
 		}
 	}
 
-	LOGN(tcm_hcd->pdev->dev.parent,
+	TS_LOG_INFO(
 			"Result = %s\n", (testing_hcd->result)?"pass":"fail");
 	return retval;
 }
@@ -1368,7 +1368,7 @@ static int testing_pt07_dynamic_range(void)
 	struct ovt_tcm_app_info *app_info;
 	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
 
-	LOGN(tcm_hcd->pdev->dev.parent,
+	TS_LOG_INFO(
 			"Start testing\n");
 	testing_hcd->result = false;
 
@@ -1381,7 +1381,7 @@ static int testing_pt07_dynamic_range(void)
 
 	retval = testing_run_prod_test_item(TEST_PT7_DYNAMIC_RANGE);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to run test\n");
 		goto exit;
 	}
@@ -1389,7 +1389,7 @@ static int testing_pt07_dynamic_range(void)
 	LOCK_BUFFER(testing_hcd->resp);
 
 	if (frame_size_words != testing_hcd->resp.data_length / 2) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Frame size mismatch\n");
 		UNLOCK_BUFFER(testing_hcd->resp);
 		retval = -EINVAL;
@@ -1402,7 +1402,7 @@ static int testing_pt07_dynamic_range(void)
 		sizeof(pt7_hi_limits[0]) / sizeof(pt7_hi_limits[0][0]);
 
 	if (rows > limits_rows || cols > limits_cols) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Mismatching limits data\n");
 		UNLOCK_BUFFER(testing_hcd->resp);
 		retval = -EINVAL;
@@ -1415,7 +1415,7 @@ static int testing_pt07_dynamic_range(void)
 		sizeof(pt7_lo_limits[0]) / sizeof(pt7_lo_limits[0][0]);
 
 	if (rows > limits_rows || cols > limits_cols) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Mismatching limits data\n");
 		UNLOCK_BUFFER(testing_hcd->resp);
 		retval = -EINVAL;
@@ -1432,7 +1432,7 @@ static int testing_pt07_dynamic_range(void)
 			if (data > pt7_hi_limits[row][col] ||
 					data < pt7_lo_limits[row][col]) {
 
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 					"fail at (%2d, %2d) data = %5d, limit = (%4d, %4d)\n",
 					row, col, data, pt7_lo_limits[row][col],
 					pt7_hi_limits[row][col]);
@@ -1452,12 +1452,12 @@ static int testing_pt07_dynamic_range(void)
 exit:
 	if (tcm_hcd->features.dual_firmware) {
 		if (tcm_hcd->reset(tcm_hcd) < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Failed to do reset\n");
 		}
 	}
 
-	LOGN(tcm_hcd->pdev->dev.parent,
+	TS_LOG_INFO(
 			"Result = %s\n", (testing_hcd->result)?"pass":"fail");
 	return retval;
 }
@@ -1478,7 +1478,7 @@ static int testing_pt10_noise(void)
 	struct ovt_tcm_app_info *app_info;
 	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
 
-	LOGN(tcm_hcd->pdev->dev.parent,
+	TS_LOG_INFO(
 			"Start testing\n");
 	testing_hcd->result = false;
 
@@ -1491,7 +1491,7 @@ static int testing_pt10_noise(void)
 
 	retval = testing_run_prod_test_item(TEST_PT10_DELTA_NOISE);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to run test\n");
 		goto exit;
 	}
@@ -1499,7 +1499,7 @@ static int testing_pt10_noise(void)
 	LOCK_BUFFER(testing_hcd->resp);
 
 	if (frame_size_words != testing_hcd->resp.data_length / 2) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Frame size mismatch\n");
 		UNLOCK_BUFFER(testing_hcd->resp);
 		retval = -EINVAL;
@@ -1512,7 +1512,7 @@ static int testing_pt10_noise(void)
 		sizeof(pt10_limits[0]) / sizeof(pt10_limits[0][0]);
 
 	if (rows > limits_rows || cols > limits_cols) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Mismatching limits data\n");
 		UNLOCK_BUFFER(testing_hcd->resp);
 		retval = -EINVAL;
@@ -1528,7 +1528,7 @@ static int testing_pt10_noise(void)
 			data = (short)le2_to_uint(&buf[idx * 2]);
 			if (data > pt10_limits[row][col]) {
 
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 					"fail at (%2d, %2d) data = %5d, limit = %4d\n",
 					row, col, data, pt10_limits[row][col]);
 
@@ -1547,12 +1547,12 @@ static int testing_pt10_noise(void)
 exit:
 	if (tcm_hcd->features.dual_firmware) {
 		if (tcm_hcd->reset(tcm_hcd) < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Failed to do reset\n");
 		}
 	}
 
-	LOGN(tcm_hcd->pdev->dev.parent,
+	TS_LOG_INFO(
 			"Result = %s\n", (testing_hcd->result)?"pass":"fail");
 	return retval;
 }
@@ -1574,7 +1574,7 @@ static int testing_pt11_open_detection(void)
 	struct ovt_tcm_app_info *app_info;
 	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
 
-	LOGN(tcm_hcd->pdev->dev.parent,
+	TS_LOG_INFO(
 			"Start testing\n");
 	testing_hcd->result = false;
 
@@ -1587,7 +1587,7 @@ static int testing_pt11_open_detection(void)
 
 	retval = testing_run_prod_test_item(TEST_PT11_OPEN_DETECTION);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to run test\n");
 		goto exit;
 	}
@@ -1595,7 +1595,7 @@ static int testing_pt11_open_detection(void)
 	LOCK_BUFFER(testing_hcd->resp);
 
 	if (image_size_words != testing_hcd->resp.data_length / 2) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Image size mismatch\n");
 		UNLOCK_BUFFER(testing_hcd->resp);
 		retval = -EINVAL;
@@ -1608,7 +1608,7 @@ static int testing_pt11_open_detection(void)
 		sizeof(pt11_hi_limits[0]) / sizeof(pt11_hi_limits[0][0]);
 
 	if (rows > limits_rows || cols > limits_cols) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Mismatching limits data\n");
 		UNLOCK_BUFFER(testing_hcd->resp);
 		retval = -EINVAL;
@@ -1621,7 +1621,7 @@ static int testing_pt11_open_detection(void)
 		sizeof(pt11_lo_limits[0]) / sizeof(pt11_lo_limits[0][0]);
 
 	if (rows > limits_rows || cols > limits_cols) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Mismatching limits data\n");
 		UNLOCK_BUFFER(testing_hcd->resp);
 		retval = -EINVAL;
@@ -1638,7 +1638,7 @@ static int testing_pt11_open_detection(void)
 			if (data > pt11_hi_limits[row][col] ||
 					data < pt11_lo_limits[row][col]) {
 
-				LOGE(tcm_hcd->pdev->dev.parent,
+				TS_LOG_ERR(
 					"fail at (%2d, %2d) data = %5d, limit = (%4d, %4d)\n",
 					row, col, data,
 					pt11_lo_limits[row][col],
@@ -1659,12 +1659,12 @@ static int testing_pt11_open_detection(void)
 exit:
 	if (tcm_hcd->features.dual_firmware) {
 		if (tcm_hcd->reset(tcm_hcd) < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Failed to do reset\n");
 		}
 	}
 
-	LOGN(tcm_hcd->pdev->dev.parent,
+	TS_LOG_INFO(
 			"Result = %s\n", (testing_hcd->result)?"pass":"fail");
 	return retval;
 }
@@ -1676,12 +1676,12 @@ static int testing_reset_open(void)
 	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
 	const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
-	LOGN(tcm_hcd->pdev->dev.parent,
+	TS_LOG_INFO(
 			"Start testing\n");
 	testing_hcd->result = false;
 
 	if (bdata->reset_gpio < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Hardware reset unavailable\n");
 		return -EINVAL;
 	}
@@ -1706,14 +1706,14 @@ static int testing_reset_open(void)
 	if (tcm_hcd->id_info.mode == MODE_APPLICATION_FIRMWARE) {
 		retval = tcm_hcd->switch_mode(tcm_hcd, FW_MODE_BOOTLOADER);
 		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Failed to enter bootloader mode\n");
 			return retval;
 		}
 	} else {
 		retval = tcm_hcd->identify(tcm_hcd, false);
 		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Failed to do identification\n");
 			goto run_app_firmware;
 		}
@@ -1728,11 +1728,11 @@ static int testing_reset_open(void)
 
 run_app_firmware:
 	if (tcm_hcd->switch_mode(tcm_hcd, FW_MODE_APPLICATION) < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to run application firmware\n");
 	}
 
-	LOGN(tcm_hcd->pdev->dev.parent,
+	TS_LOG_INFO(
 			"Result = %s\n", (testing_hcd->result)?"pass":"fail");
 	return retval;
 }
@@ -1754,7 +1754,7 @@ static void testing_report(void)
 				&testing_hcd->report,
 				report_size * testing_hcd->num_of_reports);
 		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Failed to allocate memory for testing_hcd->report.buf\n");
 			UNLOCK_BUFFER(testing_hcd->report);
 			return;
@@ -1770,7 +1770,7 @@ static void testing_report(void)
 				tcm_hcd->report.buffer.buf_size,
 				tcm_hcd->report.buffer.data_length);
 		if (retval < 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
+			TS_LOG_ERR(
 					"Failed to copy report data\n");
 			UNLOCK_BUFFER(testing_hcd->report);
 			return;

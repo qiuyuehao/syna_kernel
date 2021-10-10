@@ -467,7 +467,7 @@ static int ovt_tcm_spi_read(struct ovt_tcm_hcd *tcm_hcd, unsigned char *data,
 	else
 		retval = ovt_tcm_spi_alloc_mem(tcm_hcd, length, 1);
 	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+		TS_LOG_ERR(
 				"Failed to allocate memory\n");
 		goto exit;
 	}
