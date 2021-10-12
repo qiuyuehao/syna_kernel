@@ -100,7 +100,7 @@
 			reflash_hcd->read.buf_size - pos, \
 			readlen); \
 	if (retval < 0) { \
-		TS_LOG_ERR( \
+		OVT_LOG_ERR( \
 			"Failed to copy read data"); \
 	} else { \
 		retval = readlen; \
@@ -330,7 +330,7 @@ static ssize_t reflash_sysfs_reflash_store(struct device *dev,
 	if (input & REFLASH || input & FORCE_UPDATE) {
 		retval = reflash_do_reflash();
 		if (retval < 0) {
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Failed to do reflash");
 			goto exit;
 		}
@@ -343,7 +343,7 @@ static ssize_t reflash_sysfs_reflash_store(struct device *dev,
 
 	retval = reflash_get_fw_image();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to get firmware image");
 		goto exit;
 	}
@@ -351,14 +351,14 @@ static ssize_t reflash_sysfs_reflash_store(struct device *dev,
 	if (input & BOOT_CFG_LOCKDOWN) {
 		retval = reflash_update_boot_config(true);
 		if (retval < 0) {
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Failed to lockdown boot config");
 			goto exit;
 		}
 	} else if (input & BOOT_CFG_UPDATE) {
 		retval = reflash_update_boot_config(false);
 		if (retval < 0) {
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Failed to update boot config");
 			goto exit;
 		}
@@ -375,7 +375,7 @@ static ssize_t reflash_sysfs_reflash_store(struct device *dev,
 		else
 			retval = reflash_update_disp_config(true);
 		if (retval < 0) {
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Failed to reflash display config");
 			goto exit;
 		}
@@ -384,7 +384,7 @@ static ssize_t reflash_sysfs_reflash_store(struct device *dev,
 	if (input & APP_CFG_UPDATE) {
 		retval = reflash_update_app_config(true);
 		if (retval < 0) {
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Failed to reflash application config");
 			goto exit;
 		}
@@ -427,7 +427,7 @@ static ssize_t reflash_sysfs_image_store(struct file *data_file,
 			count,
 			count);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to copy firmware image data");
 		reflash_hcd->image_size = 0;
 		goto exit;
@@ -457,7 +457,7 @@ static ssize_t reflash_sysfs_lockdown_show(struct file *data_file,
 
 	retval = reflash_read_data(CUSTOM_OTP, true, NULL);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to read lockdown data");
 		goto exit;
 	}
@@ -487,7 +487,7 @@ static ssize_t reflash_sysfs_lockdown_store(struct file *data_file,
 
 	retval = reflash_update_custom_otp(buf, pos, count);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to update custom OTP data");
 		goto exit;
 	}
@@ -518,7 +518,7 @@ static ssize_t reflash_sysfs_lcm_show(struct file *data_file,
 
 	retval = reflash_read_data(CUSTOM_LCM, true, NULL);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to read LCM data");
 		goto exit;
 	}
@@ -548,7 +548,7 @@ static ssize_t reflash_sysfs_lcm_store(struct file *data_file,
 
 	retval = reflash_update_custom_lcm(buf, pos, count);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to update custom LCM data");
 		goto exit;
 	}
@@ -579,7 +579,7 @@ static ssize_t reflash_sysfs_oem_show(struct file *data_file,
 
 	retval = reflash_read_data(CUSTOM_OEM, true, NULL);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to read OEM data");
 		goto exit;
 	}
@@ -609,7 +609,7 @@ static ssize_t reflash_sysfs_oem_store(struct file *data_file,
 
 	retval = reflash_update_custom_oem(buf, pos, count);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to update custom OEM data");
 		goto exit;
 	}
@@ -640,7 +640,7 @@ static ssize_t reflash_sysfs_cs_show(struct file *data_file,
 
 	retval = reflash_read_data(BOOT_CONFIG, true, NULL);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to read OEM data");
 		goto exit;
 	}
@@ -663,7 +663,7 @@ static int reflash_set_up_flash_access(void)
 
 	retval = tcm_hcd->identify(tcm_hcd, true);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to do identification");
 		return retval;
 	}
@@ -671,7 +671,7 @@ static int reflash_set_up_flash_access(void)
 	if (tcm_hcd->id_info.mode == MODE_APPLICATION_FIRMWARE) {
 		retval = tcm_hcd->switch_mode(tcm_hcd, FW_MODE_BOOTLOADER);
 		if (retval < 0) {
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Failed to enter bootloader mode");
 			return retval;
 		}
@@ -699,7 +699,7 @@ static int reflash_set_up_flash_access(void)
 			reflash_hcd->max_write_payload_size);
 
 	if (reflash_hcd->write_block_size > (tcm_hcd->wr_chunk_size - 5)) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Write block size greater than available chunk space");
 		return -EINVAL;
 	}
@@ -732,7 +732,7 @@ static int reflash_parse_fw_image(void)
 
 	magic_value = le4_to_uint(header->magic_value);
 	if (magic_value != IMAGE_FILE_MAGIC_VALUE) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Invalid image file magic value");
 		return -EINVAL;
 	}
@@ -760,7 +760,7 @@ static int reflash_parse_fw_image(void)
 				BOOT_CONFIG_ID,
 				strlen(BOOT_CONFIG_ID))) {
 			if (checksum != (crc32(~0, content, length) ^ ~0)) {
-				TS_LOG_ERR(
+				OVT_LOG_ERR(
 						"Boot config checksum error");
 				return -EINVAL;
 			}
@@ -777,7 +777,7 @@ static int reflash_parse_fw_image(void)
 				APP_CODE_ID,
 				strlen(APP_CODE_ID))) {
 			if (checksum != (crc32(~0, content, length) ^ ~0)) {
-				TS_LOG_ERR(
+				OVT_LOG_ERR(
 						"Application firmware checksum error");
 				return -EINVAL;
 			}
@@ -794,7 +794,7 @@ static int reflash_parse_fw_image(void)
 				PROD_TEST_ID,
 				strlen(PROD_TEST_ID))) {
 			if (checksum != (crc32(~0, content, length) ^ ~0)) {
-				TS_LOG_ERR(
+				OVT_LOG_ERR(
 						"Production test firmware checksum error");
 				return -EINVAL;
 			}
@@ -811,7 +811,7 @@ static int reflash_parse_fw_image(void)
 				APP_CONFIG_ID,
 				strlen(APP_CONFIG_ID))) {
 			if (checksum != (crc32(~0, content, length) ^ ~0)) {
-				TS_LOG_ERR(
+				OVT_LOG_ERR(
 						"Application config checksum error");
 				return -EINVAL;
 			}
@@ -828,7 +828,7 @@ static int reflash_parse_fw_image(void)
 				DISP_CONFIG_ID,
 				strlen(DISP_CONFIG_ID))) {
 			if (checksum != (crc32(~0, content, length) ^ ~0)) {
-				TS_LOG_ERR(
+				OVT_LOG_ERR(
 						"Display config checksum error");
 				return -EINVAL;
 			}
@@ -859,7 +859,7 @@ static int reflash_get_fw_image(void)
 			retval = request_firmware(&reflash_hcd->fw_entry,
 				FW_IMAGE_NAME, tcm_hcd->pdev->dev.parent);
 			if (retval < 0) {
-				TS_LOG_ERR(
+				OVT_LOG_ERR(
 						"Failed to request %s\n",
 						FW_IMAGE_NAME);
 				return retval;
@@ -870,7 +870,7 @@ static int reflash_get_fw_image(void)
 						FW_IMAGE_NAME_MANUAL,
 						tcm_hcd->pdev->dev.parent);
 			if (retval < 0) {
-				TS_LOG_ERR(
+				OVT_LOG_ERR(
 						"Failed to request %s\n",
 						FW_IMAGE_NAME_MANUAL);
 				return retval;
@@ -887,7 +887,7 @@ static int reflash_get_fw_image(void)
 
 	retval = reflash_parse_fw_image();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to parse firmware image");
 		return retval;
 	}
@@ -910,7 +910,7 @@ static enum update_area reflash_compare_id_info(void)
 	update_area = NONE;
 
 	if (reflash_hcd->image_info.app_config.size < sizeof(*header)) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Invalid application config in image file");
 		goto exit;
 	}
@@ -932,12 +932,12 @@ static enum update_area reflash_compare_id_info(void)
 	device_fw_id = tcm_hcd->packrat_number;
 
 	if (image_fw_id > device_fw_id) {
-		TS_LOG_INFO(
+		OVT_LOG_INFO(
 				"Image firmware ID newer than device firmware ID");
 		update_area = FIRMWARE_CONFIG;
 		goto exit;
 	} else if (image_fw_id < device_fw_id) {
-		TS_LOG_INFO(
+		OVT_LOG_INFO(
 				"Image firmware ID older than device firmware ID");
 		update_area = NONE;
 		goto exit;
@@ -948,12 +948,12 @@ static enum update_area reflash_compare_id_info(void)
 
 	for (idx = 0; idx < 16; idx++) {
 		if (image_config_id[idx] > device_config_id[idx]) {
-			TS_LOG_INFO(
+			OVT_LOG_INFO(
 					"Image config ID newer than device config ID");
 			update_area = CONFIG_ONLY;
 			goto exit;
 		} else if (image_config_id[idx] < device_config_id[idx]) {
-			TS_LOG_INFO(
+			OVT_LOG_INFO(
 					"Image config ID older than device config ID");
 			update_area = NONE;
 			goto exit;
@@ -964,10 +964,10 @@ static enum update_area reflash_compare_id_info(void)
 
 exit:
 	if (update_area == NONE) {
-		TS_LOG_INFO(
+		OVT_LOG_INFO(
 				"No need to do reflash");
 	} else {
-		TS_LOG_INFO(
+		OVT_LOG_INFO(
 				"Updating %s\n",
 				update_area == FIRMWARE_CONFIG ?
 				"firmware and config" :
@@ -991,7 +991,7 @@ static int reflash_read_flash(unsigned int address, unsigned char *data,
 			&reflash_hcd->out,
 			6);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to allocate memory for reflash_hcd->out.buf");
 		UNLOCK_BUFFER(reflash_hcd->out);
 		return retval;
@@ -1019,7 +1019,7 @@ static int reflash_read_flash(unsigned int address, unsigned char *data,
 			NULL,
 			0);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to write command %s\n",
 				STR(CMD_READ_FLASH));
 		UNLOCK_BUFFER(reflash_hcd->resp);
@@ -1030,7 +1030,7 @@ static int reflash_read_flash(unsigned int address, unsigned char *data,
 	UNLOCK_BUFFER(reflash_hcd->out);
 
 	if (reflash_hcd->resp.data_length != datalen) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to read requested length");
 		UNLOCK_BUFFER(reflash_hcd->resp);
 		return -EIO;
@@ -1042,7 +1042,7 @@ static int reflash_read_flash(unsigned int address, unsigned char *data,
 			reflash_hcd->resp.buf_size,
 			datalen);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to copy read data");
 		UNLOCK_BUFFER(reflash_hcd->resp);
 		return retval;
@@ -1073,7 +1073,7 @@ static int reflash_read_data(enum flash_area area, bool run_app_firmware,
 				&addr,
 				&length);
 		if (retval < 0) {
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Failed to get data location");
 			return retval;
 		}
@@ -1084,7 +1084,7 @@ static int reflash_read_data(enum flash_area area, bool run_app_firmware,
 
 	retval = reflash_set_up_flash_access();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to set up flash access");
 		return retval;
 	}
@@ -1122,14 +1122,14 @@ static int reflash_read_data(enum flash_area area, bool run_app_firmware,
 		length *= reflash_hcd->write_block_size;
 		break;
 	default:
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Invalid data area");
 		retval = -EINVAL;
 		goto run_app_firmware;
 	}
 
 	if (addr == 0 || length == 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Data area unavailable");
 		retval = -EINVAL;
 		goto run_app_firmware;
@@ -1141,7 +1141,7 @@ static int reflash_read_data(enum flash_area area, bool run_app_firmware,
 			&reflash_hcd->read,
 			length);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to allocate memory for reflash_hcd->read.buf");
 		UNLOCK_BUFFER(reflash_hcd->read);
 		goto run_app_firmware;
@@ -1149,7 +1149,7 @@ static int reflash_read_data(enum flash_area area, bool run_app_firmware,
 
 	retval = reflash_read_flash(addr, reflash_hcd->read.buf, length);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to read from flash");
 		UNLOCK_BUFFER(reflash_hcd->read);
 		goto run_app_firmware;
@@ -1162,7 +1162,7 @@ static int reflash_read_data(enum flash_area area, bool run_app_firmware,
 				output,
 				length);
 		if (retval < 0) {
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Failed to allocate memory for output->buf");
 			UNLOCK_BUFFER(reflash_hcd->read);
 			goto run_app_firmware;
@@ -1174,7 +1174,7 @@ static int reflash_read_data(enum flash_area area, bool run_app_firmware,
 				reflash_hcd->read.buf_size,
 				length);
 		if (retval < 0) {
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Failed to copy read data");
 			UNLOCK_BUFFER(reflash_hcd->read);
 			goto run_app_firmware;
@@ -1192,7 +1192,7 @@ run_app_firmware:
 		goto exit;
 
 	if (tcm_hcd->switch_mode(tcm_hcd, FW_MODE_APPLICATION) < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to run application firmware");
 	}
 
@@ -1208,7 +1208,7 @@ static int reflash_check_boot_config(void)
 	struct ovt_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
 
 	if (reflash_hcd->image_info.boot_config.size < BOOT_CONFIG_SIZE) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"No valid boot config in image file");
 		return -EINVAL;
 	}
@@ -1219,7 +1219,7 @@ static int reflash_check_boot_config(void)
 	device_addr = temp * reflash_hcd->write_block_size;
 
 	if (image_addr != device_addr) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Flash address mismatch");
 		return -EINVAL;
 	}
@@ -1237,7 +1237,7 @@ static int reflash_check_app_config(void)
 	struct ovt_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
 
 	if (reflash_hcd->image_info.app_config.size == 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"No application config in image file");
 		return -EINVAL;
 	}
@@ -1253,13 +1253,13 @@ static int reflash_check_app_config(void)
 		return 0;
 
 	if (image_addr != device_addr) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Flash address mismatch");
 		return -EINVAL;
 	}
 
 	if (image_size != device_size) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Config size mismatch");
 		return -EINVAL;
 	}
@@ -1277,7 +1277,7 @@ static int reflash_check_disp_config(void)
 	struct ovt_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
 
 	if (reflash_hcd->image_info.disp_config.size == 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"No display config in image file");
 		return -EINVAL;
 	}
@@ -1292,13 +1292,13 @@ static int reflash_check_disp_config(void)
 	device_size = temp * reflash_hcd->write_block_size;
 
 	if (image_addr != device_addr) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Flash address mismatch");
 		return -EINVAL;
 	}
 
 	if (image_size != device_size) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Config size mismatch");
 		return -EINVAL;
 	}
@@ -1311,7 +1311,7 @@ static int reflash_check_prod_test_firmware(void)
 	struct ovt_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
 
 	if (reflash_hcd->image_info.prod_test_firmware.size == 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"No production test firmware in image file");
 		return -EINVAL;
 	}
@@ -1324,7 +1324,7 @@ static int reflash_check_app_firmware(void)
 	struct ovt_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
 
 	if (reflash_hcd->image_info.app_firmware.size == 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"No application firmware in image file");
 		return -EINVAL;
 	}
@@ -1367,7 +1367,7 @@ static int reflash_write_flash(unsigned int address, const unsigned char *data,
 				&reflash_hcd->out,
 				xfer_length + 2);
 		if (retval < 0) {
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Failed to allocate memory for reflash_hcd->out.buf");
 			UNLOCK_BUFFER(reflash_hcd->resp);
 			UNLOCK_BUFFER(reflash_hcd->out);
@@ -1385,7 +1385,7 @@ static int reflash_write_flash(unsigned int address, const unsigned char *data,
 				datalen - offset,
 				xfer_length);
 		if (retval < 0) {
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Failed to copy write data");
 			UNLOCK_BUFFER(reflash_hcd->resp);
 			UNLOCK_BUFFER(reflash_hcd->out);
@@ -1402,13 +1402,13 @@ static int reflash_write_flash(unsigned int address, const unsigned char *data,
 				NULL,
 				WRITE_FLASH_DELAY_MS);
 		if (retval < 0) {
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Failed to write command %s\n",
 					STR(CMD_WRITE_FLASH));
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Flash address = 0x%08x\n",
 					flash_address);
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Data length = %d\n",
 					xfer_length);
 			UNLOCK_BUFFER(reflash_hcd->resp);
@@ -1440,7 +1440,7 @@ static int reflash_write_app_config(void)
 
 	retval = reflash_write_flash(flash_addr, data, size);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to write app_config to flash");
 		return retval;
 	}
@@ -1462,7 +1462,7 @@ static int reflash_write_disp_config(void)
 
 	retval = reflash_write_flash(flash_addr, data, size);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to write disp_config to flash");
 		return retval;
 	}
@@ -1484,7 +1484,7 @@ static int reflash_write_prod_test_firmware(void)
 
 	retval = reflash_write_flash(flash_addr, data, size);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to write prod_test_firmware to flash");
 		return retval;
 	}
@@ -1506,7 +1506,7 @@ static int reflash_write_app_firmware(void)
 
 	retval = reflash_write_flash(flash_addr, data, size);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to write app_firmware to flash");
 		return retval;
 	}
@@ -1548,7 +1548,7 @@ static int reflash_erase_flash(unsigned int page_start, unsigned int page_count)
 			NULL,
 			ERASE_FLASH_DELAY_MS);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to write command %s\n",
 				STR(CMD_ERASE_FLASH));
 		UNLOCK_BUFFER(reflash_hcd->resp);
@@ -1582,7 +1582,7 @@ static int reflash_erase(unsigned int flash_addr, unsigned int size)
 
 	retval = reflash_erase_flash(page_start, page_count);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to erase pages, addr = 0x%04x, count = %d\n",
 				page_start, page_count);
 		return retval;
@@ -1604,7 +1604,7 @@ static int reflash_erase_app_config(void)
 
 	retval = reflash_erase(flash_addr, size);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to erase app_config");
 		return retval;
 	}
@@ -1625,7 +1625,7 @@ static int reflash_erase_disp_config(void)
 
 	retval = reflash_erase(flash_addr, size);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to erase disp_config");
 		return retval;
 	}
@@ -1646,7 +1646,7 @@ static int reflash_erase_prod_test_firmware(void)
 
 	retval = reflash_erase(flash_addr, size);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to erase prod_test_firmware");
 		return retval;
 	}
@@ -1667,7 +1667,7 @@ static int reflash_erase_app_firmware(void)
 
 	retval = reflash_erase(flash_addr, size);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to erase app_firmware");
 		return retval;
 	}
@@ -1687,7 +1687,7 @@ static int reflash_update_custom_otp(const unsigned char *data,
 
 	retval = reflash_set_up_flash_access();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to set up flash access");
 		return retval;
 	}
@@ -1703,14 +1703,14 @@ static int reflash_update_custom_otp(const unsigned char *data,
 	length = temp * reflash_hcd->write_block_size;
 
 	if (addr == 0 || length == 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Data area unavailable");
 		retval = -EINVAL;
 		goto run_app_firmware;
 	}
 
 	if (datalen + offset > length) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Invalid data length");
 		retval = -EINVAL;
 		goto run_app_firmware;
@@ -1720,7 +1720,7 @@ static int reflash_update_custom_otp(const unsigned char *data,
 			data,
 			datalen);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to write to flash");
 		goto run_app_firmware;
 	}
@@ -1729,7 +1729,7 @@ static int reflash_update_custom_otp(const unsigned char *data,
 
 run_app_firmware:
 	if (tcm_hcd->switch_mode(tcm_hcd, FW_MODE_APPLICATION) < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to run application firmware");
 	}
 
@@ -1755,14 +1755,14 @@ static int reflash_update_custom_lcm(const unsigned char *data,
 			&addr,
 			&length);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to get data location");
 		return retval;
 	}
 
 	retval = reflash_set_up_flash_access();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to set up flash access");
 		return retval;
 	}
@@ -1775,14 +1775,14 @@ static int reflash_update_custom_lcm(const unsigned char *data,
 	length *= reflash_hcd->write_block_size;
 
 	if (addr == 0 || length == 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Data area unavailable");
 		retval = -EINVAL;
 		goto run_app_firmware;
 	}
 
 	if (datalen + offset > length) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Invalid data length");
 		retval = -EINVAL;
 		goto run_app_firmware;
@@ -1795,7 +1795,7 @@ static int reflash_update_custom_lcm(const unsigned char *data,
 
 		retval = reflash_erase_flash(page_start, page_count);
 		if (retval < 0) {
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Failed to erase flash pages");
 			goto run_app_firmware;
 		}
@@ -1805,7 +1805,7 @@ static int reflash_update_custom_lcm(const unsigned char *data,
 			data,
 			datalen);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to write to flash");
 		goto run_app_firmware;
 	}
@@ -1814,7 +1814,7 @@ static int reflash_update_custom_lcm(const unsigned char *data,
 
 run_app_firmware:
 	if (tcm_hcd->switch_mode(tcm_hcd, FW_MODE_APPLICATION) < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to run application firmware");
 	}
 
@@ -1840,14 +1840,14 @@ static int reflash_update_custom_oem(const unsigned char *data,
 			&addr,
 			&length);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to get data location");
 		return retval;
 	}
 
 	retval = reflash_set_up_flash_access();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to set up flash access");
 		return retval;
 	}
@@ -1860,14 +1860,14 @@ static int reflash_update_custom_oem(const unsigned char *data,
 	length *= reflash_hcd->write_block_size;
 
 	if (addr == 0 || length == 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Data area unavailable");
 		retval = -EINVAL;
 		goto run_app_firmware;
 	}
 
 	if (datalen + offset > length) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Invalid data length");
 		retval = -EINVAL;
 		goto run_app_firmware;
@@ -1880,7 +1880,7 @@ static int reflash_update_custom_oem(const unsigned char *data,
 
 		retval = reflash_erase_flash(page_start, page_count);
 		if (retval < 0) {
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Failed to erase flash pages");
 			goto run_app_firmware;
 		}
@@ -1890,7 +1890,7 @@ static int reflash_update_custom_oem(const unsigned char *data,
 			data,
 			datalen);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to write to flash");
 		goto run_app_firmware;
 	}
@@ -1899,7 +1899,7 @@ static int reflash_update_custom_oem(const unsigned char *data,
 
 run_app_firmware:
 	if (tcm_hcd->switch_mode(tcm_hcd, FW_MODE_APPLICATION) < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to run application firmware");
 	}
 
@@ -1923,7 +1923,7 @@ static int reflash_update_boot_config(bool lock)
 	addr = 0;
 	retval = reflash_set_up_flash_access();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to set up flash access");
 		return retval;
 	}
@@ -1934,14 +1934,14 @@ static int reflash_update_boot_config(bool lock)
 
 	retval = reflash_check_boot_config();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed boot_config partition check");
 		goto reset;
 	}
 
 	retval = reflash_read_data(BOOT_CONFIG, false, NULL);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to read boot config");
 		goto reset;
 	}
@@ -1953,7 +1953,7 @@ static int reflash_update_boot_config(bool lock)
 	slot_used = tcm_hcd->id_info.mode == MODE_TDDI_BOOTLOADER ? 0 : 1;
 
 	if (last_slot->used == slot_used) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Boot config already locked down");
 		UNLOCK_BUFFER(reflash_hcd->read);
 		goto reset;
@@ -1975,7 +1975,7 @@ static int reflash_update_boot_config(bool lock)
 	UNLOCK_BUFFER(reflash_hcd->read);
 
 	if (idx == BOOT_CONFIG_SLOTS) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"No free boot config slot available");
 		goto reset;
 	}
@@ -1986,12 +1986,12 @@ static int reflash_update_boot_config(bool lock)
 			reflash_hcd->image_info.boot_config.data,
 			BOOT_CONFIG_SIZE);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to write to flash");
 		goto reset;
 	}
 
-	TS_LOG_INFO(
+	OVT_LOG_INFO(
 			"Slot %d updated with new boot config\n",
 			idx);
 
@@ -1999,7 +1999,7 @@ static int reflash_update_boot_config(bool lock)
 
 reset:
 	if (tcm_hcd->reset(tcm_hcd) < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to do reset");
 	}
 
@@ -2017,7 +2017,7 @@ static int reflash_update_app_config(bool do_reset)
 
 	retval = reflash_set_up_flash_access();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to set up flash access");
 		return retval;
 	}
@@ -2028,7 +2028,7 @@ static int reflash_update_app_config(bool do_reset)
 
 	retval = reflash_check_app_config();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to check app_config partition");
 		do_reset = true;
 		goto reset;
@@ -2036,24 +2036,24 @@ static int reflash_update_app_config(bool do_reset)
 
 	retval = reflash_erase_app_config();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to erase app_config partition");
 		do_reset = true;
 		goto reset;
 	}
 
-	TS_LOG_INFO(
+	OVT_LOG_INFO(
 			"app_config partition erased");
 
 	retval = reflash_write_app_config();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to write app_config partition");
 		do_reset = true;
 		goto reset;
 	}
 
-	TS_LOG_INFO(
+	OVT_LOG_INFO(
 			"app_config partition written");
 
 	retval = 0;
@@ -2063,7 +2063,7 @@ reset:
 		goto exit;
 
 	if (tcm_hcd->reset_n_reinit(tcm_hcd, false, true) < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to do reset");
 	}
 
@@ -2082,7 +2082,7 @@ static int reflash_update_disp_config(bool do_reset)
 
 	retval = reflash_set_up_flash_access();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to set up flash access");
 		return retval;
 	}
@@ -2093,7 +2093,7 @@ static int reflash_update_disp_config(bool do_reset)
 
 	retval = reflash_check_disp_config();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to check disp_config partition");
 		do_reset = true;
 		goto reset;
@@ -2101,24 +2101,24 @@ static int reflash_update_disp_config(bool do_reset)
 
 	retval = reflash_erase_disp_config();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to erase disp_config partition");
 		do_reset = true;
 		goto reset;
 	}
 
-	TS_LOG_INFO(
+	OVT_LOG_INFO(
 			"disp_config partition erased");
 
 	retval = reflash_write_disp_config();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to write disp_config partition");
 		do_reset = true;
 		goto reset;
 	}
 
-	TS_LOG_INFO(
+	OVT_LOG_INFO(
 			"disp_config partition written");
 
 	retval = 0;
@@ -2128,7 +2128,7 @@ reset:
 		goto exit;
 
 	if (tcm_hcd->reset_n_reinit(tcm_hcd, false, true) < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to do reset");
 	}
 
@@ -2147,7 +2147,7 @@ static int reflash_update_prod_test_firmware(void)
 
 	retval = reflash_set_up_flash_access();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to set up flash access");
 		return retval;
 	}
@@ -2158,36 +2158,36 @@ static int reflash_update_prod_test_firmware(void)
 
 	retval = reflash_check_prod_test_firmware();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to check prod_test_firmware partition");
 		goto reset;
 	}
 
 	retval = reflash_erase_prod_test_firmware();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to erase prod_test_firmware partition");
 		goto reset;
 	}
 
-	TS_LOG_INFO(
+	OVT_LOG_INFO(
 			"prod_test_firmware partition erased");
 
 	retval = reflash_write_prod_test_firmware();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to write prod_test_firmware partition");
 		goto reset;
 	}
 
-	TS_LOG_INFO(
+	OVT_LOG_INFO(
 			"prod_test_firmware partition written");
 
 	retval = 0;
 
 reset:
 	if (tcm_hcd->reset_n_reinit(tcm_hcd, false, true) < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to do reset");
 	}
 
@@ -2205,7 +2205,7 @@ static int reflash_update_app_firmware(void)
 
 	retval = reflash_set_up_flash_access();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to set up flash access");
 		return retval;
 	}
@@ -2216,36 +2216,36 @@ static int reflash_update_app_firmware(void)
 
 	retval = reflash_check_app_firmware();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to check app_firmware partition");
 		goto reset;
 	}
 
 	retval = reflash_erase_app_firmware();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to erase app_firmware partition");
 		goto reset;
 	}
 
-	TS_LOG_INFO(
+	OVT_LOG_INFO(
 			"app_firmware partition erased");
 
 	retval = reflash_write_app_firmware();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to write app_firmware partition");
 		goto reset;
 	}
 
-	TS_LOG_INFO(
+	OVT_LOG_INFO(
 			"app_firmware partition written");
 
 	retval = 0;
 
 reset:
 	if (tcm_hcd->reset_n_reinit(tcm_hcd, false, true) < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to do reset");
 	}
 
@@ -2265,12 +2265,12 @@ static int reflash_do_reflash(void)
 
 	retval = reflash_get_fw_image();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to get firmware image");
 		goto exit;
 	}
 
-	TS_LOG_INFO(
+	OVT_LOG_INFO(
 			"Start of reflash");
 
 	atomic_set(&tcm_hcd->firmware_flashing, 1);
@@ -2281,7 +2281,7 @@ static int reflash_do_reflash(void)
 	case FIRMWARE_CONFIG:
 		retval = reflash_update_app_firmware();
 		if (retval < 0) {
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Failed to reflash application firmware");
 			goto exit;
 		}
@@ -2289,7 +2289,7 @@ static int reflash_do_reflash(void)
 		if (tcm_hcd->features.dual_firmware) {
 			retval = reflash_update_prod_test_firmware();
 			if (retval < 0) {
-				TS_LOG_ERR(
+				OVT_LOG_ERR(
 						"Failed to reflash production test firmware");
 				goto exit;
 			}
@@ -2298,14 +2298,14 @@ static int reflash_do_reflash(void)
 		if (reflash_hcd->disp_cfg_update) {
 			retval = reflash_update_disp_config(false);
 			if (retval < 0) {
-				TS_LOG_ERR(
+				OVT_LOG_ERR(
 						"Failed to reflash display config");
 				goto exit;
 			}
 		}
 		retval = reflash_update_app_config(true);
 		if (retval < 0) {
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Failed to reflash application config");
 			goto exit;
 		}
@@ -2315,7 +2315,7 @@ static int reflash_do_reflash(void)
 		break;
 	}
 
-	TS_LOG_INFO(
+	OVT_LOG_INFO(
 			"End of reflash");
 
 	retval = 0;
@@ -2347,7 +2347,7 @@ static void reflash_startup_work(struct work_struct *work)
 
 	while (tcm_hcd->fb_ready != FB_READY_COUNT) {
 		if (timeout == 0) {
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Timed out waiting for FB ready");
 			return;
 		}
@@ -2362,7 +2362,7 @@ static void reflash_startup_work(struct work_struct *work)
 
 	retval = reflash_do_reflash();
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to do reflash");
 	}
 
@@ -2385,14 +2385,14 @@ static int reflash_init(struct ovt_tcm_hcd *tcm_hcd)
 
 	reflash_hcd = kzalloc(sizeof(*reflash_hcd), GFP_KERNEL);
 	if (!reflash_hcd) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to allocate memory for reflash_hcd");
 		return -ENOMEM;
 	}
 
 	reflash_hcd->image_buf = kzalloc(IMAGE_BUF_SIZE, GFP_KERNEL);
 	if (!reflash_hcd->image_buf) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to allocate memory for reflash_hcd->image_buf");
 		goto err_allocate_memory;
 	}
@@ -2420,7 +2420,7 @@ static int reflash_init(struct ovt_tcm_hcd *tcm_hcd)
 	reflash_hcd->sysfs_dir = kobject_create_and_add(SYSFS_DIR_NAME,
 			tcm_hcd->sysfs_dir);
 	if (!reflash_hcd->sysfs_dir) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to create sysfs directory");
 		retval = -EINVAL;
 		goto err_sysfs_create_dir;
@@ -2430,7 +2430,7 @@ static int reflash_init(struct ovt_tcm_hcd *tcm_hcd)
 		retval = sysfs_create_file(reflash_hcd->sysfs_dir,
 				&(*attrs[idx]).attr);
 		if (retval < 0) {
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Failed to create sysfs file");
 			goto err_sysfs_create_file;
 		}
@@ -2438,7 +2438,7 @@ static int reflash_init(struct ovt_tcm_hcd *tcm_hcd)
 
 	retval = sysfs_create_bin_file(reflash_hcd->sysfs_dir, &bin_attrs[0]);
 	if (retval < 0) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to create sysfs bin file");
 		goto err_sysfs_create_bin_file;
 	}
@@ -2446,7 +2446,7 @@ static int reflash_init(struct ovt_tcm_hcd *tcm_hcd)
 	reflash_hcd->custom_dir = kobject_create_and_add(CUSTOM_DIR_NAME,
 			reflash_hcd->sysfs_dir);
 	if (!reflash_hcd->custom_dir) {
-		TS_LOG_ERR(
+		OVT_LOG_ERR(
 				"Failed to create custom sysfs directory");
 		retval = -EINVAL;
 		goto err_custom_sysfs_create_dir;
@@ -2456,7 +2456,7 @@ static int reflash_init(struct ovt_tcm_hcd *tcm_hcd)
 		retval = sysfs_create_bin_file(reflash_hcd->custom_dir,
 				&bin_attrs[idx]);
 		if (retval < 0) {
-			TS_LOG_ERR(
+			OVT_LOG_ERR(
 					"Failed to create sysfs bin file");
 			goto err_custom_sysfs_create_bin_file;
 		}

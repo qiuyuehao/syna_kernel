@@ -120,6 +120,10 @@ struct ovt_tcm_board_data {
 #define LOGW(dev, log, ...) LOGy(dev_warn, dev, log, ##__VA_ARGS__)
 #define LOGE(dev, log, ...) LOGy(dev_err, dev, log, ##__VA_ARGS__)
 
+#define OVT_LOG_INFO(fmt,arg...)  printk("TS_KIT OVT [%s:%d] "fmt"\n",__func__,__LINE__,##arg)
+#define OVT_LOG_ERR(fmt,arg...)		printk("TS_KIT OVT [%s:%d] "fmt"\n",__func__,__LINE__,##arg)
+#define OVT_LOG_DEBUG(fmt,arg...)	printk("TS_KIT OVT [%s:%d] "fmt"\n",__func__,__LINE__,##arg)
+
 #define INIT_BUFFER(buffer, is_clone) \
 	mutex_init(&buffer.buf_mutex); \
 	buffer.clone = is_clone
