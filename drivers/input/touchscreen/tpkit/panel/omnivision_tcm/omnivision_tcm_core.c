@@ -1354,11 +1354,15 @@ static int ovt_tcm_raw_read(struct ovt_tcm_hcd *tcm_hcd,
 	unsigned int remaining_length;
 
 	if (length <= 2) {
+		bool retry = true;
+	retry_read:
 		retval = ovt_tcm_read(tcm_hcd,
 				in_buf,
 				length);
-		// TS_LOG_ERR(
-		// 		"Invalid length information");
+		if (in_buf[0] != MESSAGE_MARKER && retry) {
+			retry = false;
+			goto retry_read;
+		}
 		return retval;
 	}
 
