@@ -204,12 +204,6 @@ static int ovt_testing_full_raw_cap(void)
 	struct ovt_tcm_app_info *app_info;
 	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
 
-
-	// if (tcm_hcd->id_info.mode != MODE_APPLICATION ||
-	// 		tcm_hcd->app_status != APP_STATUS_OK) {
-	// 	return -ENODEV;
-	// }
-
 	app_info = &tcm_hcd->app_info;
 	rows = le2_to_uint(app_info->num_of_image_rows);
 	cols = le2_to_uint(app_info->num_of_image_cols);
@@ -241,11 +235,11 @@ static int ovt_testing_full_raw_cap(void)
 		goto exit;
 	}
 
-	data_length = testing_hcd->resp.buf[2] | testing_hcd->resp.buf[3] << 8;
+	data_length = testing_hcd->resp.data_length;
 	OVT_LOG_INFO("%d\n", data_length);
 
 
-	limits_rows = sizeof(pt5_hi_limits) / sizeof(pt5_hi_limits[0]);
+	limits_rows = sizeof(pt5_lo_limits) / sizeof(pt5_lo_limits[0]);
 	limits_cols = sizeof(pt5_hi_limits[0]) / sizeof(pt5_hi_limits[0][0]);
 
 	if (rows > limits_rows || cols > limits_cols) {
@@ -280,7 +274,93 @@ static int ovt_testing_full_raw_cap(void)
 exit:
 	return retval;
 }
+static int ovt_testing_pt7_dynamic_range(void)
+{
+	int retval;
+	unsigned int idx; 
+	signed short data;
+	unsigned int timeout;
+	unsigned int data_length;
+	unsigned int row;
+	unsigned int col;
+	unsigned int rows;
+	unsigned int cols;
+	unsigned int limits_rows;
+	unsigned int limits_cols;
+	unsigned int frame_size_words;
+	struct ovt_tcm_app_info *app_info;
+	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
 
+	app_info = &tcm_hcd->app_info;
+	rows = le2_to_uint(app_info->num_of_image_rows);
+	cols = le2_to_uint(app_info->num_of_image_cols);
+
+	retval = ovt_tcm_alloc_mem(tcm_hcd,
+			&testing_hcd->out,
+			1);
+	if (retval < 0) {
+		OVT_LOG_ERR(
+				"Failed to allocate memory for testing_hcd->out.buf");
+		goto exit;
+	}
+
+	testing_hcd->out.buf[0] = TEST_PT7_DYNAMIC_RANGE;
+
+	retval = tcm_hcd->write_message(tcm_hcd,
+			CMD_PRODUCTION_TEST,
+			testing_hcd->out.buf,
+			1,
+			&testing_hcd->resp.buf,
+			&testing_hcd->resp.buf_size,
+			&testing_hcd->resp.data_length,
+			NULL,
+			0);
+	if (retval < 0) {
+		OVT_LOG_ERR(
+				"Failed to write command %s %s\n",
+				STR(CMD_PRODUCTION_TEST), STR(TEST_PT7_DYNAMIC_RANGE));
+		goto exit;
+	}
+
+	data_length = testing_hcd->resp.data_length;
+	OVT_LOG_INFO("%d\n", data_length);
+
+
+	limits_rows = sizeof(pt7_lo_limits) / sizeof(pt7_lo_limits[0]);
+	limits_cols = sizeof(pt7_hi_limits[0]) / sizeof(pt7_hi_limits[0][0]);
+
+	if (rows > limits_rows || cols > limits_cols) {
+		OVT_LOG_ERR(
+				"Mismatching limits data");
+		retval = -EINVAL;
+		goto exit;
+	}
+
+	idx = 0;
+	testing_hcd->result = true;
+
+	OVT_LOG_ERR("full raw data begin");
+	for (row = 0; row < rows; row++) {
+		for (col = 0; col < cols; col++) {
+			data = (signed short)le2_to_uint(&testing_hcd->resp.buf[idx * 2]);
+			OVT_LOG_ERR("data[%d]: %d, ", idx, data);
+			if ((data > pt7_hi_limits[row][col]) || (data < pt7_lo_limits[row][col])) {
+				OVT_LOG_ERR("overlow_data = %8u, row = %d, col = %d\n", data, row, col);
+				testing_hcd->result = false;
+				retval = -EINVAL;
+				strncat(ovt_tcm_mmi_test_result, "1F-", MAX_STR_LEN);
+				goto exit;
+			}
+			idx++;
+		}
+	}
+	OVT_LOG_ERR("full raw data end");
+
+	strncat(ovt_tcm_mmi_test_result, "1P-", MAX_STR_LEN);
+
+exit:
+	return retval;
+}
 static int ovt_testing_noise(void)
 {
 	int retval;
@@ -298,10 +378,6 @@ static int ovt_testing_noise(void)
 	struct ovt_tcm_app_info *app_info;
 	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
 
-	// if (tcm_hcd->id_info.mode != MODE_APPLICATION ||
-	// 		tcm_hcd->app_status != APP_STATUS_OK) {
-	// 	return -ENODEV;
-	// }
 	retval = -1;
 
 	app_info = &tcm_hcd->app_info;
@@ -368,7 +444,93 @@ static int ovt_testing_noise(void)
 exit:
 	return retval;
 }
+static int ovt_testing_pt11_open_detector(void)
+{
+	int retval;
+	unsigned int idx; 
+	signed short data;
+	unsigned int timeout;
+	unsigned int data_length;
+	unsigned int row;
+	unsigned int col;
+	unsigned int rows;
+	unsigned int cols;
+	unsigned int limits_rows;
+	unsigned int limits_cols;
+	unsigned int frame_size_words;
+	struct ovt_tcm_app_info *app_info;
+	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
 
+	app_info = &tcm_hcd->app_info;
+	rows = le2_to_uint(app_info->num_of_image_rows);
+	cols = le2_to_uint(app_info->num_of_image_cols);
+
+	retval = ovt_tcm_alloc_mem(tcm_hcd,
+			&testing_hcd->out,
+			1);
+	if (retval < 0) {
+		OVT_LOG_ERR(
+				"Failed to allocate memory for testing_hcd->out.buf");
+		goto exit;
+	}
+
+	testing_hcd->out.buf[0] = TEST_PT11_OPEN_DETECTION;
+
+	retval = tcm_hcd->write_message(tcm_hcd,
+			CMD_PRODUCTION_TEST,
+			testing_hcd->out.buf,
+			1,
+			&testing_hcd->resp.buf,
+			&testing_hcd->resp.buf_size,
+			&testing_hcd->resp.data_length,
+			NULL,
+			0);
+	if (retval < 0) {
+		OVT_LOG_ERR(
+				"Failed to write command %s %s\n",
+				STR(CMD_PRODUCTION_TEST), STR(TEST_PT11_OPEN_DETECTION));
+		goto exit;
+	}
+
+	data_length = testing_hcd->resp.data_length;
+	OVT_LOG_INFO("%d\n", data_length);
+
+
+	limits_rows = sizeof(pt11_lo_limits) / sizeof(pt11_lo_limits[0]);
+	limits_cols = sizeof(pt11_hi_limits[0]) / sizeof(pt11_hi_limits[0][0]);
+
+	if (rows > limits_rows || cols > limits_cols) {
+		OVT_LOG_ERR(
+				"Mismatching limits data");
+		retval = -EINVAL;
+		goto exit;
+	}
+
+	idx = 0;
+	testing_hcd->result = true;
+
+	OVT_LOG_ERR("full raw data begin");
+	for (row = 0; row < rows; row++) {
+		for (col = 0; col < cols; col++) {
+			data = (signed short)le2_to_uint(&testing_hcd->resp.buf[idx * 2]);
+			OVT_LOG_ERR("data[%d]: %d, ", idx, data);
+			if ((data > pt11_hi_limits[row][col]) || (data < pt11_lo_limits[row][col])) {
+				OVT_LOG_ERR("overlow_data = %8u, row = %d, col = %d\n", data, row, col);
+				testing_hcd->result = false;
+				retval = -EINVAL;
+				strncat(ovt_tcm_mmi_test_result, "3F-", MAX_STR_LEN);
+				goto exit;
+			}
+			idx++;
+		}
+	}
+	OVT_LOG_ERR("open detector pt11 data end");
+
+	strncat(ovt_tcm_mmi_test_result, "3P-", MAX_STR_LEN);
+
+exit:
+	return retval;
+}
 int ovt_tcm_testing(struct ts_rawdata_info *info)
 {
 	int retval = NO_ERR;
@@ -393,17 +555,24 @@ int ovt_tcm_testing(struct ts_rawdata_info *info)
 	// } else {
 	memcpy(ovt_tcm_mmi_test_result, "0P-", (strlen("0P-") + 1));
 	//}
-	retval = ovt_testing_full_raw_cap();
+	retval = ovt_testing_pt7_dynamic_range();
 	if (retval < 0) {
-		OVT_LOG_ERR("fail to do full raw cap");
+		OVT_LOG_ERR("fail to do ovt_testing_pt7_dynamic_range");
 		strncat(ovt_tcm_mmi_test_result, "1F-", MAX_STR_LEN);
 		goto exit;
 	}
 
 	retval = ovt_testing_noise();
 	if (retval < 0) {
-		OVT_LOG_ERR("fail to do full noise test");
+		OVT_LOG_ERR("fail to do ovt_testing_noise test");
 		strncat(ovt_tcm_mmi_test_result, "2F-", MAX_STR_LEN);
+		goto exit;
+	}
+
+	retval = ovt_testing_pt11_open_detector();
+	if (retval < 0) {
+		OVT_LOG_ERR("fail to do ovt_testing_pt11_open_detector test");
+		strncat(ovt_tcm_mmi_test_result, "3F-", MAX_STR_LEN);
 		goto exit;
 	}
 	info->hybrid_buff[0] = rows;
