@@ -227,7 +227,7 @@ static int ovt_testing_full_raw_cap(void)
 			&testing_hcd->resp.buf_size,
 			&testing_hcd->resp.data_length,
 			NULL,
-			0);
+			100);
 	if (retval < 0) {
 		OVT_LOG_ERR(
 				"Failed to write command %s %s\n",
@@ -314,7 +314,7 @@ static int ovt_testing_pt7_dynamic_range(void)
 			&testing_hcd->resp.buf_size,
 			&testing_hcd->resp.data_length,
 			NULL,
-			0);
+			100);
 	if (retval < 0) {
 		OVT_LOG_ERR(
 				"Failed to write command %s %s\n",
@@ -405,7 +405,7 @@ static int ovt_testing_noise(void)
 			&testing_hcd->resp.buf_size,
 			&testing_hcd->resp.data_length,
 			NULL,
-			0);
+			100);
 	if (retval < 0) {
 		OVT_LOG_ERR(
 				"Failed to write command %s  %s\n",
@@ -484,7 +484,7 @@ static int ovt_testing_pt11_open_detector(void)
 			&testing_hcd->resp.buf_size,
 			&testing_hcd->resp.data_length,
 			NULL,
-			0);
+			100);
 	if (retval < 0) {
 		OVT_LOG_ERR(
 				"Failed to write command %s %s\n",
