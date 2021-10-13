@@ -118,7 +118,58 @@ struct testing_hcd {
 
 };
 
+#define OVT_TCM_LIMITS_CSV_FILE "/odm/etc/firmware/ts/ovt_tcm_cap_limits.csv"
+struct ovt_tcm_test_params *test_params = NULL;
+
 static struct testing_hcd *testing_hcd;
+
+static void ovt_tcm_get_thr_from_csvfile(void)
+{
+	int ret = NO_ERR;
+	unsigned int rows = 0;
+	unsigned int cols = 0;
+	struct ovt_tcm_app_info *app_info = NULL;
+	struct ovt_tcm_test_threshold *threshold = &test_params->threshold;
+	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+
+	app_info = &tcm_hcd->app_info;
+	rows = le2_to_uint(app_info->num_of_image_rows);
+	cols = le2_to_uint(app_info->num_of_image_cols);
+
+	TS_LOG_INFO("rows: %d, cols: %d\n", rows, cols);
+	ret = ts_kit_parse_csvfile(OVT_TCM_LIMITS_CSV_FILE, CSV_RAW_DATA_MIN_ARRAY,
+			threshold->raw_data_min_limits, rows, cols);
+	if (ret) {
+		TS_LOG_INFO("%s: Failed get %s \n", __func__, CSV_RAW_DATA_MIN_ARRAY);
+	}
+
+	ret = ts_kit_parse_csvfile(OVT_TCM_LIMITS_CSV_FILE, CSV_RAW_DATA_MAX_ARRAY,
+			threshold->raw_data_max_limits, rows, cols);
+	if (ret) {
+		TS_LOG_INFO("%s: Failed get %s \n", __func__, CSV_RAW_DATA_MAX_ARRAY);
+	}
+
+	ret = ts_kit_parse_csvfile(OVT_TCM_LIMITS_CSV_FILE, CSV_OPEN_SHORT_MIN_ARRAY,
+			threshold->open_short_min_limits, rows, cols);
+	if (ret) {
+		TS_LOG_INFO("%s: Failed get %s \n", __func__, CSV_OPEN_SHORT_MIN_ARRAY);
+	}
+
+	ret = ts_kit_parse_csvfile(OVT_TCM_LIMITS_CSV_FILE, CSV_OPEN_SHORT_MAX_ARRAY,
+			threshold->open_short_max_limits, rows, cols);
+	if (ret) {
+		TS_LOG_INFO("%s: Failed get %s \n", __func__, CSV_OPEN_SHORT_MAX_ARRAY);
+	}
+
+	ret = ts_kit_parse_csvfile(OVT_TCM_LIMITS_CSV_FILE, CSV_LCD_NOISE_ARRAY,
+			threshold->lcd_noise_max_limits, rows, cols);
+	if (ret) {
+		TS_LOG_INFO("%s: Failed get %s \n", __func__, CSV_LCD_NOISE_ARRAY);
+	}
+
+	test_params->cap_thr_is_parsed = true;
+}
+
 int ovt_testing_init(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int retval = 0;
@@ -531,6 +582,13 @@ static int ovt_testing_pt11_open_detector(void)
 exit:
 	return retval;
 }
+
+static void ovt_tcm_put_device_info(struct ts_rawdata_info_new *info)
+{
+	/* put ic data */
+	strncpy(info->deviceinfo, "-ovt_tcm;", sizeof(info->deviceinfo));
+}
+
 int ovt_tcm_testing(struct ts_rawdata_info *info)
 {
 	int retval = NO_ERR;
@@ -538,14 +596,37 @@ int ovt_tcm_testing(struct ts_rawdata_info *info)
 	unsigned int cols;
 	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
 	struct ovt_tcm_app_info *app_info;
-	
-	OVT_LOG_INFO("ovt_tcm_testing called");
+	struct ts_rawdata_newnodeinfo* pts_node = NULL;
 
-	testing_hcd->tcm_hcd = tcm_hcd;
+	OVT_LOG_INFO("ovt_tcm_testing called");
+	if (!test_params->cap_thr_is_parsed)
+		ovt_tcm_get_thr_from_csvfile();
+
+	pts_node = (struct ts_rawdata_newnodeinfo *)kzalloc(sizeof(struct ts_rawdata_newnodeinfo), GFP_KERNEL);
+	if (!pts_node) {
+		OVT_LOG_ERR("malloc failed\n");
+		return -ENOMEM;
+	}
+
+
 	app_info = &tcm_hcd->app_info;
+
+	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) ||
+			tcm_hcd->app_status != APP_STATUS_OK) {
+		pts_node->typeindex = RAW_DATA_TYPE_IC;	
+		pts_node->testresult = CAP_TEST_FAIL_CHAR;
+		list_add_tail(&pts_node->node, &info->rawdata_head);
+		return -ENODEV;
+	} else {
+		pts_node->typeindex = RAW_DATA_TYPE_IC;	
+		pts_node->testresult = CAP_TEST_PASS_CHAR;
+		list_add_tail(&pts_node->node, &info->rawdata_head);
+	}
 
 	rows = le2_to_uint(app_info->num_of_image_rows);
 	cols = le2_to_uint(app_info->num_of_image_cols);
+
+	ovt_tcm_put_device_info(info);
 
 	// if (tcm_hcd->id_info.mode != MODE_APPLICATION ||
 	// 	tcm_hcd->app_status != APP_STATUS_OK) {

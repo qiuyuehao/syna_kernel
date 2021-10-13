@@ -396,4 +396,33 @@ static const short pt11_lo_limits[38][38] = {
 /* test limit for the hw reset pin testing */
 static const unsigned char reset_open_limit = 0x13;
 
+#define CSV_RAW_DATA_MIN_ARRAY		"threshold,raw_data_min_array"
+#define CSV_RAW_DATA_MAX_ARRAY		"threshold,raw_data_max_array"
+#define CSV_OPEN_SHORT_MIN_ARRAY	"threshold,open_short_min_array"
+#define CSV_OPEN_SHORT_MAX_ARRAY	"threshold,open_short_max_array"
+#define CSV_LCD_NOISE_ARRAY			"threshold,lcd_noise_max_array"
+
+#define TX_NUM_MAX			40
+#define RX_NUM_MAX			40
+
+#define CAP_TEST_FAIL_CHAR 'F'
+#define CAP_TEST_PASS_CHAR 'P'
+
+struct ovt_tcm_test_threshold {
+	int32_t raw_data_min_limits[TX_NUM_MAX*RX_NUM_MAX];
+	int32_t raw_data_max_limits[TX_NUM_MAX*RX_NUM_MAX];
+	int32_t open_short_min_limits[TX_NUM_MAX*RX_NUM_MAX];
+	int32_t open_short_max_limits[TX_NUM_MAX*RX_NUM_MAX];
+	int32_t lcd_noise_max_limits[TX_NUM_MAX*RX_NUM_MAX];
+};
+
+struct ovt_tcm_test_params {
+	bool cap_thr_is_parsed;
+	struct ovt_tcm_test_threshold threshold;
+	u32 raw_data_test;
+	u32 noise_test;
+	u32 open_short_test;
+};
+
+
 #endif /* end of _OMNIVISION_TCM_TESTING_H_ */

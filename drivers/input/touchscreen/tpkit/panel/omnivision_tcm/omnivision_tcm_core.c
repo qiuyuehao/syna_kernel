@@ -4227,7 +4227,7 @@ static void __exit ovt_tcm_module_exit(void)
 	return;
 }
 
-module_init(ovt_tcm_module_init);
+late_initcall(ovt_tcm_module_init);
 module_exit(ovt_tcm_module_exit);
 
 MODULE_AUTHOR("Omnivision, Inc.");
