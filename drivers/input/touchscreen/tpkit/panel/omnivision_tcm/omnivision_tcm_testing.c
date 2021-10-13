@@ -246,6 +246,8 @@ err_sysfs_create_dir:
 #endif
 	return retval;
 }
+
+#if 0
 static int ovt_testing_full_raw_cap(struct ts_rawdata_info *info)
 {
 	int retval;
@@ -572,11 +574,6 @@ exit:
 	return retval;
 }
 
-// static void ovt_tcm_put_device_info(struct ts_rawdata_info *info)
-// {
-// 	/* put ic data */
-// 	strncpy(info->deviceinfo, "-ovt_tcm;", sizeof(info->deviceinfo));
-// }
 
 int ovt_tcm_testing(struct ts_rawdata_info *info)
 {
@@ -644,7 +641,379 @@ int ovt_tcm_testing(struct ts_rawdata_info *info)
 exit:
 	return retval;
 }
+#else
 
+static void ovt_tcm_put_device_info(struct ts_rawdata_info_new *info)
+{
+	char buf_fw_ver[CHIP_INFO_LENGTH] = {0};
+	struct ovt_tcm_hcd *tcm_hcd = test_hcd->tcm_hcd;
+	unsigned long len;
+
+	strncpy(info->deviceinfo, "-ovt_tcm-", sizeof(info->deviceinfo) - 1);
+	if (sizeof(info->deviceinfo) > strlen(info->deviceinfo))
+		len = sizeof(info->deviceinfo) - strlen(info->deviceinfo) - 1;
+	else
+		len = 0;
+	strncat(info->deviceinfo,
+			tcm_hcd->tcm_mod_info.project_id_string,
+			len);
+
+	if (sizeof(info->deviceinfo) > strlen(info->deviceinfo))
+		len = sizeof(info->deviceinfo) - strlen(info->deviceinfo) - 1;
+	else
+		len = 0;
+	strncat(info->deviceinfo, "-", len);
+
+	snprintf(buf_fw_ver, CHIP_INFO_LENGTH, "%d", tcm_hcd->packrat_number);
+	TS_LOG_INFO("buf_fw_ver = %s", buf_fw_ver);
+	if (sizeof(info->deviceinfo) > strlen(info->deviceinfo))
+		len = sizeof(info->deviceinfo) - strlen(info->deviceinfo) - 1;
+	else
+		len = 0;
+	strncat(info->deviceinfo, buf_fw_ver, len);
+
+	if (sizeof(info->deviceinfo) > strlen(info->deviceinfo))
+		len = sizeof(info->deviceinfo) - strlen(info->deviceinfo) - 1;
+	else
+		len = 0;
+	strncat(info->deviceinfo, ";", len);
+}
+static int ovt_testing_pt7_dynamic_range(struct ts_rawdata_info_new *info)
+{
+	int retval;
+	unsigned int idx; 
+	signed short data;
+	unsigned int timeout;
+	unsigned int data_length;
+	unsigned int row;
+	unsigned int col;
+	unsigned int rows;
+	unsigned int cols;
+	unsigned int limits_rows;
+	unsigned int limits_cols;
+	unsigned int frame_size_words;
+	struct ovt_tcm_app_info *app_info;
+	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+	struct ts_rawdata_newnodeinfo* pts_node = NULL;
+
+	char failedreason[TS_RAWDATA_FAILED_REASON_LEN] = {0};
+	char testresult = CAP_TEST_PASS_CHAR;
+
+	app_info = &tcm_hcd->app_info;
+	rows = le2_to_uint(app_info->num_of_image_rows);
+	cols = le2_to_uint(app_info->num_of_image_cols);
+
+	retval = ovt_tcm_alloc_mem(tcm_hcd,
+			&testing_hcd->out,
+			1);
+	if (retval < 0) {
+		OVT_LOG_ERR(
+				"Failed to allocate memory for testing_hcd->out.buf");
+		goto exit;
+	}
+
+	testing_hcd->out.buf[0] = TEST_PT7_DYNAMIC_RANGE;
+
+	retval = tcm_hcd->write_message(tcm_hcd,
+			CMD_PRODUCTION_TEST,
+			testing_hcd->out.buf,
+			1,
+			&testing_hcd->resp.buf,
+			&testing_hcd->resp.buf_size,
+			&testing_hcd->resp.data_length,
+			NULL,
+			100);
+	if (retval < 0) {
+		OVT_LOG_ERR(
+				"Failed to write command %s %s\n",
+				STR(CMD_PRODUCTION_TEST), STR(TEST_PT7_DYNAMIC_RANGE));
+		goto exit;
+	}
+
+	data_length = testing_hcd->resp.data_length;
+	OVT_LOG_INFO("%d\n", data_length);
+
+	pts_node = (struct ts_rawdata_newnodeinfo *)kzalloc(sizeof(struct ts_rawdata_newnodeinfo), GFP_KERNEL);
+	if (!pts_node) {
+		TS_LOG_ERR("malloc pts_node failed\n");
+		return -ENOMEM;
+	}
+
+	pts_node->values = kzalloc((data_length/2)*sizeof(int), GFP_KERNEL);
+	if (!pts_node->values) {
+		TS_LOG_ERR("%s malloc value failed  for values\n", __func__);
+		testresult = CAP_TEST_FAIL_CHAR;
+		strncpy(failedreason, "malloc node value fail", TS_RAWDATA_FAILED_REASON_LEN-1);
+		goto exit;
+	}
+
+
+	idx = 0;
+	testing_hcd->result = true;
+
+	OVT_LOG_ERR("pt7 data begin");
+	for (row = 0; row < rows; row++) {
+		for (col = 0; col < cols; col++) {
+			data = (signed short)le2_to_uint(&testing_hcd->resp.buf[idx * 2]);
+			pts_node->values[idx] = (int)data; = data;
+			OVT_LOG_ERR("data[%d]: %d, ", idx, data);
+			if ((data > test_params.threshold.raw_data_max_limits[idx]) || (data < test_params.threshold.raw_data_min_limits[idx])) {
+				OVT_LOG_ERR("overlow_data = %8d, row = %d, col = %d\n", data, row, col);
+				testing_hcd->result = false;
+			}
+			idx++;
+		}
+	}
+	OVT_LOG_ERR("pt7 data end");
+
+exit:
+	pts_node->size = data_length / 2;
+	pts_node->testresult = testresult;
+	pts_node->typeindex = RAW_DATA_TYPE_Noise;		
+	strncpy(pts_node->test_name, "Noise_delta", TS_RAWDATA_TEST_NAME_LEN-1);
+	snprintf(pts_node->statistics_data, TS_RAWDATA_STATISTICS_DATA_LEN,
+			"[%d,%d,%d]",
+			noise_data_min, noise_data_max, noise_data_avg);
+	if (CAP_TEST_FAIL_CHAR == testresult) {
+		strncpy(pts_node->tptestfailedreason, failedreason, TS_RAWDATA_FAILED_REASON_LEN-1);
+	}
+	list_add_tail(&pts_node->node, &info->rawdata_head);
+	return retval;
+}
+static int ovt_testing_noise(struct ts_rawdata_info *info)
+{
+	int retval;
+	unsigned int idx; 
+	signed short data;
+	unsigned int timeout;
+	unsigned int data_length;
+	unsigned int row;
+	unsigned int col;
+	unsigned int rows;
+	unsigned int cols;
+	unsigned int limits_rows;
+	unsigned int limits_cols;
+	unsigned int frame_size_words;
+	struct ovt_tcm_app_info *app_info;
+	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+
+	retval = -1;
+
+	app_info = &tcm_hcd->app_info;
+	rows = le2_to_uint(app_info->num_of_image_rows);
+	cols = le2_to_uint(app_info->num_of_image_cols);
+
+
+
+	retval = ovt_tcm_alloc_mem(tcm_hcd,
+			&testing_hcd->out,
+			1);
+	if (retval < 0) {
+		OVT_LOG_ERR(
+				"Failed to allocate memory for testing_hcd->out.buf");
+		goto exit;
+	}
+
+	testing_hcd->out.buf[0] = TEST_PT10_DELTA_NOISE;
+
+	retval = tcm_hcd->write_message(tcm_hcd,
+			CMD_PRODUCTION_TEST,
+			testing_hcd->out.buf,
+			1,
+			&testing_hcd->resp.buf,
+			&testing_hcd->resp.buf_size,
+			&testing_hcd->resp.data_length,
+			NULL,
+			100);
+	if (retval < 0) {
+		OVT_LOG_ERR(
+				"Failed to write command %s  %s\n",
+				STR(CMD_PRODUCTION_TEST), STR(TEST_PT10_DELTA_NOISE));
+		goto exit;
+	}
+
+	data_length = testing_hcd->resp.data_length;
+	OVT_LOG_INFO("%d\n", data_length);
+
+	idx = 0;
+	testing_hcd->result = true;
+
+	OVT_LOG_ERR("pt10 noise data begin");
+	for (row = 0; row < rows; row++) {
+		for (col = 0; col < cols; col++) {
+			data = (signed short)le2_to_uint(&testing_hcd->resp.buf[idx * 2]);
+			info->buff[info->used_size + idx] = data;
+			OVT_LOG_ERR("data[%d]: %d, ", idx, data);
+			if (data > test_params.threshold.lcd_noise_max_limits[idx]) {
+				OVT_LOG_ERR("overlow_data = %8d, row = %d, col = %d\n", data, row, col);
+				testing_hcd->result = false;
+			}
+			idx++;
+		}
+	}
+	info->used_size += rows * cols;
+	OVT_LOG_ERR("pt10 noise data end");
+
+exit:
+	if (testing_hcd->result) {
+		strncat(ovt_tcm_mmi_test_result, "2P-", MAX_STR_LEN);
+	} else {
+		strncat(ovt_tcm_mmi_test_result, "2F-", MAX_STR_LEN);
+	}
+	return retval;
+}
+static int ovt_testing_pt11_open_detector(struct ts_rawdata_info *info)
+{
+	int retval;
+	unsigned int idx; 
+	signed short data;
+	unsigned int timeout;
+	unsigned int data_length;
+	unsigned int row;
+	unsigned int col;
+	unsigned int rows;
+	unsigned int cols;
+	unsigned int limits_rows;
+	unsigned int limits_cols;
+	unsigned int frame_size_words;
+	struct ovt_tcm_app_info *app_info;
+	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+
+	app_info = &tcm_hcd->app_info;
+	rows = le2_to_uint(app_info->num_of_image_rows);
+	cols = le2_to_uint(app_info->num_of_image_cols);
+
+	retval = ovt_tcm_alloc_mem(tcm_hcd,
+			&testing_hcd->out,
+			1);
+	if (retval < 0) {
+		OVT_LOG_ERR(
+				"Failed to allocate memory for testing_hcd->out.buf");
+		goto exit;
+	}
+
+	testing_hcd->out.buf[0] = TEST_PT11_OPEN_DETECTION;
+
+	retval = tcm_hcd->write_message(tcm_hcd,
+			CMD_PRODUCTION_TEST,
+			testing_hcd->out.buf,
+			1,
+			&testing_hcd->resp.buf,
+			&testing_hcd->resp.buf_size,
+			&testing_hcd->resp.data_length,
+			NULL,
+			100);
+	if (retval < 0) {
+		OVT_LOG_ERR(
+				"Failed to write command %s %s\n",
+				STR(CMD_PRODUCTION_TEST), STR(TEST_PT11_OPEN_DETECTION));
+		goto exit;
+	}
+
+	data_length = testing_hcd->resp.data_length;
+	OVT_LOG_INFO("%d\n", data_length);
+
+	idx = 0;
+	testing_hcd->result = true;
+
+	OVT_LOG_ERR("pt11 open data begin");
+	for (row = 0; row < rows; row++) {
+		for (col = 0; col < cols; col++) {
+			data = (signed short)le2_to_uint(&testing_hcd->resp.buf[idx * 2]);
+			info->buff[info->used_size + idx] = data;
+			OVT_LOG_ERR("data[%d]: %d, ", idx, data);
+			if ((data > test_params.threshold.open_short_max_limits[idx]) || (data < test_params.threshold.open_short_min_limits[idx])) {
+				OVT_LOG_ERR("overlow_data = %8u, row = %d, col = %d\n", data, row, col);
+				testing_hcd->result = false;
+			}
+			idx++;
+		}
+	}
+	info->used_size += rows * cols;
+	OVT_LOG_ERR("pt11 open data end");
+
+exit:
+	if (testing_hcd->result) {
+		strncat(ovt_tcm_mmi_test_result, "3P-", MAX_STR_LEN);
+	} else {
+		strncat(ovt_tcm_mmi_test_result, "3F-", MAX_STR_LEN);
+	}
+	return retval;
+}
+
+int ovt_tcm_testing(struct ts_rawdata_info *info)
+{
+	int retval = NO_ERR;
+	unsigned int rows;
+	unsigned int cols;
+	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+	struct ovt_tcm_app_info *app_info;
+	struct ts_rawdata_newnodeinfo* pts_node = NULL;
+
+	OVT_LOG_INFO("ovt_tcm_testing called");
+	if (!test_params.cap_thr_is_parsed) {
+		int ret;
+		ret = ovt_tcm_get_thr_from_csvfile();
+		if (ret) {
+			OVT_LOG_INFO("ovt_tcm_testing csv parse fail");
+			return RESULT_ERR;
+		}
+	}
+
+	pts_node = (struct ts_rawdata_newnodeinfo *)kzalloc(sizeof(struct ts_rawdata_newnodeinfo), GFP_KERNEL);
+	if (!pts_node) {
+		OVT_LOG_INFO("malloc failed\n");
+		return -ENOMEM;
+	}
+
+	app_info = &tcm_hcd->app_info;
+
+	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) ||
+			tcm_hcd->app_status != APP_STATUS_OK) {
+		memcpy(ovt_tcm_mmi_test_result, "1F-", (strlen("1F-") + 1));
+		return -ENODEV;
+	} else {
+		memcpy(ovt_tcm_mmi_test_result, "0P-", (strlen("0P-") + 1));
+	}
+
+	rows = le2_to_uint(app_info->num_of_image_rows);
+	cols = le2_to_uint(app_info->num_of_image_cols);
+
+	ovt_tcm_put_device_info(info);
+
+	info->used_size = 0;
+	info->buff[0] = rows;
+	info->buff[1] = cols;
+	info->hybrid_buff[0] = 0;
+	info->hybrid_buff[1] = 0;
+	info->used_size += 2;
+
+	retval = ovt_testing_pt7_dynamic_range(info);
+	if (retval < 0) {
+		OVT_LOG_ERR("fail to do ovt_testing_pt7_dynamic_range");
+		goto exit;
+	}
+
+	retval = ovt_testing_noise(info);
+	if (retval < 0) {
+		OVT_LOG_ERR("fail to do ovt_testing_noise test");
+		goto exit;
+	}
+
+	retval = ovt_testing_pt11_open_detector(info);
+	if (retval < 0) {
+		OVT_LOG_ERR("fail to do ovt_testing_pt11_open_detector test");
+		goto exit;
+	}
+
+	memcpy(info->result, ovt_tcm_mmi_test_result, strlen(ovt_tcm_mmi_test_result));
+	OVT_LOG_INFO("info->used_size = %d\n", info->used_size);
+
+	retval = NO_ERR;
+exit:
+	return retval;
+}
+#endif
 
 
 #if 0

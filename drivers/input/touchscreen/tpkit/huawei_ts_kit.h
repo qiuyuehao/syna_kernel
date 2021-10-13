@@ -46,7 +46,7 @@
 #define TS_DEV_NAME "huawei,ts_kit"
 #define TS_PEN_DEV_NAME "huawei,ts_pen"
 
-#define RAW_DATA_SIZE 8192 * 2
+#define RAW_DATA_SIZE 8192 * 4
 #define TS_WATCHDOG_TIMEOUT		1000
 
 #define AFT_WAITQ_IDLE	 (0)
@@ -112,8 +112,15 @@
 #define WACOM_RUBBER_TO_PEN   250
 
 #define TS_ERR_NEST_LEVEL  5
-#define TS_RAWDATA_BUFF_MAX 5000
-#define TS_RAWDATA_RESULT_MAX	100
+#define TS_RAWDATA_BUFF_MAX 11000
+
+#define TS_RAWDATA_FAILED_REASON_LEN	20
+#define TS_RAWDATA_STATISTICS_DATA_LEN  32
+#define TS_RAWDATA_TEST_NAME_LEN		50
+#define TS_RAWDATA_RESULT_CODE_LEN		4
+
+#define TS_RAWDATA_DEVINFO_MAX	50
+#define TS_RAWDATA_RESULT_MAX	200
 #define TS_FB_LOOP_COUNTS 100
 #define TS_FB_WAIT_TIME 5
 #define MAX_CAP_DATA_SIZE 6
@@ -194,11 +201,19 @@
 /* ts switch func begin */
 #define TS_SWITCH_TYPE_DOZE		(1<<0)
 #define TS_SWITCH_TYPE_GAME		(1<<1)
+#define TS_SWITCH_TYPE_SCENE	(1<<2)
 
 #define TS_SWITCH_DOZE_ENABLE	1
 #define TS_SWITCH_DOZE_DISABLE	2
 #define TS_SWITCH_GAME_ENABLE	3
 #define TS_SWITCH_GAME_DISABLE	4
+#define TS_SWITCH_SCENE_ENTER	3
+#define TS_SWITCH_SCENE_EXIT	4
+
+enum ts_scene_code {
+	TS_SWITCH_SCENE_GAME = 3,
+	TS_SWITCH_SCENE_IM,
+};
 /* ts switch func end */
 
 #define MAX_STR_LEN 32
@@ -217,7 +232,7 @@
 #define TD43XX_EE_SHORT_TEST_PASS "-5P"
 
 #define CHIP_INFO_LENGTH	16
-#define RAWDATA_NUM 8
+#define RAWDATA_NUM 16
 #define MAX_POSITON_NUMS 6
 #ifndef CONFIG_OF
 #define SUPPORT_IC_NUM 4
@@ -563,6 +578,30 @@ struct fw_param
     char fw_name[MAX_STR_LEN * 4]; //firmware name contain 4 parts
 };
 
+struct ts_rawdata_newnodeinfo
+{    
+    struct list_head node;
+	u8 typeindex;       /* enum ts_raw_data_type */
+	char testresult;    /* 'P' o 'F' */
+	int *values;
+	size_t size;
+	char test_name[TS_RAWDATA_TEST_NAME_LEN];	
+	char statistics_data[TS_RAWDATA_STATISTICS_DATA_LEN];   /* [%d,%d,%d] */
+	char tptestfailedreason[TS_RAWDATA_FAILED_REASON_LEN];  /* "-panel_reason" o "-software reason" */
+};
+
+struct ts_rawdata_info_new
+{
+    int status;
+	int rx;
+	int tx;
+    ktime_t time_stamp;
+    char deviceinfo[TS_RAWDATA_DEVINFO_MAX];       /* ic info */
+	char i2cinfo[TS_RAWDATA_RESULT_CODE_LEN];      /* i2c test result:0P or 0F */
+	char i2cerrinfo[TS_RAWDATA_FAILED_REASON_LEN]; /* i2c test fail reason*/
+	int listnodenum;
+	struct list_head rawdata_head;//ts_rawdata_newnodeinfo  list
+};
 struct ts_rawdata_info
 {
     int status;
