@@ -121,6 +121,7 @@ static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 	if (header == 0xa5) {
 		g_tcm_hcd->sensor_type = TYPE_ROMBOOT;
 		g_tcm_hcd->is_detected = true;
+		g_tcm_hcd->ovt_tcm_chip_data->rawdata_newformatflag = 1;
 		return NO_ERR;
 	} else {
 		return RESULT_ERR;
@@ -193,7 +194,7 @@ static int ovt_tcm_mmi_test(struct ts_rawdata_info *info,
 {
 	int retval = 0;
 	OVT_LOG_INFO("++++ ovt_tcm_mmi_test in");
-	retval = ovt_tcm_testing(info);
+	retval = ovt_tcm_testing((struct ts_rawdata_info_new *)info);
 	if (retval < 0) {
 		OVT_LOG_ERR("Failed to ovt_tcm_testing");
 		return retval;
