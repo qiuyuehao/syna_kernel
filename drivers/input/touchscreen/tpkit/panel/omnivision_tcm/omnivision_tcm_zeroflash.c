@@ -539,6 +539,7 @@ static int zeroflash_get_fw_image(void)
 {
 	int retval;
 	struct ovt_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
+	unsigned char img_name[256] = {0};
 
 	if (zeroflash_hcd->fw_entry != NULL) {
 		release_firmware(zeroflash_hcd->fw_entry);
@@ -549,8 +550,14 @@ static int zeroflash_get_fw_image(void)
 	}
 	OVT_LOG_INFO("zeroflash_get_fw_image");
 	if (zeroflash_hcd->image == NULL) {
+		if (tcm_hcd->hw_if->bdata->project_id) {
+			strncpy(img_name, "hdl_firmware_", sizeof(img_name));
+			strncat(img_name, tcm_hcd->hw_if->bdata->project_id, sizeof(img_name));
+		} else {
+			strncpy(img_name, "hdl_firmware.img", sizeof(img_name));
+		}
 		retval = request_firmware(&zeroflash_hcd->fw_entry,
-				FW_IMAGE_NAME,
+				img_name,
 				tcm_hcd->pdev->dev.parent);
 		if (retval < 0) {
 			OVT_LOG_ERR(

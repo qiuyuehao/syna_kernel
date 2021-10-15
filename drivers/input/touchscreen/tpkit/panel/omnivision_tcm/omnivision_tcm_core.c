@@ -291,7 +291,36 @@ static int ovt_wakeup_gesture_enable_switch(struct
 	}
 	return retval;
 }
+static int ovt_tcm_after_resume(void *feature_info)
+{
+	int retval = NO_ERR;
 
+	if (g_tcm_hcd->is_detected) {
+		unsigned char first_message[64];
+		ovt_tcm_read_message(g_tcm_hcd, first_message, sizeof(first_message));
+		OVT_LOG_INFO("read first message:%x  %x   %x  %x\n", first_message[0], first_message[1], first_message[2], first_message[3]);
+		if (first_message[0] == 0xa5 && first_message[1] == 0x10) {
+			secure_memcpy((unsigned char *)&g_tcm_hcd->id_info,
+					sizeof(g_tcm_hcd->id_info),
+					&first_message[MESSAGE_HEADER_SIZE],
+					sizeof(first_message) - MESSAGE_HEADER_SIZE,
+					sizeof(g_tcm_hcd->id_info));
+		}
+		if (tcm_hcd->id_info.mode == MODE_ROMBOOTLOADER) {
+			g_tcm_hcd->sensor_type = TYPE_ROMBOOT;
+			OVT_LOG_INFO("resume call download firmware");
+			retval = zeroflash_do_hostdownload(g_tcm_hcd);
+			if (retval >= 0) {
+				retval = g_tcm_hcd->identify(g_tcm_hcd, true);
+				retval = ovt_touch_init(g_tcm_hcd);
+				ovt_touch_config_input_dev(g_tcm_hcd->input_dev);
+			}
+		}
+	}
+
+exit:
+	return retval;
+}
 struct ts_device_ops ts_kit_ovt_tcm_ops = {
 	.chip_detect = ovt_tcm_chip_detect,
 	.chip_init = ovt_tcm_init_chip,
@@ -309,7 +338,7 @@ struct ts_device_ops ts_kit_ovt_tcm_ops = {
 	//.chip_before_suspend = ovt_tcm_before_suspend,
 	.chip_suspend = ovt_tcm_suspend,
 	.chip_resume = ovt_tcm_resume,
-	//.chip_after_resume = ovt_tcm_after_resume,
+	.chip_after_resume = ovt_tcm_after_resume,
 	.chip_wakeup_gesture_enable_switch = ovt_wakeup_gesture_enable_switch,
 	.chip_get_rawdata = ovt_tcm_mmi_test,
 	.chip_get_calibration_data = ovt_tcm_get_cal_data,
