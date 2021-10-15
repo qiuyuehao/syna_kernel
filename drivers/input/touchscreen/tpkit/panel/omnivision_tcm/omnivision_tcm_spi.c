@@ -79,6 +79,12 @@ static int parse_dt(struct device *dev, struct ovt_tcm_board_data *bdata)
 	else
 		bdata->bus_reg_name = name;
 
+	retval = of_property_read_string(np, "omnivision,project-id-name", &name);
+	if (retval < 0)
+		bdata->project_id = NULL;
+	else
+		bdata->project_id = name;
+
 	prop = of_find_property(np, "omnivision,power-gpio", NULL);
 	if (prop && prop->length) {
 		bdata->power_gpio = of_get_named_gpio_flags(np,

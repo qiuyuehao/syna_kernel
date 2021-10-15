@@ -69,6 +69,7 @@ struct ovt_tcm_board_data {
 	unsigned long irq_flags;
 	const char *pwr_reg_name;
 	const char *bus_reg_name;
+	const char *project_id;
 };
 
 #define OMNIVISION_TCM_ID_PRODUCT (1 << 0)

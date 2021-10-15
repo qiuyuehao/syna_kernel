@@ -118,7 +118,7 @@ struct testing_hcd {
 
 };
 
-#define OVT_TCM_LIMITS_CSV_FILE "/odm/etc/firmware/ts/ovt_tcm_cap_limits.csv"
+//#define OVT_TCM_LIMITS_CSV_FILE "/odm/etc/firmware/ts/ovt_tcm_cap_limits.csv"
 static struct ovt_tcm_test_params test_params;
 
 static struct testing_hcd *testing_hcd;
@@ -132,42 +132,49 @@ static int ovt_tcm_get_thr_from_csvfile(void)
 	struct ovt_tcm_test_threshold *threshold = &(test_params.threshold);
 	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
 
+	char file_path[256] = {0};
+	strncpy(file_path, "/data/ovt_tcm_", sizeof(file_path));
+	if (tcm_hcd->hw_if->bdata->project_id) {
+		strncat(file_path, tcm_hcd->hw_if->bdata->project_id, sizeof(file_path));
+	}
+	strncat(file_path, "_cap_limits.csv", sizeof(file_path));
+
 	app_info = &tcm_hcd->app_info;
 	rows = le2_to_uint(app_info->num_of_image_rows);
 	cols = le2_to_uint(app_info->num_of_image_cols);
 
 	test_params.cap_thr_is_parsed = false;
 
-	TS_LOG_INFO("rows: %d, cols: %d\n", rows, cols);
-	ret = ts_kit_parse_csvfile(OVT_TCM_LIMITS_CSV_FILE, CSV_RAW_DATA_MIN_ARRAY,
+	TS_LOG_INFO("rows: %d, cols: %d file_path:%s", rows, cols, file_path);
+	ret = ts_kit_parse_csvfile(file_path, CSV_RAW_DATA_MIN_ARRAY,
 			threshold->raw_data_min_limits, rows, cols);
 	if (ret) {
 		TS_LOG_INFO("%s: Failed get %s \n", __func__, CSV_RAW_DATA_MIN_ARRAY);
 		return ret;
 	}
 
-	ret = ts_kit_parse_csvfile(OVT_TCM_LIMITS_CSV_FILE, CSV_RAW_DATA_MAX_ARRAY,
+	ret = ts_kit_parse_csvfile(file_path, CSV_RAW_DATA_MAX_ARRAY,
 			threshold->raw_data_max_limits, rows, cols);
 	if (ret) {
 		TS_LOG_INFO("%s: Failed get %s \n", __func__, CSV_RAW_DATA_MAX_ARRAY);
 		return ret;
 	}
 
-	ret = ts_kit_parse_csvfile(OVT_TCM_LIMITS_CSV_FILE, CSV_OPEN_SHORT_MIN_ARRAY,
+	ret = ts_kit_parse_csvfile(file_path, CSV_OPEN_SHORT_MIN_ARRAY,
 			threshold->open_short_min_limits, rows, cols);
 	if (ret) {
 		TS_LOG_INFO("%s: Failed get %s \n", __func__, CSV_OPEN_SHORT_MIN_ARRAY);
 		return ret;
 	}
 
-	ret = ts_kit_parse_csvfile(OVT_TCM_LIMITS_CSV_FILE, CSV_OPEN_SHORT_MAX_ARRAY,
+	ret = ts_kit_parse_csvfile(file_path, CSV_OPEN_SHORT_MAX_ARRAY,
 			threshold->open_short_max_limits, rows, cols);
 	if (ret) {
 		TS_LOG_INFO("%s: Failed get %s \n", __func__, CSV_OPEN_SHORT_MAX_ARRAY);
 		return ret;
 	}
 
-	ret = ts_kit_parse_csvfile(OVT_TCM_LIMITS_CSV_FILE, CSV_LCD_NOISE_ARRAY,
+	ret = ts_kit_parse_csvfile(file_path, CSV_LCD_NOISE_ARRAY,
 			threshold->lcd_noise_max_limits, rows, cols);
 	if (ret) {
 		TS_LOG_INFO("%s: Failed get %s \n", __func__, CSV_LCD_NOISE_ARRAY);

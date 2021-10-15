@@ -65,6 +65,7 @@
 			omnivision,ubl-max-freq = <3000000>;
 			omnivision,ubl-byte-delay-us = <20>;
 			omnivision,display-reset-gpio = <&msm_gpio 78 0>;
+			omnivision,project-id-name = "BOE";
 		};
 	};
 };

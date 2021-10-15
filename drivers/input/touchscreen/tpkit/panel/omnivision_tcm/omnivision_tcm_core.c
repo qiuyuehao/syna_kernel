@@ -201,12 +201,58 @@ static int ovt_tcm_mmi_test(struct ts_rawdata_info *info,
 	return NO_ERR;
 }
 
+#define OMNIVISION_CHIP_INFO "omnivision"
+
+static int ovt_tcm_chip_get_info(struct ts_chip_info_param *info)
+{
+	int retval = 0;
+	char buf_fw_ver[16] = {0};
+	int projectid_lenth = 0;
+	int len = 0;
+	struct ovt_tcm_hcd *tcm_hcd = g_tcm_hcd;
+	
+	if (!tcm_hcd)
+		return -EINVAL;
+
+	if (tcm_hcd->ovt_tcm_chip_data->projectid_len) {
+		projectid_lenth = tcm_hcd->ovt_tcm_chip_data->projectid_len;
+	} else {
+		projectid_lenth = 16; // ?
+	}
+	memset(info->ic_vendor, 0, sizeof(info->ic_vendor));
+	memset(info->mod_vendor, 0, sizeof(info->mod_vendor));
+	memset(info->fw_vendor, 0, sizeof(info->fw_vendor));
+
+
+	snprintf(buf_fw_ver, sizeof(buf_fw_ver), "PR%d", tcm_hcd->packrat_number);
+	OVT_LOG_ERR("buf_fw_ver = %s", buf_fw_ver);
+	strncpy(info->fw_vendor, buf_fw_ver, CHIP_INFO_LENGTH);
+
+	if(!tcm_hcd->ovt_tcm_chip_data->ts_platform_data->hide_plain_id)  {
+		len = (sizeof(info->ic_vendor) - 1) > sizeof(OMNIVISION_CHIP_INFO) ?
+				sizeof(OMNIVISION_CHIP_INFO) : (sizeof(info->ic_vendor) - 1);
+		memcpy(info->ic_vendor, OMNIVISION_CHIP_INFO, len);
+	} else {
+		if (tcm_hcd->hw_if->bdata->project_id) {
+			len = (sizeof(info->ic_vendor) - 1) > strlen(tcm_hcd->hw_if->bdata->project_id) ?
+				strlen(tcm_hcd->hw_if->bdata->project_id) : (sizeof(info->ic_vendor) - 1);
+			memcpy(info->ic_vendor, tcm_hcd->hw_if->bdata->project_id, len);
+		}
+	}
+	if (tcm_hcd->hw_if->bdata->project_id) {
+		strncpy(info->mod_vendor, tcm_hcd->hw_if->bdata->project_id, CHIP_INFO_LENGTH - 1);
+	} else {
+		strncpy(info->mod_vendor, "NONE_LCD", CHIP_INFO_LENGTH - 1);
+	}
+	OVT_LOG_ERR("info->mod_vendor:%s, info->ic_vendor = %s, info->fw_vendor = %s", info->mod_vendor, info->ic_vendor,info->fw_vendor);
+	return 0;
+}
 static int ovt_tcm_get_cal_data(struct ts_calibration_data_info *info,
 				 struct ts_cmd_node *out_cmd)
 {
 	struct ovt_tcm_app_info *app_info;
 	
-	OVT_LOG_INFO("syna_tcm_get_cal_data called");
+	OVT_LOG_INFO("ovt_tcm_get_cal_data called");
 
 	app_info = &g_tcm_hcd->app_info;
 	info->tx_num = le2_to_uint(app_info->num_of_image_rows);
@@ -224,7 +270,7 @@ struct ts_device_ops ts_kit_ovt_tcm_ops = {
 	.chip_fw_update_boot = ovt_tcm_fw_update_boot,  // host download on boot
 	//.chip_fw_update_sd = ovt_tcm_fw_update_sd,   // host download by hand
 //	.oem_info_switch = ovtptics_oem_info_switch,
-	//.chip_get_info = ovt_tcm_chip_get_info,
+	.chip_get_info = ovt_tcm_chip_get_info,
 //	.chip_get_capacitance_test_type =
 //	    ovtptics_chip_get_capacitance_test_type,
 	//.chip_set_info_flag = ovt_tcm_set_info_flag,
