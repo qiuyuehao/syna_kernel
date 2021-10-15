@@ -676,6 +676,13 @@ int fill_touch_info_data(struct ts_fingers *info)
 		}
 		touch_hcd->prev_status[idx] = object_data[idx].status;
 	}
+	if (touch_hcd->touch_data.gesture_id) {
+		//report wakeup key
+		input_report_key(touch_hcd->input_dev, KEY_WAKEUP, 1);
+		input_sync(touch_hcd->input_dev);
+		input_report_key(touch_hcd->input_dev, KEY_WAKEUP, 0);
+		input_sync(touch_hcd->input_dev);
+	}
 }
 /**
  * touch_report() - Report touch events
@@ -901,6 +908,10 @@ void ovt_touch_config_input_dev(struct input_dev *input_dev)
 	set_bit(EV_ABS, input_dev->evbit);
 	set_bit(BTN_TOUCH, input_dev->keybit);
 	set_bit(BTN_TOOL_FINGER, input_dev->keybit);
+
+	set_bit(KEY_WAKEUP, input_dev->keybit);
+	input_set_capability(input_dev, EV_KEY, KEY_WAKEUP);
+
 #ifdef INPUT_PROP_DIRECT
 	set_bit(INPUT_PROP_DIRECT, input_dev->propbit);
 #endif
@@ -1026,7 +1037,7 @@ static int touch_set_report_config(void)
 	}
 
 	idx = 0;
-#if WAKEUP_GESTURE
+#if 1
 	touch_hcd->out.buf[idx++] = TOUCH_GESTURE_ID;
 	touch_hcd->out.buf[idx++] = 8;
 #endif

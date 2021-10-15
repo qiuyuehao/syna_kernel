@@ -260,6 +260,38 @@ static int ovt_tcm_get_cal_data(struct ts_calibration_data_info *info,
 
 	return 0;
 }
+
+static int ovt_wakeup_gesture_enable_switch(struct
+						  ts_wakeup_gesture_enable_info
+						  *info)
+{
+	int retval = NO_ERR;
+
+	if (!info) {
+		OVT_LOG_ERR("%s: info is Null\n", __func__);
+		retval = -ENOMEM;
+		return retval;
+	}
+
+	if (info->op_action == TS_ACTION_WRITE) {
+		retval = tcm_hcd->set_dynamic_config(tcm_hcd, DC_IN_WAKEUP_GESTURE_MODE, info->switch_value ? 1 : 0);
+		if (retval < 0) {
+			OVT_LOG_ERR("Failed to enable wakeup gesture mode");
+			return retval;
+		}
+		OVT_LOG_INFO("write deep_sleep switch: %d", info->switch_value);
+		if (retval < 0) {
+			TS_LOG_ERR("set deep_sleep switch(%d), failed: %d\n",
+				   info->switch_value, retval);
+		}
+	} else {
+		TS_LOG_INFO("invalid deep_sleep switch(%d) action: %d\n",
+			    info->switch_value, info->op_action);
+		retval = -EINVAL;
+	}
+	return retval;
+}
+
 struct ts_device_ops ts_kit_ovt_tcm_ops = {
 	.chip_detect = ovt_tcm_chip_detect,
 	.chip_init = ovt_tcm_init_chip,
@@ -278,8 +310,7 @@ struct ts_device_ops ts_kit_ovt_tcm_ops = {
 	.chip_suspend = ovt_tcm_suspend,
 	.chip_resume = ovt_tcm_resume,
 	//.chip_after_resume = ovt_tcm_after_resume,
-//	.chip_wakeup_gesture_enable_switch =
-//	    ovtptics_wakeup_gesture_enable_switch,
+	.chip_wakeup_gesture_enable_switch = ovt_wakeup_gesture_enable_switch,
 	.chip_get_rawdata = ovt_tcm_mmi_test,
 	.chip_get_calibration_data = ovt_tcm_get_cal_data,
 };
