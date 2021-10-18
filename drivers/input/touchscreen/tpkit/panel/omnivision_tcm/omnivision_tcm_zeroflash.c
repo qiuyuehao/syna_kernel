@@ -553,6 +553,7 @@ static int zeroflash_get_fw_image(void)
 		if (tcm_hcd->hw_if->bdata->project_id) {
 			strncpy(img_name, "hdl_firmware_", sizeof(img_name));
 			strncat(img_name, tcm_hcd->hw_if->bdata->project_id, sizeof(img_name));
+			strncat(img_name, ".img", sizeof(img_name));
 		} else {
 			strncpy(img_name, "hdl_firmware.img", sizeof(img_name));
 		}
@@ -1407,6 +1408,7 @@ int zeroflash_do_hostdownload(struct ovt_tcm_hcd *tcm_hcd)
 	if (retval < 0) {
 		return retval;
 	}
+	tcm_hcd->wakeup_gesture_enabled = 0;
 	return 0;
 }
 

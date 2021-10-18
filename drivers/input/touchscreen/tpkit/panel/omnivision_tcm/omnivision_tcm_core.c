@@ -275,15 +275,12 @@ static int ovt_wakeup_gesture_enable_switch(struct
 
 	if (info->op_action == TS_ACTION_WRITE) {
 		retval = tcm_hcd->set_dynamic_config(tcm_hcd, DC_IN_WAKEUP_GESTURE_MODE, info->switch_value ? 1 : 0);
-		if (retval < 0) {
-			OVT_LOG_ERR("Failed to enable wakeup gesture mode");
-			return retval;
-		}
 		OVT_LOG_INFO("write deep_sleep switch: %d", info->switch_value);
 		if (retval < 0) {
 			TS_LOG_ERR("set deep_sleep switch(%d), failed: %d\n",
 				   info->switch_value, retval);
 		}
+		tcm_hcd->wakeup_gesture_enabled = info->switch_value ? 1 : 0;
 	} else {
 		TS_LOG_INFO("invalid deep_sleep switch(%d) action: %d\n",
 			    info->switch_value, info->op_action);
@@ -3635,7 +3632,10 @@ exit:
 
 	if (!tcm_hcd->in_suspend)
 		return 0;
-	//gpio_direction_output(tcm_hcd->ovt_tcm_platform_data->reset_gpio, 1);
+	if (!tcm_hcd->wakeup_gesture_enabled) {
+		gpio_direction_output(tcm_hcd->ovt_tcm_platform_data->reset_gpio, 1);
+	}
+
 	tcm_hcd->in_suspend = false;
 
 	return retval;
@@ -3680,6 +3680,10 @@ static int ovt_tcm_suspend(void)
 		return 0;
 	//gpio_direction_output(tcm_hcd->ovt_tcm_platform_data->reset_gpio, 0);
 
+	if (!tcm_hcd->wakeup_gesture_enabled) {
+		//
+		gpio_direction_output(tcm_hcd->ovt_tcm_platform_data->reset_gpio, 0);
+	}
 
 	tcm_hcd->in_suspend = true;
 	return retval;
