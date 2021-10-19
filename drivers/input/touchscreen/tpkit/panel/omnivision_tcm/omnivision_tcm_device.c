@@ -617,21 +617,6 @@ int ovt_tcm_device_init(struct ovt_tcm_hcd *tcm_hcd)
 		goto err_create_device;
 	}
 
-	// if (bdata->irq_gpio >= 0) {
-	// 	retval = gpio_export(bdata->irq_gpio, false);
-	// 	if (retval < 0) {
-	// 		OVT_LOG_ERR(
-	// 				"Failed to export GPIO");
-	// 	} else {
-	// 		retval = gpio_export_link(&tcm_hcd->pdev->dev,
-	// 				"attn", bdata->irq_gpio);
-	// 		if (retval < 0) {
-	// 			OVT_LOG_ERR(
-	// 					"Failed to export GPIO link");
-	// 		}
-	// 	}
-	// }
-
 	return 0;
 
 err_create_device:
@@ -654,77 +639,3 @@ err_register_chrdev_region:
 
 	return retval;
 }
-#if 0
-static int device_remove(struct ovt_tcm_hcd *tcm_hcd)
-{
-	if (!device_hcd)
-		goto exit;
-
-	device_destroy(device_hcd->class, device_hcd->dev_num);
-
-	class_destroy(device_hcd->class);
-
-	cdev_del(&device_hcd->char_dev);
-
-	unregister_chrdev_region(device_hcd->dev_num, 1);
-
-	RELEASE_BUFFER(device_hcd->report);
-	RELEASE_BUFFER(device_hcd->resp);
-	RELEASE_BUFFER(device_hcd->out);
-
-	kfree(device_hcd);
-	device_hcd = NULL;
-
-exit:
-	complete(&ovt_device_remove_complete);
-
-	return 0;
-}
-
-static int device_reinit(struct ovt_tcm_hcd *tcm_hcd)
-{
-	int retval;
-
-	if (!device_hcd) {
-		retval = device_init(tcm_hcd);
-		return retval;
-	}
-
-	return 0;
-}
-
-static struct ovt_tcm_module_cb device_module = {
-	.type = TCM_DEVICE,
-	.init = device_init,
-	.remove = device_remove,
-	.syncbox = NULL,
-#ifdef REPORT_NOTIFIER
-	.asyncbox = NULL,
-#endif
-	.reinit = device_reinit,
-	.suspend = NULL,
-	.resume = NULL,
-	.early_suspend = NULL,
-};
-
-static int __init device_module_init(void)
-{
-	return ovt_tcm_add_module(&device_module, true);
-}
-
-static void __exit device_module_exit(void)
-{
-	ovt_tcm_add_module(&device_module, false);
-
-	wait_for_completion(&ovt_device_remove_complete);
-
-	return;
-}
-
-module_init(device_module_init);
-module_exit(device_module_exit);
-
-MODULE_AUTHOR("omnivision, Inc.");
-MODULE_DESCRIPTION("omnivision TCM Device Module");
-MODULE_LICENSE("GPL v2");
-#endif

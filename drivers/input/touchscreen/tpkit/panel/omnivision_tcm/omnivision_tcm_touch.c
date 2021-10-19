@@ -704,18 +704,8 @@ static void touch_report(void)
 	struct ovt_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd;
 
 	touch_hcd->input_dev = tcm_hcd->input_dev;
-	//const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
-	// if (!touch_hcd->init_touch_ok)
-	// 	return;
-
-	// if (touch_hcd->input_dev == NULL)
-	// 	return;
-
-	// if (touch_hcd->suspend_touch)
-	// 	return;
-	OVT_LOG_ERR(
-				"about to parse report");
+	OVT_LOG_ERR("about to parse report");
 	mutex_lock(&touch_hcd->report_mutex);
 
 	retval = touch_parse_report();
@@ -916,20 +906,10 @@ void ovt_touch_config_input_dev(struct input_dev *input_dev)
 	set_bit(INPUT_PROP_DIRECT, input_dev->propbit);
 #endif
 
-	// the max value is from app info
-	//if (g_tcm_hcd->init_ok_flag) 
-	{
-		input_set_abs_params(input_dev,
-				ABS_MT_POSITION_X, 0, touch_hcd->max_x, 0, 0);
-		input_set_abs_params(input_dev,
-				ABS_MT_POSITION_Y, 0, touch_hcd->max_y, 0, 0);
-	} 
-	// else {
-	// 	input_set_abs_params(input_dev,
-	// 			ABS_MT_POSITION_X, 0, 1080, 0, 0);
-	// 	input_set_abs_params(input_dev,
-	// 			ABS_MT_POSITION_Y, 0, 1920, 0, 0);		
-	// }
+	input_set_abs_params(input_dev,
+			ABS_MT_POSITION_X, 0, touch_hcd->max_x, 0, 0);
+	input_set_abs_params(input_dev,
+			ABS_MT_POSITION_Y, 0, touch_hcd->max_y, 0, 0);
 
 	
 	input_set_abs_params(input_dev, ABS_PRESSURE, 0, 255, 0, 0);
@@ -1141,7 +1121,7 @@ static int touch_set_input_reporting(void)
 
 	touch_hcd->init_touch_ok = false;
 
-/* 	mutex_lock(&touch_hcd->report_mutex); */
+
 
 	retval = touch_set_report_config();
 	if (retval < 0) {
@@ -1176,31 +1156,10 @@ static int touch_set_input_reporting(void)
 				"Failed to allocate memory for touch_hcd->touch_data.object_data");
 		return -ENOMEM;
 	}
-/* 	retval = touch_check_input_params();
-	if (retval < 0) {
-		OVT_LOG_ERR(
-				"Failed to check input parameters");
-		goto exit;
-	} else if (retval == 0) {
-		OVT_LOG_INFO(
-				"Input parameters unchanged");
-		goto exit;
-	}
 
-	if (touch_hcd->input_dev != NULL) {
-		input_unregister_device(touch_hcd->input_dev);
-		touch_hcd->input_dev = NULL;
-	}
-
-	retval = touch_set_input_dev();
-	if (retval < 0) {
-		OVT_LOG_ERR(
-				"Failed to set up input device");
-		goto exit;
-	} */
 
 exit:
-/* 	mutex_unlock(&touch_hcd->report_mutex); */
+
 
 	touch_hcd->init_touch_ok = retval < 0 ? false : true;
 

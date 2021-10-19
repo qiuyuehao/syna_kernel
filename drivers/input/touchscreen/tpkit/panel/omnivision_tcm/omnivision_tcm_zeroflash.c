@@ -194,75 +194,9 @@ struct zeroflash_hcd {
 	struct ovt_tcm_hcd *tcm_hcd;
 };
 
-DECLARE_COMPLETION(ovt_zeroflash_remove_complete);
-
-STORE_PROTOTYPE(zeroflash, hdl)
-
-static struct device_attribute *attrs[] = {
-	ATTRIFY(hdl),
-};
 
 static struct zeroflash_hcd *zeroflash_hcd;
 
-static int zeroflash_wait_hdl(struct ovt_tcm_hcd *tcm_hcd)
-{
-	int retval;
-
-	msleep(HOST_DOWNLOAD_WAIT_MS);
-
-	if (!atomic_read(&tcm_hcd->host_downloading))
-		return 0;
-
-	retval = wait_event_interruptible_timeout(tcm_hcd->hdl_wq,
-			!atomic_read(&tcm_hcd->host_downloading),
-			msecs_to_jiffies(HOST_DOWNLOAD_TIMEOUT_MS));
-	if (retval == 0) {
-		OVT_LOG_ERR(
-				"Timed out waiting for completion of host download");
-		atomic_set(&tcm_hcd->host_downloading, 0);
-		retval = -EIO;
-	} else {
-		retval = 0;
-	}
-
-	return retval;
-}
-
-static ssize_t zeroflash_sysfs_hdl_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	int retval = 0;
-	unsigned int input;
-	struct ovt_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
-
-	if (sscanf(buf, "%u", &input) != 1)
-		return -EINVAL;
-
-	if (input && (tcm_hcd->in_hdl_mode)) {
-
-		retval = tcm_hcd->reset(tcm_hcd);
-		if (retval < 0)
-			OVT_LOG_ERR(
-				"Failed to trigger the host download by reset");
-
-		retval = zeroflash_wait_hdl(tcm_hcd);
-		if (retval < 0)
-			OVT_LOG_ERR(
-				"Failed to wait for completion of host download");
-
-		if (zeroflash_hcd->fw_entry) {
-			release_firmware(zeroflash_hcd->fw_entry);
-			zeroflash_hcd->fw_entry = NULL;
-		}
-
-		zeroflash_hcd->image = NULL;
-
-	} else {
-		OVT_LOG_ERR(
-			"Invalid HDL devices");
-	}
-	return count;
-}
 
 static int zeroflash_check_uboot(void)
 {
@@ -585,35 +519,6 @@ static int zeroflash_get_fw_image(void)
 	}
 
 	return 0;
-}
-
-static void zeroflash_download_config(void)
-{
-	struct firmware_status *fw_status;
-	struct ovt_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
-
-	fw_status = &zeroflash_hcd->fw_status;
-
-	if (!fw_status->need_app_config && !fw_status->need_disp_config
-			&& !(fw_status->need_open_short_config
-			&& zeroflash_hcd->has_open_short_config)
-			&& (atomic_read(&tcm_hcd->host_downloading))) {
-
-		if (atomic_read(&tcm_hcd->helper.task) == HELP_NONE) {
-			atomic_set(&tcm_hcd->helper.task,
-					HELP_SEND_REINIT_NOTIFICATION);
-			queue_work(tcm_hcd->helper.workqueue,
-					&tcm_hcd->helper.work);
-		}
-		atomic_set(&tcm_hcd->host_downloading, 0);
-		return;
-	}
-
-	if (atomic_read(&tcm_hcd->host_downloading) && !tcm_hcd->ovt_tcm_driver_removing)
-		queue_work(zeroflash_hcd->workqueue,
-				&zeroflash_hcd->config_work);
-
-	return;
 }
 
 static int zeroflash_download_open_short_config(void)
@@ -1335,48 +1240,6 @@ int ovt_zeroflash_init(struct ovt_tcm_hcd *tcm_hcd)
 	INIT_BUFFER(zeroflash_hcd->out, false);
 	INIT_BUFFER(zeroflash_hcd->resp, false);
 
-/* 	zeroflash_hcd->workqueue =
-			create_singlethread_workqueue("ovt_tcm_zeroflash");
-	INIT_WORK(&zeroflash_hcd->config_work,
-			zeroflash_download_config_directly); */
-
-/* 	if (ENABLE_SYS_ZEROFLASH == false)
-		goto init_finished;
- */
-/* 	zeroflash_hcd->sysfs_dir = kobject_create_and_add(SYSFS_DIR_NAME,
-			tcm_hcd->sysfs_dir);
-	if (!zeroflash_hcd->sysfs_dir) {
-		OVT_LOG_ERR(
-				"Failed to create sysfs directory");
-		return -EINVAL;
-	}
-
-	for (idx = 0; idx < ARRAY_SIZE(attrs); idx++) {
-		retval = sysfs_create_file(zeroflash_hcd->sysfs_dir,
-				&(*attrs[idx]).attr);
-		if (retval < 0) {
-			OVT_LOG_ERR(
-					"Failed to create sysfs file");
-		}
-	}
- */
-/* init_finished:
-	if (tcm_hcd->in_hdl_mode) {
-		switch (tcm_hcd->sensor_type) {
-		case TYPE_F35:
-			zeroflash_do_f35_firmware_download();
-			break;
-		case TYPE_ROMBOOT:
-			zeroflash_do_romboot_firmware_download();
-			break;
-		default:
-			OVT_LOG_ERR(
-					"Failed to find valid HDL state (%d)\n",
-					 tcm_hcd->sensor_type);
-			break;
-
-		}
-	} */
 	return retval;
 }
 
@@ -1423,21 +1286,6 @@ static int zeroflash_remove(struct ovt_tcm_hcd *tcm_hcd)
 		release_firmware(zeroflash_hcd->fw_entry);
 
 
-	if (ENABLE_SYS_ZEROFLASH == true) {
-
-		for (idx = 0; idx < ARRAY_SIZE(attrs); idx++) {
-			sysfs_remove_file(zeroflash_hcd->sysfs_dir,
-					&(*attrs[idx]).attr);
-		}
-
-		kobject_put(zeroflash_hcd->sysfs_dir);
-	}
-
-
-	cancel_work_sync(&zeroflash_hcd->config_work);
-	flush_workqueue(zeroflash_hcd->workqueue);
-	destroy_workqueue(zeroflash_hcd->workqueue);
-
 	RELEASE_BUFFER(zeroflash_hcd->resp);
 	RELEASE_BUFFER(zeroflash_hcd->out);
 
@@ -1445,94 +1293,6 @@ static int zeroflash_remove(struct ovt_tcm_hcd *tcm_hcd)
 	zeroflash_hcd = NULL;
 
 exit:
-	complete(&ovt_zeroflash_remove_complete);
 
 	return 0;
 }
-
-static int zeroflash_syncbox(struct ovt_tcm_hcd *tcm_hcd)
-{
-	int retval;
-	unsigned char *fw_status;
-
-	if (!zeroflash_hcd)
-		return 0;
-
-	switch (tcm_hcd->report.id) {
-	case REPORT_STATUS:
-		fw_status = (unsigned char *)&zeroflash_hcd->fw_status;
-
-		retval = secure_memcpy(fw_status,
-				sizeof(zeroflash_hcd->fw_status),
-				tcm_hcd->report.buffer.buf,
-				tcm_hcd->report.buffer.buf_size,
-				sizeof(zeroflash_hcd->fw_status));
-
-		if (retval < 0) {
-			OVT_LOG_ERR(
-					"Failed to copy firmware status");
-			return retval;
-		}
-		zeroflash_download_config();
-		break;
-	case REPORT_HDL_F35:
-		zeroflash_do_f35_firmware_download();
-		break;
-	case REPORT_HDL_ROMBOOT:
-		zeroflash_do_romboot_firmware_download();
-		break;
-
-	default:
-		break;
-	}
-
-	return 0;
-}
-
-static int zeroflash_reinit(struct ovt_tcm_hcd *tcm_hcd)
-{
-	int retval;
-
-	if (!zeroflash_hcd && tcm_hcd->in_hdl_mode) {
-		retval = ovt_zeroflash_init(tcm_hcd);
-		return retval;
-	}
-
-	return 0;
-}
-#if 0
-static struct ovt_tcm_module_cb zeroflash_module = {
-	.type = TCM_ZEROFLASH,
-	.init = ovt_zeroflash_init,
-	.remove = zeroflash_remove,
-	.syncbox = zeroflash_syncbox,
-#ifdef REPORT_NOTIFIER
-	.asyncbox = NULL,
-#endif
-	.reinit = zeroflash_reinit,
-	.suspend = NULL,
-	.resume = NULL,
-	.early_suspend = NULL,
-};
-
-static int __init zeroflash_module_init(void)
-{
-	return ovt_tcm_add_module(&zeroflash_module, true);
-}
-
-static void __exit zeroflash_module_exit(void)
-{
-	ovt_tcm_add_module(&zeroflash_module, false);
-
-	wait_for_completion(&ovt_zeroflash_remove_complete);
-
-	return;
-}
-
-module_init(zeroflash_module_init);
-module_exit(zeroflash_module_exit);
-
-MODULE_AUTHOR("omnivision, Inc.");
-MODULE_DESCRIPTION("omnivision TCM Zeroflash Module");
-MODULE_LICENSE("GPL v2");
-#endif
