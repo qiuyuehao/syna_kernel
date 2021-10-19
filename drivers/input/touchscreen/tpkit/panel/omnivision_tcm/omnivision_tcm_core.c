@@ -1456,13 +1456,15 @@ static int ovt_tcm_raw_read(struct ovt_tcm_hcd *tcm_hcd,
 	unsigned int xfer_length;
 	unsigned int remaining_length;
 
+	bool retry = true;
+
 	if (length <= 2) {
-		bool retry = true;
 	retry_read:
 		retval = ovt_tcm_read(tcm_hcd,
 				in_buf,
 				length);
 		if (in_buf[0] != MESSAGE_MARKER && retry) {
+			usleep_range(READ_RETRY_US_MIN, READ_RETRY_US_MAX);
 			retry = false;
 			goto retry_read;
 		}
@@ -1509,7 +1511,7 @@ static int ovt_tcm_raw_read(struct ovt_tcm_hcd *tcm_hcd,
 			UNLOCK_BUFFER(tcm_hcd->temp);
 			return retval;
 		}
-
+	retry_read_long:
 		retval = ovt_tcm_read(tcm_hcd,
 				tcm_hcd->temp.buf,
 				xfer_length + 2);
@@ -1519,7 +1521,12 @@ static int ovt_tcm_raw_read(struct ovt_tcm_hcd *tcm_hcd,
 			UNLOCK_BUFFER(tcm_hcd->temp);
 			return retval;
 		}
-
+		if ((tcm_hcd->temp.buf[0] != MESSAGE_MARKER) && retry) {
+			retry = false;
+			usleep_range(READ_RETRY_US_MIN, READ_RETRY_US_MAX);
+			OVT_LOG_ERR("retry long read");
+			goto retry_read_long;
+		}
 		code = tcm_hcd->temp.buf[1];
 
 		if (idx == 0) {
