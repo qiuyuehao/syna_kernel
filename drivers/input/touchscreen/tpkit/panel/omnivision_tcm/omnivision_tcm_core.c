@@ -1171,6 +1171,9 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 		flush_workqueue(tcm_hcd->polling_workqueue);
 	}
 #endif
+	if (polling_delay_ms == 0) {
+		polling_delay_ms = 20;   //for tpkit driver, value 0 is not reasonalbe
+	}
 	if (polling_delay_ms) {
 		cancel_delayed_work_sync(&tcm_hcd->polling_work);
 		flush_workqueue(tcm_hcd->polling_workqueue);
@@ -2635,11 +2638,12 @@ static int ovt_tcm_suspend(void)
 
 	if (tcm_hcd->in_suspend)
 		return 0;
-	//gpio_direction_output(tcm_hcd->ovt_tcm_platform_data->reset_gpio, 0);
 
 	if (!tcm_hcd->wakeup_gesture_enabled) {
 		//
 		gpio_direction_output(tcm_hcd->ovt_tcm_platform_data->reset_gpio, 0);
+	} else {
+		ovt_tcm_sleep(tcm_hcd, true);
 	}
 
 	tcm_hcd->in_suspend = true;
