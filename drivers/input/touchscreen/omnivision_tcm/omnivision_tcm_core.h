@@ -72,7 +72,7 @@ struct ovt_tcm_board_data {
 
 #define OMNIVISION_TCM_ID_PRODUCT (1 << 0)
 #define OMNIVISION_TCM_ID_VERSION 0x0300
-#define OMNIVISION_TCM_ID_SUBVERSION 0
+#define OMNIVISION_TCM_ID_SUBVERSION 2
 
 #define PLATFORM_DRIVER_NAME "omnivision_tcm"
 
@@ -359,6 +359,7 @@ struct ovt_tcm_helper {
 	atomic_t task;
 	struct work_struct work;
 	struct workqueue_struct *workqueue;
+	struct completion *helper_completion;
 };
 
 struct ovt_tcm_watchdog {

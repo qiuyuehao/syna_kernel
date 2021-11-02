@@ -138,6 +138,7 @@ exit: \
 }
 
 DECLARE_COMPLETION(response_complete);
+DECLARE_COMPLETION(helper_complete);
 
 static struct kobject *sysfs_dir;
 
@@ -999,22 +1000,26 @@ static void ovt_tcm_dispatch_message(struct ovt_tcm_hcd *tcm_hcd)
 				complete(&response_complete);
 				break;
 			}
-		} else {
+		}
 
-			if ((tcm_hcd->id_info.mode == MODE_ROMBOOTLOADER) &&
-					tcm_hcd->in_hdl_mode) {
+		if ((tcm_hcd->id_info.mode == MODE_ROMBOOTLOADER) &&
+				tcm_hcd->in_hdl_mode) {
 
-				if (atomic_read(&tcm_hcd->helper.task) ==
-						HELP_NONE) {
-					atomic_set(&tcm_hcd->helper.task,
-							HELP_SEND_ROMBOOT_HDL);
-					queue_work(tcm_hcd->helper.workqueue,
-							&tcm_hcd->helper.work);
-				} else {
-					LOGN(tcm_hcd->pdev->dev.parent,
-							"Helper thread is busy\n");
-				}
+			retval = wait_for_completion_timeout(tcm_hcd->helper.helper_completion,
+				msecs_to_jiffies(500));
+			if (retval == 0) {
+				LOGE(tcm_hcd->pdev->dev.parent, "timeout to wait for helper completion\n");
 				return;
+			}
+			if (atomic_read(&tcm_hcd->helper.task) ==
+					HELP_NONE) {
+				atomic_set(&tcm_hcd->helper.task,
+						HELP_SEND_ROMBOOT_HDL);
+				queue_work(tcm_hcd->helper.workqueue,
+						&tcm_hcd->helper.work);
+			} else {
+				LOGN(tcm_hcd->pdev->dev.parent,
+						"Helper thread is busy\n");
 			}
 		}
 
@@ -1415,6 +1420,7 @@ static int ovt_tcm_read_message(struct ovt_tcm_hcd *tcm_hcd,
 
 	if (in_buf != NULL) {
 		retval = ovt_tcm_raw_read(tcm_hcd, in_buf, length);
+		mutex_unlock(&tcm_hcd->rw_ctrl_mutex); // move unlock rw mutex to here
 		goto exit;
 	}
 
@@ -1435,6 +1441,7 @@ retry:
 			retry = false;
 			goto retry;
 		}
+		mutex_unlock(&tcm_hcd->rw_ctrl_mutex); // move unlock rw mutex to here
 		goto exit;
 	}
 
@@ -1442,9 +1449,11 @@ retry:
 
 
 	if (header->marker != MESSAGE_MARKER) {
-		LOGE(tcm_hcd->pdev->dev.parent,
-				"Incorrect header marker (0x%02x)\n",
-				header->marker);
+		if (!retry) {
+			LOGE(tcm_hcd->pdev->dev.parent,
+					"Incorrect header marker (0x%02x)\n",
+					header->marker);
+		}
 		UNLOCK_BUFFER(tcm_hcd->in);
 		retval = -ENXIO;
 		if (retry) {
@@ -1452,6 +1461,7 @@ retry:
 			retry = false;
 			goto retry;
 		}
+		mutex_unlock(&tcm_hcd->rw_ctrl_mutex); // move unlock rw mutex to here
 		goto exit;
 	}
 
@@ -1459,11 +1469,11 @@ retry:
 
 	tcm_hcd->payload_length = le2_to_uint(header->length);
 
-	LOGD(tcm_hcd->pdev->dev.parent,
+	LOGN(tcm_hcd->pdev->dev.parent,
 			"Status report code = 0x%02x\n",
 			tcm_hcd->status_report_code);
 
-	LOGD(tcm_hcd->pdev->dev.parent,
+	LOGN(tcm_hcd->pdev->dev.parent,
 			"Payload length = %d\n",
 			tcm_hcd->payload_length);
 
@@ -1479,6 +1489,7 @@ retry:
 		case STATUS_BUSY:
 			tcm_hcd->payload_length = 0;
 			UNLOCK_BUFFER(tcm_hcd->in);
+			mutex_unlock(&tcm_hcd->rw_ctrl_mutex); // move unlock rw mutex to here
 			retval = 0;
 			goto exit;
 		default:
@@ -1520,6 +1531,7 @@ retry:
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to do continued read\n");
+		mutex_unlock(&tcm_hcd->rw_ctrl_mutex); // move unlock rw mutex to here
 		goto exit;
 	};
 
@@ -1537,10 +1549,12 @@ check_padding:
 				tcm_hcd->in.buf[total_length - 1]);
 		UNLOCK_BUFFER(tcm_hcd->in);
 		retval = -EIO;
+		mutex_unlock(&tcm_hcd->rw_ctrl_mutex); // move unlock rw mutex to here
 		goto exit;
 	}
 
 	UNLOCK_BUFFER(tcm_hcd->in);
+	mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
 
 #ifdef PREDICTIVE_READING
 	total_length = MAX(total_length, MIN_READ_LENGTH);
@@ -1561,7 +1575,7 @@ exit:
 		}
 	}
 
-	mutex_unlock(&tcm_hcd->rw_ctrl_mutex);
+	
 
 	return retval;
 }
@@ -1760,18 +1774,6 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Timed out waiting for response (command 0x%02x)\n",
 				tcm_hcd->command);
-		if (tcm_hcd->command == CMD_GET_APPLICATION_INFO) {
-			//hardware reset TP here
-			if (atomic_read(&tcm_hcd->host_downloading) == 0) {
-				const struct ovt_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
-				LOGE(tcm_hcd->pdev->dev.parent,
-				"app info cmd timed out, hw reset TP\n");
-				gpio_set_value(bdata->reset_gpio, 0);
-				msleep(5);
-				gpio_set_value(bdata->reset_gpio, 1);        
-				msleep(5);
-			}			
-		}
 		retval = -ETIME;
 		goto exit;
 	}
@@ -1982,6 +1984,11 @@ static irqreturn_t ovt_tcm_isr(int irq, void *data)
 
 	tcm_hcd->isr_pid = current->pid;
 
+	if (tcm_hcd->ovt_tcm_driver_removing) {
+		msleep(5);
+		goto exit;
+	}
+
 	retval = tcm_hcd->read_message(tcm_hcd,
 			NULL,
 			0);
@@ -2024,7 +2031,7 @@ static int ovt_tcm_enable_irq(struct ovt_tcm_hcd *tcm_hcd, bool en, bool ns)
 
 		if (irq_freed) {
 			retval = request_threaded_irq(tcm_hcd->irq, NULL,
-					ovt_tcm_isr, bdata->irq_flags,
+					ovt_tcm_isr, 0x2008,
 					PLATFORM_DRIVER_NAME, tcm_hcd);
 			if (retval < 0) {
 				LOGE(tcm_hcd->pdev->dev.parent,
@@ -2461,7 +2468,6 @@ static int ovt_tcm_identify(struct ovt_tcm_hcd *tcm_hcd, bool id)
 	unsigned int resp_buf_size;
 	unsigned int resp_length;
 	unsigned int max_write_size;
-	unsigned int retry_cnt = 3;
 
 	resp_buf = NULL;
 	resp_buf_size = 0;
@@ -2470,7 +2476,6 @@ static int ovt_tcm_identify(struct ovt_tcm_hcd *tcm_hcd, bool id)
 
 	if (!id)
 		goto get_info;
-id_info:
 	retval = tcm_hcd->write_message(tcm_hcd,
 			CMD_IDENTIFY,
 			NULL,
@@ -2484,14 +2489,7 @@ id_info:
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to write command %s\n",
 				STR(CMD_IDENTIFY));
-		if (retry_cnt) {
-			retry_cnt--;
-			tcm_hcd->read_message(tcm_hcd,NULL,0);  //read out message
-			msleep(100);
-			goto id_info;
-		} else {
 			goto exit;
-		}
 	}
 
 	retval = secure_memcpy((unsigned char *)&tcm_hcd->id_info,
@@ -2514,7 +2512,6 @@ id_info:
 
 	LOGN(tcm_hcd->pdev->dev.parent,
 		"Firmware build id = %d\n", tcm_hcd->packrat_number);
-	retry_cnt = 3;
 get_info:
 	switch (tcm_hcd->id_info.mode) {
 	case MODE_APPLICATION_FIRMWARE:
@@ -2522,15 +2519,8 @@ get_info:
 		retval = ovt_tcm_get_app_info(tcm_hcd);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to get application info and retry\n");
-			if (retry_cnt) {
-				retry_cnt--;
-				tcm_hcd->read_message(tcm_hcd,NULL,0);  //read out message
-				msleep(100);
-				goto get_info;
-			} else {
-				goto exit;
-			}
+					"Failed to get application info\n");
+			goto exit;
 		}
 		break;
 	case MODE_BOOTLOADER:
@@ -3224,6 +3214,11 @@ static void ovt_tcm_helper_work(struct work_struct *work)
 	struct ovt_tcm_hcd *tcm_hcd =
 			container_of(helper, struct ovt_tcm_hcd, helper);
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0))
+	reinit_completion(helper->helper_completion);
+#else
+	INIT_COMPLETION(*(helper->helper_completion));
+#endif
 	task = atomic_read(&helper->task);
     if (tcm_hcd->ovt_tcm_driver_removing) return;
 
@@ -3303,7 +3298,7 @@ static void ovt_tcm_helper_work(struct work_struct *work)
 	}
 
 	atomic_set(&helper->task, HELP_NONE);
-
+	complete(helper->helper_completion);
 	return;
 }
 
@@ -3314,7 +3309,7 @@ static int ovt_tcm_resume(struct device *dev)
 	struct ovt_tcm_module_handler *mod_handler;
 	struct ovt_tcm_hcd *tcm_hcd = dev_get_drvdata(dev);
 
-	if (!tcm_hcd->in_suspend)
+	if (!tcm_hcd->in_suspend  || tcm_hcd->ovt_tcm_driver_removing)
 		return 0;
 
 	if (tcm_hcd->in_hdl_mode) {
@@ -3412,7 +3407,7 @@ static int ovt_tcm_suspend(struct device *dev)
 	struct ovt_tcm_module_handler *mod_handler;
 	struct ovt_tcm_hcd *tcm_hcd = dev_get_drvdata(dev);
 
-	if (tcm_hcd->in_suspend)
+	if (tcm_hcd->in_suspend || tcm_hcd->ovt_tcm_driver_removing)
 		return 0;
 
 
@@ -3447,7 +3442,7 @@ static int ovt_tcm_early_suspend(struct device *dev)
 	struct ovt_tcm_module_handler *mod_handler;
 	struct ovt_tcm_hcd *tcm_hcd = dev_get_drvdata(dev);
 
-	if (tcm_hcd->in_suspend)
+	if (tcm_hcd->in_suspend  || tcm_hcd->ovt_tcm_driver_removing)
 		return 0;
 
 #ifdef WATCHDOG_SW
@@ -3792,6 +3787,9 @@ static int ovt_tcm_probe(struct platform_device *pdev)
 	atomic_set(&tcm_hcd->command_status, CMD_IDLE);
 
 	atomic_set(&tcm_hcd->helper.task, HELP_NONE);
+
+	tcm_hcd->helper.helper_completion = &helper_complete;
+	complete(tcm_hcd->helper.helper_completion);
 
 	device_init_wakeup(&pdev->dev, 1);
 
@@ -4177,7 +4175,7 @@ static void __exit ovt_tcm_module_exit(void)
 	return;
 }
 
-module_init(ovt_tcm_module_init);
+late_initcall(ovt_tcm_module_init);
 module_exit(ovt_tcm_module_exit);
 
 MODULE_AUTHOR("Omnivision, Inc.");

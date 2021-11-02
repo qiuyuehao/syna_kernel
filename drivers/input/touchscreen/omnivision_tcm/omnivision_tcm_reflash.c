@@ -2343,17 +2343,18 @@ static void reflash_startup_work(struct work_struct *work)
 	struct ovt_tcm_hcd *tcm_hcd = reflash_hcd->tcm_hcd;
 
 #ifdef CONFIG_FB
-	timeout = FB_READY_TIMEOUT_S * 1000 / FB_READY_WAIT_MS;
+	// timeout = FB_READY_TIMEOUT_S * 1000 / FB_READY_WAIT_MS;
 
-	while (tcm_hcd->fb_ready != FB_READY_COUNT) {
-		if (timeout == 0) {
-			LOGE(tcm_hcd->pdev->dev.parent,
-					"Timed out waiting for FB ready\n");
-			return;
-		}
-		msleep(FB_READY_WAIT_MS);
-		timeout--;
-	}
+	// while (tcm_hcd->fb_ready != FB_READY_COUNT) {
+	// 	if (timeout == 0) {
+	// 		LOGE(tcm_hcd->pdev->dev.parent,
+	// 				"Timed out waiting for FB ready\n");
+	// 		return;
+	// 	}
+	// 	msleep(FB_READY_WAIT_MS);
+	// 	timeout--;
+	// }
+	msleep(2000);
 #endif
 
 	pm_stay_awake(&tcm_hcd->pdev->dev);

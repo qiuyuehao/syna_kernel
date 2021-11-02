@@ -1188,11 +1188,13 @@ int touch_reinit(struct ovt_tcm_hcd *tcm_hcd)
 		return 0;
 	}
 
-	retval = tcm_hcd->identify(tcm_hcd, false);
-	if (retval < 0) {
-		LOGE(tcm_hcd->pdev->dev.parent,
+	if (!tcm_hcd->in_hdl_mode) {
+		retval = tcm_hcd->identify(tcm_hcd, false);
+		if (retval < 0) {
+			LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to do identification\n");
-		return retval;
+			return retval;
+		}
 	}
 
 	retval = touch_set_input_reporting();

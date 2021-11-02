@@ -518,9 +518,13 @@ static int zeroflash_get_fw_image(void)
 	int retval;
 	struct ovt_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
 
-	if (zeroflash_hcd->fw_entry != NULL)
-		return 0;
-
+	if (zeroflash_hcd->fw_entry != NULL) {
+		release_firmware(zeroflash_hcd->fw_entry);
+		zeroflash_hcd->fw_entry = NULL;
+		zeroflash_hcd->image = NULL;
+	} else {
+		msleep(10000); //power on case, sleep 10s to get the file system img
+	}
 	if (zeroflash_hcd->image == NULL) {
 		retval = request_firmware(&zeroflash_hcd->fw_entry,
 				FW_IMAGE_NAME,
@@ -556,6 +560,7 @@ static void zeroflash_download_config(void)
 {
 	struct firmware_status *fw_status;
 	struct ovt_tcm_hcd *tcm_hcd = zeroflash_hcd->tcm_hcd;
+	int retval;
 
 	fw_status = &zeroflash_hcd->fw_status;
 
@@ -564,6 +569,12 @@ static void zeroflash_download_config(void)
 			&& zeroflash_hcd->has_open_short_config)
 			&& (atomic_read(&tcm_hcd->host_downloading))) {
 		atomic_set(&tcm_hcd->host_downloading, 0);
+		retval = wait_for_completion_timeout(tcm_hcd->helper.helper_completion,
+			msecs_to_jiffies(500));
+		if (retval == 0) {
+			LOGE(tcm_hcd->pdev->dev.parent, "timeout to wait for helper completion\n");
+			return;
+		}
 		if (atomic_read(&tcm_hcd->helper.task) == HELP_NONE) {
 			atomic_set(&tcm_hcd->helper.task,
 					HELP_SEND_REINIT_NOTIFICATION);
@@ -1180,7 +1191,6 @@ exit:
 static void zeroflash_do_romboot_firmware_download(void)
 {
 	int retval;
-	unsigned char *out_buf = NULL;
 	unsigned char *resp_buf = NULL;
 	unsigned int resp_buf_size;
 	unsigned int resp_length;
@@ -1227,21 +1237,29 @@ static void zeroflash_do_romboot_firmware_download(void)
 
 	data_size_blocks = image_size / 16;
 
-	out_buf = kzalloc(image_size + RESERVED_BYTES,
-			GFP_KERNEL);
+	LOCK_BUFFER(zeroflash_hcd->out);
 
-	memset(out_buf, 0x00, RESERVED_BYTES);
+	retval = ovt_tcm_alloc_mem(tcm_hcd,
+			&zeroflash_hcd->out,
+			image_size + RESERVED_BYTES);
+	if (retval < 0) {
+		LOGE(tcm_hcd->pdev->dev.parent,
+				"Failed to allocate memory for application firmware\n");
+		UNLOCK_BUFFER(zeroflash_hcd->out);
+		goto exit;
+	}
 
-	out_buf[0] = zeroflash_hcd->image_info.app_firmware.size >> 16;
+	zeroflash_hcd->out.buf[0] = zeroflash_hcd->image_info.app_firmware.size >> 16;
 
-	retval = secure_memcpy(&out_buf[RESERVED_BYTES],
+	retval = secure_memcpy(&zeroflash_hcd->out.buf[RESERVED_BYTES],
 			zeroflash_hcd->image_info.app_firmware.size,
 			zeroflash_hcd->image_info.app_firmware.data,
 			zeroflash_hcd->image_info.app_firmware.size,
 			zeroflash_hcd->image_info.app_firmware.size);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
-				"Failed to copy payload\n");
+				"Failed to copy application firmware data\n");
+		UNLOCK_BUFFER(zeroflash_hcd->out);
 		goto exit;
 	}
 
@@ -1251,7 +1269,7 @@ static void zeroflash_do_romboot_firmware_download(void)
 
 	retval = tcm_hcd->write_message(tcm_hcd,
 			CMD_ROMBOOT_DOWNLOAD,
-			out_buf,
+			zeroflash_hcd->out.buf,
 			image_size + RESERVED_BYTES,
 			&resp_buf,
 			&resp_buf_size,
@@ -1261,8 +1279,10 @@ static void zeroflash_do_romboot_firmware_download(void)
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to write command ROMBOOT DOWNLOAD");
+		UNLOCK_BUFFER(zeroflash_hcd->out);
 		goto exit;
 	}
+	UNLOCK_BUFFER(zeroflash_hcd->out);
 
 	retval = tcm_hcd->switch_mode(tcm_hcd, FW_MODE_BOOTLOADER);
 	if (retval < 0) {
@@ -1274,8 +1294,6 @@ static void zeroflash_do_romboot_firmware_download(void)
 exit:
 
 	pm_relax(&tcm_hcd->pdev->dev);
-
-	kfree(out_buf);
 
 	kfree(resp_buf);
 
