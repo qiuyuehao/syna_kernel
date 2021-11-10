@@ -249,6 +249,12 @@ static int ovt_testing_do_test_item(enum test_code test_itme, struct ts_rawdata_
 		goto exit;
 	}
 
+	pts_node = (struct ts_rawdata_newnodeinfo *)kzalloc(sizeof(struct ts_rawdata_newnodeinfo), GFP_KERNEL);
+	if (!pts_node) {
+		TS_LOG_ERR("malloc pts_node failed\n");
+		return -ENOMEM;
+	}
+
 	testing_hcd->out.buf[0] = test_itme;
 
 	retval = tcm_hcd->write_message(tcm_hcd,
@@ -264,17 +270,12 @@ static int ovt_testing_do_test_item(enum test_code test_itme, struct ts_rawdata_
 		OVT_LOG_ERR(
 				"Failed to write command %s %s\n",
 				STR(CMD_PRODUCTION_TEST), STR(test_itme));
+		testresult = CAP_TEST_FAIL_CHAR;
 		goto exit;
 	}
 
 	data_length = testing_hcd->resp.data_length;
 	OVT_LOG_INFO("%d\n", data_length);
-
-	pts_node = (struct ts_rawdata_newnodeinfo *)kzalloc(sizeof(struct ts_rawdata_newnodeinfo), GFP_KERNEL);
-	if (!pts_node) {
-		TS_LOG_ERR("malloc pts_node failed\n");
-		return -ENOMEM;
-	}
 
 	pts_node->values = kzalloc((data_length/2)*sizeof(int), GFP_KERNEL);
 	if (!pts_node->values) {
@@ -283,7 +284,6 @@ static int ovt_testing_do_test_item(enum test_code test_itme, struct ts_rawdata_
 		strncpy(failedreason, "malloc node value fail", TS_RAWDATA_FAILED_REASON_LEN-1);
 		goto exit;
 	}
-
 
 	idx = 0;
 	testing_hcd->result = true;
@@ -330,7 +330,7 @@ static int ovt_testing_do_test_item(enum test_code test_itme, struct ts_rawdata_
 	OVT_LOG_ERR("%s data end", STR(test_itme));
 
 exit:
-	pts_node->size = data_length / 2;
+	pts_node->size = data_length / 2; //when error data_length is 0
 	pts_node->testresult = testresult;
 	switch (test_itme) {
 		case TEST_PT7_DYNAMIC_RANGE:
