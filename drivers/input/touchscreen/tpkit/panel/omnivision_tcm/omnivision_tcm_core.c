@@ -266,6 +266,9 @@ static int ovt_wakeup_gesture_enable_switch(struct
 						  *info)
 {
 	int retval = NO_ERR;
+	struct ovt_tcm_hcd *tcm_hcd;
+
+	tcm_hcd = g_tcm_hcd;
 
 	if (!info) {
 		OVT_LOG_ERR("%s: info is Null\n", __func__);
@@ -287,6 +290,55 @@ static int ovt_wakeup_gesture_enable_switch(struct
 		retval = -EINVAL;
 	}
 	return retval;
+}
+
+static int ovt_tcm_roi_switch(struct ts_roi_info *info)
+{
+	int retval = NO_ERR;
+	u16 buf = 0;
+	struct ovt_tcm_hcd *tcm_hcd;
+	tcm_hcd = g_tcm_hcd;
+
+	if (!info) {
+		TS_LOG_ERR("ovt_tcm_roi_switch: info is Null\n");
+		retval = -ENOMEM;
+		return retval;
+	}
+
+	switch (info->op_action) {
+	case TS_ACTION_WRITE:
+		if(0==info->roi_switch) {
+			buf = 0;
+		} else {
+			buf = 1;
+		}
+		memset(tcm_hcd->ovt_tcm_roi_data, 0, sizeof(tcm_hcd->ovt_tcm_roi_data));
+		retval = tcm_hcd->set_dynamic_config(tcm_hcd,
+				DC_ENABLE_ROI, buf);
+		if (retval < 0) {
+			TS_LOG_ERR("%s, ovt_tcm_roi_switch faild\n",
+				   __func__);
+		}else{
+			tcm_hcd->roi_enable_status = buf;
+		}
+		break;
+	case TS_ACTION_READ:
+		info->roi_switch = tcm_hcd->roi_enable_status;
+		break;
+	default:
+		TS_LOG_INFO("invalid roi switch(%d) action: %d\n",
+			    info->roi_switch, info->op_action);
+		retval = -EINVAL;
+		break;
+	}
+
+	TS_LOG_INFO("ovt_tcm_roi_switch end info->roi_switch = %d\n",info->roi_switch);
+	return retval;
+}
+
+static unsigned char *ovt_tcm_roi_rawdata(void)
+{
+	return g_tcm_hcd->ovt_tcm_roi_data ;
 }
 static int ovt_tcm_after_resume(void *feature_info)
 {
@@ -333,6 +385,8 @@ struct ts_device_ops ts_kit_ovt_tcm_ops = {
 //	    ovtptics_chip_get_capacitance_test_type,
 	//.chip_set_info_flag = ovt_tcm_set_info_flag,
 	//.chip_before_suspend = ovt_tcm_before_suspend,
+	.chip_roi_switch = ovt_tcm_roi_switch,
+	.chip_roi_rawdata = ovt_tcm_roi_rawdata,
 	.chip_suspend = ovt_tcm_suspend,
 	.chip_resume = ovt_tcm_resume,
 	.chip_after_resume = ovt_tcm_after_resume,

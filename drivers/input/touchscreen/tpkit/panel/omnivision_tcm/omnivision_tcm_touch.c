@@ -84,6 +84,7 @@ enum touch_report_code {
 	TOUCH_TUNING_GAUSSIAN_WIDTHS = 0x80,
 	TOUCH_TUNING_SMALL_OBJECT_PARAMS,
 	TOUCH_TUNING_0D_BUTTONS_VARIANCE,
+	TOUCH_ROI_DATA = 0xCA,
 };
 
 struct object_data {
@@ -609,6 +610,22 @@ static int touch_parse_report(void)
 			bits = config_data[idx++];
 			offset += bits;
 			break;
+		case TOUCH_ROI_DATA:
+			{
+				unsigned char bits_m = 0;
+				unsigned char bits_l = 0;
+				bits_m = config_data[idx++];
+				bits_l = config_data[idx++];
+				bits = bits_l << 8 | bits_m;
+				if (offset % 8 || bits % 8) {
+					TS_LOG_INFO("No byte alignment for roi data\n");
+					//return -EINVAL;
+				}
+				secure_memcpy(tcm_hcd->ovt_tcm_roi_data, sizeof(tcm_hcd->ovt_tcm_roi_data),
+				 	&tcm_hcd->report.buffer.buf[offset/8], bits/8, bits/8);
+				offset += bits;
+				break;
+			}
 		default:
 			bits = config_data[idx++];
 			offset += bits;

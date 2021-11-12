@@ -260,6 +260,7 @@ enum dynamic_config_id {
 	DC_GRIP_SUPPRESSION_ENABLED,
 	DC_ENABLE_THICK_GLOVE,
 	DC_ENABLE_GLOVE,
+	DC_ENABLE_ROI = 0xCA,
 };
 
 enum command {
@@ -465,6 +466,8 @@ struct ovt_tcm_features {
 	unsigned char byte_2_reserved:7;
 } __packed;
 
+
+#define OVT_ROI_DATA_LENGTH 102
 struct ovt_tcm_hcd {
 	struct ts_kit_platform_data *ovt_tcm_platform_data;
 	struct ts_kit_device_data *ovt_tcm_chip_data;
@@ -482,7 +485,9 @@ struct ovt_tcm_hcd {
 	bool is_detected;
 	bool init_ok_flag;
 	bool wakeup_gesture_enabled;
+	bool roi_enable_status;
     bool ovt_tcm_driver_removing;
+	unsigned char ovt_tcm_roi_data[OVT_ROI_DATA_LENGTH];
 	unsigned char sensor_type;
 	unsigned char fb_ready;
 	unsigned char command;
