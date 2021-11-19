@@ -86,6 +86,86 @@ static int ovt_tcm_raw_read(struct ovt_tcm_hcd *tcm_hcd,
 static int ovt_tcm_read_message(struct ovt_tcm_hcd *tcm_hcd,
 		unsigned char *in_buf, unsigned int length);
 
+static void ovt_tcm_parse_feature_dts(struct device_node *np, struct ts_kit_device_data *chip_data)
+{
+	int retval = NO_ERR;
+	u32 value = 0;
+	struct ts_roi_info *roi_info = NULL;
+	struct ts_glove_info *glove_info = NULL;
+	struct ts_charger_info *charger_info = NULL;
+	struct ts_holster_info *holster_info = NULL;
+
+	retval = of_property_read_u32(np, "support_3d_func", &value);
+	if (!retval) {
+		chip_data->support_3d_func = value;
+		TS_LOG_INFO("get support_3d_func = %d\n",
+				chip_data->support_3d_func);
+	} else {
+		chip_data->support_3d_func = 0;
+		TS_LOG_INFO("use default support_3d_func = %d\n",
+				chip_data->support_3d_func);
+	}
+
+	// retval = of_property_read_u32(np, "rawdata_newformatflag", &value);
+	// if (!retval) {
+	// 	chip_data->rawdata_newformatflag = (u8)value;
+	// 	TS_LOG_INFO("use dts rawdata_newformatflag = %d\n",
+	// 		    chip_data->rawdata_newformatflag);
+	// } else {
+	// 	chip_data->rawdata_newformatflag = 0;
+	// 	TS_LOG_INFO("use default rawdata_newformatflag = %d\n",
+	// 		    chip_data->rawdata_newformatflag);
+	// }
+
+	retval = of_property_read_u32(np, "touch_switch_flag", &chip_data->touch_switch_flag);
+	if(retval) {
+		chip_data->touch_switch_flag = 0;
+	}
+	TS_LOG_INFO("use dts(retval = %d) for touch_switch_flag = %d\n", retval, chip_data->touch_switch_flag);
+
+	roi_info = &chip_data->ts_platform_data->feature_info.roi_info;
+	retval = of_property_read_u32(np, "roi_supported",&value);
+	if(!retval) {
+		roi_info->roi_supported = (u8)value;
+	} else {
+		roi_info->roi_supported = 0;
+	}
+	TS_LOG_INFO("use dts(retval = %d) for roi_supported = %d\n", retval, roi_info->roi_supported);
+
+	glove_info = &(chip_data->ts_platform_data->feature_info.glove_info);
+	retval = of_property_read_u32(np, "glove_supported", &value);
+	if(!retval) {
+		glove_info->glove_supported= (u8)value;
+	} else {
+		glove_info->glove_supported = 0;
+	}
+	TS_LOG_INFO("use dts(retval = %d) for glove_supported = %d\n", retval, glove_info->glove_supported);
+
+	charger_info = &(chip_data->ts_platform_data->feature_info.charger_info);
+	retval = of_property_read_u32(np, "charger_supported", &value);
+	if(!retval) {
+		charger_info->charger_supported = (u8)value;
+	} else {
+		charger_info->charger_supported = 0;
+	}
+	TS_LOG_INFO("use dts(retval = %d) for charger_supported = %d\n", retval, charger_info->charger_supported);
+
+	holster_info = &(chip_data->ts_platform_data->feature_info.holster_info);
+	retval = of_property_read_u32(np, "holster_supported", &value);
+	if(!retval) {
+		holster_info->holster_supported = (u8)value;
+	} else {
+		holster_info->holster_supported = 0;
+	}
+	TS_LOG_INFO("use dts(retval = %d) for holster_supported = %d\n", retval, holster_info->holster_supported);
+}
+
+static int ovt_tcm_parse_dts(struct device_node *np, struct ts_kit_device_data *chip_data)
+{
+	ovt_tcm_parse_feature_dts(np,chip_data);
+	return 0;
+}
+
 static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 {
 	//after module init register to huawei ts kit, will call this detect, if return NO_ERR, will wakeup ts init task
@@ -103,6 +183,8 @@ static int ovt_tcm_chip_detect(struct ts_kit_platform_data* data)
 		OVT_LOG_ERR("ovt_tcm_chip_detect fail to do spi probe");
 		return RESULT_ERR;
 	}
+
+	ovt_tcm_parse_dts(g_tcm_hcd->ovt_tcm_chip_data->cnode, g_tcm_hcd->ovt_tcm_chip_data);
 
 	retval = ovt_tcm_probe(ovt_tcm_spi_platform_device);
 	if (retval < 0) {
@@ -370,10 +452,11 @@ static int ovt_tcm_after_resume(void *feature_info)
 exit:
 	return retval;
 }
+
 struct ts_device_ops ts_kit_ovt_tcm_ops = {
 	.chip_detect = ovt_tcm_chip_detect,
 	.chip_init = ovt_tcm_init_chip,
-	//.chip_parse_config = ovt_tcm_parse_dts, did not called by ts kit?
+	.chip_parse_config = ovt_tcm_parse_dts,
 	.chip_input_config = ovt_tcm_input_config,
 	.chip_irq_top_half = NULL,
 	.chip_irq_bottom_half = ovt_tcm_irq_bottom_half,

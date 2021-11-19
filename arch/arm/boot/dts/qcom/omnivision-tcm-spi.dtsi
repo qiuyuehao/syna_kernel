@@ -50,6 +50,7 @@
 			pinctrl-1 = <&ts_suspend>;
 			vdd-supply = <&pm8994_lvs2>;
 			avdd-supply = <&pm8994_l22>;
+			roi_supported = <1>;
 			omnivision,bus-reg-name = "vdd";
 			omnivision,pwr-reg-name = "avdd";
 			omnivision,irq-gpio = <&msm_gpio 65 0x2008>; /* IRQF_ONESHOT | IRQF_TRIGGER_LOW */
