@@ -2377,7 +2377,7 @@ static int ovt_tcm_set_dynamic_config(struct ovt_tcm_hcd *tcm_hcd,
 			&resp_buf_size,
 			&resp_length,
 			NULL,
-			20);
+			0);
 	if (retval < 0) {
 		OVT_LOG_ERR(
 				"Failed to write command %s\n",
