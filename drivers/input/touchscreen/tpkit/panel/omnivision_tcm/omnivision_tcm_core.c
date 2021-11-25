@@ -1308,9 +1308,6 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 		flush_workqueue(tcm_hcd->polling_workqueue);
 	}
 #endif
-	if (polling_delay_ms == 0) {
-		polling_delay_ms = 20;   //for tpkit driver, value 0 is not reasonalbe
-	}
 	if (polling_delay_ms) {
 		cancel_delayed_work_sync(&tcm_hcd->polling_work);
 		flush_workqueue(tcm_hcd->polling_workqueue);
@@ -1344,13 +1341,7 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 		chunk_space = tcm_hcd->wr_chunk_size - 1;
 
 	if (is_romboot_hdl) {
-		if (WR_CHUNK_SIZE) {
-			chunk_space = WR_CHUNK_SIZE - 1;
-			chunk_space = chunk_space -
-					(chunk_space % ROMBOOT_DOWNLOAD_UNIT);
-		} else {
-			chunk_space = remaining_length;
-		}
+		chunk_space = remaining_length;
 	}
 
 	chunks = ceil_div(remaining_length, chunk_space);
@@ -1441,7 +1432,7 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 		goto exit;
 
 	if (polling_delay_ms) {
-		msleep(polling_delay_ms);
+		//msleep(polling_delay_ms);
 		queue_delayed_work(tcm_hcd->polling_workqueue,
 				&tcm_hcd->polling_work,
 				msecs_to_jiffies(POLLING_DELAY_MS));
@@ -2386,7 +2377,7 @@ static int ovt_tcm_set_dynamic_config(struct ovt_tcm_hcd *tcm_hcd,
 			&resp_buf_size,
 			&resp_length,
 			NULL,
-			0);
+			20);
 	if (retval < 0) {
 		OVT_LOG_ERR(
 				"Failed to write command %s\n",
