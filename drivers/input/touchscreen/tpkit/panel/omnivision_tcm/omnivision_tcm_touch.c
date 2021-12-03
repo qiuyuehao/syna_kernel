@@ -274,7 +274,9 @@ static int touch_parse_report(void)
 	config_size = tcm_hcd->config.data_length;
 
 	report_size = tcm_hcd->report.buffer.data_length;
-
+	for (idx = 0; idx < report_size; idx++) {
+		OVT_LOG_ERR("touch data[%d]: %x", idx, tcm_hcd->report.buffer.buf[idx]);
+	}
 	size = sizeof(*object_data) * touch_hcd->max_objects;
 	memset(touch_hcd->touch_data.object_data, 0x00, size);
 	num_of_active_objects = false;
@@ -1038,6 +1040,9 @@ static int touch_set_report_config(void)
 	touch_hcd->out.buf[idx++] = TOUCH_GESTURE_ID;
 	touch_hcd->out.buf[idx++] = 8;
 #endif
+	touch_hcd->out.buf[idx++] = TOUCH_ROI_DATA;
+	touch_hcd->out.buf[idx++] = 0x30;
+	touch_hcd->out.buf[idx++] = 0x3;
 	touch_hcd->out.buf[idx++] = TOUCH_FOREACH_ACTIVE_OBJECT;
 	touch_hcd->out.buf[idx++] = TOUCH_OBJECT_N_INDEX;
 	touch_hcd->out.buf[idx++] = 4;

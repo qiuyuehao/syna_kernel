@@ -1308,6 +1308,9 @@ static int ovt_tcm_write_message(struct ovt_tcm_hcd *tcm_hcd,
 		flush_workqueue(tcm_hcd->polling_workqueue);
 	}
 #endif
+	if (polling_delay_ms == 0) {
+		polling_delay_ms = 20;   //for tpkit driver, value 0 is not reasonalbe
+	}
 	if (polling_delay_ms) {
 		cancel_delayed_work_sync(&tcm_hcd->polling_work);
 		flush_workqueue(tcm_hcd->polling_workqueue);
@@ -2377,7 +2380,7 @@ static int ovt_tcm_set_dynamic_config(struct ovt_tcm_hcd *tcm_hcd,
 			&resp_buf_size,
 			&resp_length,
 			NULL,
-			0);
+			20);
 	if (retval < 0) {
 		OVT_LOG_ERR(
 				"Failed to write command %s\n",
