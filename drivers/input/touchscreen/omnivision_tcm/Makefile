@@ -12,5 +12,6 @@ obj-$(CONFIG_TOUCHSCREEN_OMNIVISION_TCM_ZEROFLASH) += omnivision_tcm_zeroflash.o
 obj-$(CONFIG_TOUCHSCREEN_OMNIVISION_TCM_REFLASH) += omnivision_tcm_reflash.o
 obj-$(CONFIG_TOUCHSCREEN_OMNIVISION_TCM_DEVICE) += omnivision_tcm_device.o
 obj-$(CONFIG_TOUCHSCREEN_OMNIVISION_TCM_TESTING) += omnivision_tcm_testing.o
+obj-$(CONFIG_TOUCHSCREEN_OMNIVISION_TCM_TESTING) += omnivision_tcm_csv_parser.o
 obj-$(CONFIG_TOUCHSCREEN_OMNIVISION_TCM_RECOVERY) += omnivision_tcm_recovery.o
 obj-$(CONFIG_TOUCHSCREEN_OMNIVISION_TCM_DIAGNOSTICS) += omnivision_tcm_diagnostics.o

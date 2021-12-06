@@ -100,6 +100,7 @@ struct testing_hcd {
 	struct ovt_tcm_buffer process;
 	struct ovt_tcm_buffer output;
 	struct ovt_tcm_hcd *tcm_hcd;
+	struct ovt_tcm_test_threshold testing_csv_threshold;
 	int (*collect_reports)(enum report_type report_type,
 			unsigned int num_of_reports);
 
@@ -138,6 +139,8 @@ static int testing_pt07_dynamic_range(void);
 
 static int testing_pt10_noise(void);
 
+static int testing_do_testing(void);
+
 static int testing_pt11_open_detection(void);
 
 SHOW_PROTOTYPE(testing, size)
@@ -150,6 +153,7 @@ SHOW_PROTOTYPE(testing, pt01_trx_trx_short)
 SHOW_PROTOTYPE(testing, pt05_full_raw)
 SHOW_PROTOTYPE(testing, pt07_dynamic_range)
 SHOW_PROTOTYPE(testing, pt10_noise)
+SHOW_PROTOTYPE(testing, do_testing)
 SHOW_PROTOTYPE(testing, pt11_open_detection)
 
 
@@ -162,6 +166,7 @@ static struct device_attribute *attrs[] = {
 	ATTRIFY(pt07_dynamic_range),
 	ATTRIFY(pt10_noise),
 	ATTRIFY(pt11_open_detection),
+	ATTRIFY(do_testing),
 	ATTRIFY(reset_open),
 };
 
@@ -194,6 +199,86 @@ testing_sysfs_show(pt11_open_detection)
 
 testing_sysfs_show(reset_open)
 
+
+static int ovt_tcm_get_thr_from_csvfile(void)
+{
+	int ret = 0;
+	unsigned int rows = 0;
+	unsigned int cols = 0;
+	struct ovt_tcm_app_info *app_info = NULL;
+	struct ovt_tcm_test_threshold *threshold = &(testing_hcd->testing_csv_threshold);
+	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+
+	char file_path[256] = {0};
+
+	strncpy(file_path, "/data/ovt_tcm_", sizeof(file_path));
+	// if (tcm_hcd->hw_if->bdata->project_id) {
+	// 	strncat(file_path, tcm_hcd->hw_if->bdata->project_id, sizeof(file_path));
+	// }
+	strncat(file_path, "cap_limits.csv", sizeof(file_path));
+
+	app_info = &tcm_hcd->app_info;
+	rows = le2_to_uint(app_info->num_of_image_rows);
+	cols = le2_to_uint(app_info->num_of_image_cols);
+
+	printk("ovt tcm csv parser: rows: %d, cols: %d file_path:%s", rows, cols, file_path);
+	ret = ovt_tcm_parse_csvfile(file_path, CSV_RAW_DATA_MIN_ARRAY,
+			threshold->raw_data_min_limits, rows, cols);
+	if (ret) {
+		printk("ovt tcm csv parser: %s: Failed get %s \n", __func__, CSV_RAW_DATA_MIN_ARRAY);
+		return ret;
+	}
+
+	ret = ovt_tcm_parse_csvfile(file_path, CSV_RAW_DATA_MAX_ARRAY,
+			threshold->raw_data_max_limits, rows, cols);
+	if (ret) {
+		printk("ovt tcm csv parser: %s: Failed get %s \n", __func__, CSV_RAW_DATA_MAX_ARRAY);
+		return ret;
+	}
+
+	ret = ovt_tcm_parse_csvfile(file_path, CSV_OPEN_SHORT_MIN_ARRAY,
+			threshold->open_short_min_limits, rows, cols);
+	if (ret) {
+		printk("ovt tcm csv parser: %s: Failed get %s \n", __func__, CSV_OPEN_SHORT_MIN_ARRAY);
+		return ret;
+	}
+
+	ret = ovt_tcm_parse_csvfile(file_path, CSV_OPEN_SHORT_MAX_ARRAY,
+			threshold->open_short_max_limits, rows, cols);
+	if (ret) {
+		printk("ovt tcm csv parser: %s: Failed get %s \n", __func__, CSV_OPEN_SHORT_MAX_ARRAY);
+		return ret;
+	}
+
+	ret = ovt_tcm_parse_csvfile(file_path, CSV_LCD_NOISE_ARRAY,
+			threshold->lcd_noise_max_limits, rows, cols);
+	if (ret) {
+		printk("ovt tcm csv parser: %s: Failed get %s \n", __func__, CSV_LCD_NOISE_ARRAY);
+		return ret;
+	}
+
+	printk("ovt tcm csv parser: %s: success \n", __func__);
+	return 0;
+}
+
+static ssize_t testing_sysfs_do_testing_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int retval;
+	int test_result;
+	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+
+	mutex_lock(&tcm_hcd->extif_mutex);
+
+	test_result = testing_do_testing();
+
+	retval = snprintf(buf, PAGE_SIZE,
+		"testing_sysfs_do_testing_show retval %d\n",
+		test_result);
+	mutex_unlock(&tcm_hcd->extif_mutex);
+
+	return retval;
+}
 
 static ssize_t testing_sysfs_size_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -1253,6 +1338,18 @@ exit:
 	return retval;
 }
 
+static int testing_do_testing(void)
+{
+	int retval;
+	
+	retval = 0;
+
+	retval = ovt_tcm_get_thr_from_csvfile();
+	if (retval < 0) {
+		printk("ovt_tcm_get_thr_from_csvfile error, return\n");
+	}
+	return retval;
+}
 
 static int testing_pt11_open_detection(void)
 {
