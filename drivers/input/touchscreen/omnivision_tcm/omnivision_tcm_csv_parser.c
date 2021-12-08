@@ -224,35 +224,37 @@ void ovt_tcm_store_to_buf(char *buffer, char* format, ...)
     count++;
 }
 
-void ovt_tcm_store_to_file(char *file_path, char* format, ...)
+void ovt_tcm_store_to_file(struct file *fp, char* format, ...)
 {
     va_list args;
     char buf[TMP_STRING_LEN_FOR_CSV] = {0};
-    mm_segment_t fs;  
+    // mm_segment_t fs;  
     loff_t pos;
-	struct file *fp;
+	// struct file *fp;
 
     va_start(args, format);
     vsnprintf(buf, TMP_STRING_LEN_FOR_CSV, format, args);
     va_end(args);
 
 
-    fp = filp_open(file_path, O_RDWR | O_CREAT, 0666);  
-    if (IS_ERR(fp)) {  
-        printk("ovt tcm create file error\n");  
-        return;  
-    } 
+    // fp = filp_open(file_path, O_RDWR | O_CREAT, 0666);  
+    // if (IS_ERR(fp)) {  
+    //     printk("ovt tcm create file error\n");  
+    //     return;  
+    // } 
 
-    fs = get_fs();  
-    set_fs(KERNEL_DS);
+    // fs = get_fs();  
+    // set_fs(KERNEL_DS);
 
-    pos = fp->f_pos;
+
 	buf[TMP_STRING_LEN_FOR_CSV - 1] = 0;
+
+	pos = fp->f_pos;
     vfs_write(fp, buf, strlen(buf), &pos);  
     fp->f_pos = pos;
 
-    set_fs(fs);
+    // set_fs(fs);
 
-    filp_close(fp, NULL);  
+    // filp_close(fp, NULL);  
     return;  
 }

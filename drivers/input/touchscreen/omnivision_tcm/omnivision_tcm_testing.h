@@ -53,7 +53,7 @@ struct ovt_tcm_test_threshold {
 #define CSV_LCD_NOISE_ARRAY			"threshold,lcd_noise_max_array"
 extern int ovt_tcm_parse_csvfile(char *file_path, char *target_name, int32_t  *data, int rows, int columns);
 extern void ovt_tcm_store_to_buf(char *buffer, char* format, ...);
-extern void ovt_tcm_store_to_file(char *file_path, char* format, ...);
+extern void ovt_tcm_store_to_file(struct file *fp, char* format, ...);
 #define MAX_BUFFER_SIZE_FOR_CSV 1024
 #define TMP_STRING_LEN_FOR_CSV 256
 
