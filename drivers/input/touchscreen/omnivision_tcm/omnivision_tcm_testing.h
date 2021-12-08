@@ -52,9 +52,13 @@ struct ovt_tcm_test_threshold {
 #define CSV_OPEN_SHORT_MAX_ARRAY	"threshold,open_short_max_array"
 #define CSV_LCD_NOISE_ARRAY			"threshold,lcd_noise_max_array"
 extern int ovt_tcm_parse_csvfile(char *file_path, char *target_name, int32_t  *data, int rows, int columns);
+extern void ovt_tcm_store_to_buf(char *buffer, char* format, ...);
+extern void ovt_tcm_store_to_file(char *file_path, char* format, ...);
+#define MAX_BUFFER_SIZE_FOR_CSV 1024
+#define TMP_STRING_LEN_FOR_CSV 256
 
 /* test limit for the device id checking */
-static const char *device_id_limit = "3618";
+
 
 /* test limit for the config id checking */
 static const char config_id_limit[16] = {

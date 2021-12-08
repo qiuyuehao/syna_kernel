@@ -30,10 +30,24 @@
  */
 
 #include <linux/gpio.h>
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
+#include <linux/delay.h>
+#include <linux/slab.h>
+#include <asm/uaccess.h>
+#include <linux/gpio.h>
+#include <linux/kthread.h>
+#include <linux/interrupt.h>
+#include <linux/regulator/consumer.h>
+#include <linux/hrtimer.h>
+#include <linux/rtc.h>
+
 #include "omnivision_tcm_core.h"
 #include "omnivision_tcm_testing.h"
 
 #define SYSFS_DIR_NAME "testing"
+
+#define OVT_TCM_LIMIT_TSR_IMAGE_NAME "omnivision/tsr_limit.img"
 
 #define REPORT_TIMEOUT_MS 5000
 
@@ -103,7 +117,7 @@ struct testing_hcd {
 	struct ovt_tcm_test_threshold testing_csv_threshold;
 	int (*collect_reports)(enum report_type report_type,
 			unsigned int num_of_reports);
-
+	const struct firmware *limit_tsr_fw_entry;
 #ifdef PT1_GET_PIN_ASSIGNMENT
 #define MAX_PINS (64)
 	unsigned char *satic_cfg_buf;
@@ -200,6 +214,8 @@ testing_sysfs_show(pt11_open_detection)
 testing_sysfs_show(reset_open)
 
 
+char g_testing_output_buf[1024 * 10];
+
 static int ovt_tcm_get_thr_from_csvfile(void)
 {
 	int ret = 0;
@@ -270,11 +286,13 @@ static ssize_t testing_sysfs_do_testing_show(struct device *dev,
 
 	mutex_lock(&tcm_hcd->extif_mutex);
 
+	memset(g_testing_output_buf, 0, sizeof(g_testing_output_buf));
+
 	test_result = testing_do_testing();
 
 	retval = snprintf(buf, PAGE_SIZE,
-		"testing_sysfs_do_testing_show retval %d\n",
-		test_result);
+		"testing_sysfs_do_testing_show: %s\n",
+		g_testing_output_buf);
 	mutex_unlock(&tcm_hcd->extif_mutex);
 
 	return retval;
@@ -598,7 +616,7 @@ static void testing_standard_frame_output(bool image_only)
 
 	return;
 }
-
+static const char *device_id_limit = "3618";
 static int testing_device_id(void)
 {
 	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
@@ -1337,18 +1355,86 @@ exit:
 			"Result = %s\n", (testing_hcd->result)?"pass":"fail");
 	return retval;
 }
+#define LIMIT_FROM_CSV_FILE 1
 
 static int testing_do_testing(void)
 {
 	int retval;
+    mm_segment_t old_fs;
+    int error_count = 0;
+    uint8_t data_buf[256];
+	struct file *fp = NULL;
+    struct timespec now_time;
+    struct rtc_time rtc_now_time;
+    char *buffer;
+	struct ovt_tcm_hcd *tcm_hcd;
 	
-	retval = 0;
+	
+	tcm_hcd = testing_hcd->tcm_hcd;
 
+    /*start black screen test*/
+    buffer = (char *)kzalloc(MAX_BUFFER_SIZE_FOR_CSV, GFP_KERNEL);
+    if (!buffer) {
+        return -1;
+    }
+
+    ovt_tcm_store_to_buf(NULL, "");
+    getnstimeofday(&now_time);
+    rtc_time_to_tm(now_time.tv_sec, &rtc_now_time);
+    sprintf(data_buf, "/data/tp_test_data_%02d%02d%02d-%02d%02d%02d-utc.csv",
+            (rtc_now_time.tm_year + 1900) % 100, rtc_now_time.tm_mon + 1, rtc_now_time.tm_mday,
+            rtc_now_time.tm_hour, rtc_now_time.tm_min, rtc_now_time.tm_sec);
+    old_fs = get_fs();
+    set_fs(KERNEL_DS);
+    fp = filp_open(data_buf, O_WRONLY | O_CREAT | O_TRUNC, 0);
+    if (IS_ERR_OR_NULL(fp)) {
+        printk("ovt tcm Open log file '%s' failed.\n", data_buf);
+        ovt_tcm_store_to_buf(buffer, "Open failed failed");
+        error_count++;
+        set_fs(old_fs);
+        goto sys_err;
+    }
+#ifdef LIMIT_FROM_CSV_FILE
 	retval = ovt_tcm_get_thr_from_csvfile();
 	if (retval < 0) {
 		printk("ovt_tcm_get_thr_from_csvfile error, return\n");
 	}
-	return retval;
+#endif
+
+#ifdef LIMIT_FROM_TSR_FILE
+    retval = request_firmware(&testing_hcd->limit_tsr_fw_entry, OVT_TCM_LIMIT_TSR_IMAGE_NAME, tcm_hcd->pdev->dev.parent);
+    if (retval < 0) {
+        printk("ovt tcm Request firmware failed - %s (%d)\n",OVT_TCM_LIMIT_TSR_IMAGE_NAME, retval);
+        ovt_tcm_store_to_buf(buffer, "No Limit data");
+        error_count++;
+        goto firware_err;
+    }
+#endif
+
+
+
+
+
+
+
+
+#ifdef LIMIT_FROM_TSR_FILE
+    release_firmware(testing_hcd->limit_tsr_fw_entry);
+firware_err:
+#endif
+
+	if (!IS_ERR_OR_NULL(fp)) {
+		printk("ovt tcm csv parser: filp close\n");
+		filp_close(fp, NULL);
+		fp = NULL;
+	}
+    set_fs(old_fs);
+
+sys_err:
+    printk("ovt tcm %d errors. %s\n", error_count, buffer);
+    kfree(buffer);
+	retval = 0;
+    return 0;
 }
 
 static int testing_pt11_open_detection(void)

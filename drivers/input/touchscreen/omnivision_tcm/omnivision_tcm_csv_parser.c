@@ -5,6 +5,8 @@
 #include <linux/slab.h>
 #include <asm/uaccess.h>
 
+#include "omnivision_tcm_testing.h"
+
 #define STRTOL_LEN 10
 
 static void copy_this_line(char *dest, char *src)
@@ -192,4 +194,65 @@ exit_free:
 		fp = NULL;
 	}
 	return ret;
+}
+
+
+void ovt_tcm_store_to_buf(char *buffer, char* format, ...)
+{
+    va_list args;
+    char buf[TMP_STRING_LEN_FOR_CSV] = {0};
+    static int count = 0;
+
+    if (buffer == NULL) {
+        count = 0;
+        return;
+    }
+
+    va_start(args, format);
+    vsnprintf(buf, TMP_STRING_LEN_FOR_CSV, format, args);
+    va_end(args);
+
+    if (count + strlen(buf) + 2 > MAX_BUFFER_SIZE_FOR_CSV) {
+        pr_err("exceed the max buffer size\n");
+        count = 0;
+        return;
+    }
+
+    memcpy(buffer + count, buf, strlen(buf));
+    count += strlen(buf);
+    *(buffer + count) = '\n';
+    count++;
+}
+
+void ovt_tcm_store_to_file(char *file_path, char* format, ...)
+{
+    va_list args;
+    char buf[TMP_STRING_LEN_FOR_CSV] = {0};
+    mm_segment_t fs;  
+    loff_t pos;
+	struct file *fp;
+
+    va_start(args, format);
+    vsnprintf(buf, TMP_STRING_LEN_FOR_CSV, format, args);
+    va_end(args);
+
+
+    fp = filp_open(file_path, O_RDWR | O_CREAT, 0666);  
+    if (IS_ERR(fp)) {  
+        printk("ovt tcm create file error\n");  
+        return;  
+    } 
+
+    fs = get_fs();  
+    set_fs(KERNEL_DS);
+
+    pos = fp->f_pos;
+	buf[TMP_STRING_LEN_FOR_CSV - 1] = 0;
+    vfs_write(fp, buf, strlen(buf), &pos);  
+    fp->f_pos = pos;
+
+    set_fs(fs);
+
+    filp_close(fp, NULL);  
+    return;  
 }
