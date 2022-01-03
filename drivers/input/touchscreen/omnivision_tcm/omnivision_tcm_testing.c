@@ -214,7 +214,8 @@ testing_sysfs_show(pt11_open_detection)
 testing_sysfs_show(reset_open)
 
 
-char g_testing_output_buf[1024 * 10];
+static char *g_testing_output_buf;
+#define OUTPUT_TO_CSV_STRING_LEN 100*1024
 
 static int ovt_tcm_get_thr_from_csvfile(void)
 {
@@ -286,18 +287,23 @@ static ssize_t testing_sysfs_do_testing_show(struct device *dev,
 
 	mutex_lock(&tcm_hcd->extif_mutex);
 
-	memset(g_testing_output_buf, 0, sizeof(g_testing_output_buf));
+	if (!g_testing_output_buf) {
+		g_testing_output_buf = kmalloc(OUTPUT_TO_CSV_STRING_LEN, GFP_KERNEL);
+		if (!g_testing_output_buf) {
+			return snprintf(buf, PAGE_SIZE, "can not alloc buffer for g_testing_output_buf\n");
+		}
+	}
+	memset(g_testing_output_buf, 0, OUTPUT_TO_CSV_STRING_LEN);
 
 	test_result = testing_do_testing();
 	if (test_result < 0) {
-		//fail
+		retval = snprintf(buf, PAGE_SIZE,
+			"testing_sysfs_do_testing_show: fail\n");
 	} else {
-		//pass
+		retval = snprintf(buf, PAGE_SIZE,
+			"testing_sysfs_do_testing_show: success\n");
 	}
 
-	retval = snprintf(buf, PAGE_SIZE,
-		"testing_sysfs_do_testing_show: %s\n",
-		g_testing_output_buf);
 	mutex_unlock(&tcm_hcd->extif_mutex);
 
 	return retval;
