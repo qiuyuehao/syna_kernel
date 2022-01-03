@@ -289,6 +289,11 @@ static ssize_t testing_sysfs_do_testing_show(struct device *dev,
 	memset(g_testing_output_buf, 0, sizeof(g_testing_output_buf));
 
 	test_result = testing_do_testing();
+	if (test_result < 0) {
+		//fail
+	} else {
+		//pass
+	}
 
 	retval = snprintf(buf, PAGE_SIZE,
 		"testing_sysfs_do_testing_show: %s\n",
@@ -1390,13 +1395,16 @@ static int testing_do_test_item(enum test_code test_item, int limit_rows, int li
 		ovt_tcm_store_to_file(fp, "\n%s do test item %d enter\n", __func__, test_item);
 	}
 	if (output_str) {
-		snprintf(output_str + strlen(output_str), sizeof(output_str) - strlen(output_str), "%s do test item %d enter\n", __func__, test_item);
+		snprintf(output_str + strlen(output_str), sizeof(output_str) - strlen(output_str), 
+			"%s do test item %d enter\n", __func__, test_item);
 	}
 
 	retval = testing_run_prod_test_item(test_item);
 	if (retval < 0) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 				"Failed to run test\n");
+		snprintf(output_str + strlen(output_str), sizeof(output_str) - strlen(output_str), 
+			"%s fail to get cmd response of %d\n", __func__, test_item);
 		goto exit;
 	}
 
@@ -1410,6 +1418,8 @@ static int testing_do_test_item(enum test_code test_item, int limit_rows, int li
 	if ((limit_cols < cols) || (limit_rows < rows)) {
 		LOGE(tcm_hcd->pdev->dev.parent,
 			"incorrect cols and rows size of item:%d\n", test_item);
+		snprintf(output_str + strlen(output_str), sizeof(output_str) - strlen(output_str), 
+			"%s incorrect cols and rows size of item:%d\n", __func__, test_item);
 		testing_hcd->result = false;
 		goto exit;
 	}
@@ -1496,7 +1506,7 @@ exit:
 	}
 	LOGN(tcm_hcd->pdev->dev.parent,
 			"Result = %s\n", (testing_hcd->result)?"pass":"fail");
-	return retval;
+	return (testing_hcd->result)? 0 : -1;
 }
 
 static int testing_do_testing(void)
@@ -1508,7 +1518,6 @@ static int testing_do_testing(void)
 	struct file *fp = NULL;
     struct timespec now_time;
     struct rtc_time rtc_now_time;
-    // char *buffer;
 	struct ovt_tcm_hcd *tcm_hcd;
 	
 	
@@ -1516,8 +1525,7 @@ static int testing_do_testing(void)
 	snprintf(g_testing_output_buf + strlen(g_testing_output_buf), sizeof(g_testing_output_buf) - strlen(g_testing_output_buf), 
 		"start to do test\n");
 
-    ovt_tcm_store_to_buf(NULL, "");
-
+#if 0
     getnstimeofday(&now_time);
     rtc_time_to_tm(now_time.tv_sec, &rtc_now_time);
     sprintf(file_path, "/data/tp_test_data_%02d%02d%02d-%02d%02d%02d-utc.csv",
@@ -1535,19 +1543,28 @@ static int testing_do_testing(void)
         set_fs(old_fs);
         goto sys_err;
     }
-	snprintf(g_testing_output_buf + strlen(g_testing_output_buf), sizeof(g_testing_output_buf) - strlen(g_testing_output_buf), 
-		"touch file successfully:%s\n", file_path);
+#endif
+
 #ifdef LIMIT_FROM_CSV_FILE
 	retval = ovt_tcm_get_thr_from_csvfile();
 	if (retval < 0) {
 		printk("ovt_tcm_get_thr_from_csvfile error, return\n");
+		snprintf(g_testing_output_buf + strlen(g_testing_output_buf), sizeof(g_testing_output_buf) - strlen(g_testing_output_buf), 
+		"ovt_tcm_get_thr_from_csvfile error\n");
+		error_count++;
 		goto sys_err;
 	}
-	testing_do_test_item(TEST_PT7_DYNAMIC_RANGE, TX_NUM_MAX, RX_NUM_MAX, testing_hcd->testing_csv_threshold.raw_data_min_limits, 
+	retval = testing_do_test_item(TEST_PT7_DYNAMIC_RANGE, TX_NUM_MAX, RX_NUM_MAX, testing_hcd->testing_csv_threshold.raw_data_min_limits, 
 		testing_hcd->testing_csv_threshold.raw_data_max_limits, fp, g_testing_output_buf);
-	testing_do_test_item(TEST_PT10_DELTA_NOISE, TX_NUM_MAX, RX_NUM_MAX, NULL, 
-		testing_hcd->testing_csv_threshold.raw_data_max_limits, fp, g_testing_output_buf);
+	if (retval < 0) {
+		error_count++;
+	}
 
+	retval = testing_do_test_item(TEST_PT10_DELTA_NOISE, TX_NUM_MAX, RX_NUM_MAX, NULL, 
+		testing_hcd->testing_csv_threshold.lcd_noise_max_limits, fp, g_testing_output_buf);
+	if (retval < 0) {
+		error_count++;
+	}
 #endif
 #ifdef LIMIT_FROM_TSR_FILE
     retval = request_firmware(&testing_hcd->limit_tsr_fw_entry, OVT_TCM_LIMIT_TSR_IMAGE_NAME, tcm_hcd->pdev->dev.parent);
@@ -1563,7 +1580,34 @@ static int testing_do_testing(void)
     release_firmware(testing_hcd->limit_tsr_fw_entry);
 firware_err:
 #endif
+	if (error_count) {
+		//test fail result
+		sprintf(file_path, "/data/tp_test_data_%02d%02d%02d-%02d%02d%02d-fail.csv",
+            (rtc_now_time.tm_year + 1900) % 100, rtc_now_time.tm_mon + 1, rtc_now_time.tm_mday,
+            rtc_now_time.tm_hour, rtc_now_time.tm_min, rtc_now_time.tm_sec);
+	} else {
+		//test pass result
+		sprintf(file_path, "/data/tp_test_data_%02d%02d%02d-%02d%02d%02d-success.csv",
+            (rtc_now_time.tm_year + 1900) % 100, rtc_now_time.tm_mon + 1, rtc_now_time.tm_mday,
+            rtc_now_time.tm_hour, rtc_now_time.tm_min, rtc_now_time.tm_sec);
+	}
+#if 1
+    getnstimeofday(&now_time);
+    rtc_time_to_tm(now_time.tv_sec, &rtc_now_time);
+    
+    old_fs = get_fs();
+    set_fs(KERNEL_DS);
+    fp = filp_open(file_path, O_WRONLY | O_CREAT | O_TRUNC, 0);
+    if (IS_ERR_OR_NULL(fp)) {
+        printk("ovt tcm Open log file '%s' failed.\n", file_path);
 
+		snprintf(g_testing_output_buf + strlen(g_testing_output_buf), sizeof(g_testing_output_buf) - strlen(g_testing_output_buf), 
+			"can not open file:%s\n", file_path);
+        set_fs(old_fs);
+        goto sys_err;
+    }
+	ovt_tcm_store_to_file(fp, "%s\n", g_testing_output_buf);
+#endif
 	if (!IS_ERR_OR_NULL(fp)) {
 		printk("ovt tcm csv parser: filp close\n");
 		filp_close(fp, NULL);
@@ -1572,7 +1616,9 @@ firware_err:
     set_fs(old_fs);
 
 sys_err:
-	retval = 0;
+	if (error_count) {
+		return -1;
+	}
     return 0;
 }
 
