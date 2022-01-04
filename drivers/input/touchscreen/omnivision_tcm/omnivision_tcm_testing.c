@@ -1437,7 +1437,7 @@ static int testing_do_test_item(enum test_code test_item, int limit_rows, int li
 				if (limit_data_high)
 					limit_high = limit_data_high[row * limit_rows + col];				
 			}
-			if (test_item == TEST_PT10_DELTA_NOISE) {
+			if (test_item == TEST_PT10_DELTA_NOISE || test_item == TEST_PT11_OPEN_DETECTION) {
 				data = (short)le2_to_uint(&buf[idx * 2]);
 			} else {
 				data = (unsigned short)le2_to_uint(&buf[idx * 2]);
@@ -1534,26 +1534,6 @@ static int testing_do_testing(void)
 	snprintf(g_testing_output_buf + strlen(g_testing_output_buf), OUTPUT_TO_CSV_STRING_LEN - strlen(g_testing_output_buf), 
 		"start to do test,\n");
 
-	
-#if 0
-    getnstimeofday(&now_time);
-    rtc_time_to_tm(now_time.tv_sec, &rtc_now_time);
-    sprintf(file_path, "/data/tp_test_data_%02d%02d%02d-%02d%02d%02d-utc.csv",
-            (rtc_now_time.tm_year + 1900) % 100, rtc_now_time.tm_mon + 1, rtc_now_time.tm_mday,
-            rtc_now_time.tm_hour, rtc_now_time.tm_min, rtc_now_time.tm_sec);
-    old_fs = get_fs();
-    set_fs(KERNEL_DS);
-    fp = filp_open(file_path, O_WRONLY | O_CREAT | O_TRUNC, 0);
-    if (IS_ERR_OR_NULL(fp)) {
-        printk("ovt tcm Open log file '%s' failed.\n", file_path);
-
-		snprintf(g_testing_output_buf + strlen(g_testing_output_buf), OUTPUT_TO_CSV_STRING_LEN - strlen(g_testing_output_buf), 
-			"can not open file:%s\n", file_path);
-        error_count++;
-        set_fs(old_fs);
-        goto sys_err;
-    }
-#endif
 
 #ifdef LIMIT_FROM_CSV_FILE
 	retval = ovt_tcm_get_thr_from_csvfile();
@@ -1575,21 +1555,13 @@ static int testing_do_testing(void)
 	if (retval < 0) {
 		error_count++;
 	}
-#endif
-#ifdef LIMIT_FROM_TSR_FILE
-    retval = request_firmware(&testing_hcd->limit_tsr_fw_entry, OVT_TCM_LIMIT_TSR_IMAGE_NAME, tcm_hcd->pdev->dev.parent);
-    if (retval < 0) {
-        printk("ovt tcm Request firmware failed - %s (%d)\n",OVT_TCM_LIMIT_TSR_IMAGE_NAME, retval);
-        error_count++;
-        goto firware_err;
-    }
+	retval = testing_do_test_item(TEST_PT11_OPEN_DETECTION, TX_NUM_MAX, RX_NUM_MAX, testing_hcd->testing_csv_threshold.open_short_min_limits, 
+		testing_hcd->testing_csv_threshold.open_short_max_limits, fp, g_testing_output_buf, OUTPUT_TO_CSV_STRING_LEN);
+	if (retval < 0) {
+		error_count++;
+	}
 #endif
 
-
-#ifdef LIMIT_FROM_TSR_FILE
-    release_firmware(testing_hcd->limit_tsr_fw_entry);
-firware_err:
-#endif
 	rtc_time_to_tm(get_seconds(), &rtc_now_time);
 	if (error_count) {
 		//test fail result
@@ -1602,9 +1574,6 @@ firware_err:
             (rtc_now_time.tm_year + 1900) % 100, rtc_now_time.tm_mon + 1, rtc_now_time.tm_mday,
             rtc_now_time.tm_hour, rtc_now_time.tm_min, rtc_now_time.tm_sec);
 	}
-#if 1
-    //getnstimeofday(&now_time);
-    
     
     old_fs = get_fs();
     set_fs(KERNEL_DS);
@@ -1620,7 +1589,7 @@ firware_err:
 
 	pos = 0;
 	vfs_write(fp, g_testing_output_buf, strlen(g_testing_output_buf), &pos);
-#endif
+
 	if (!IS_ERR_OR_NULL(fp)) {
 		printk("ovt tcm csv parser: filp close\n");
 		filp_close(fp, NULL);
