@@ -1565,7 +1565,7 @@ static int testing_do_testing(void)
 	rtc_time_to_tm(get_seconds(), &rtc_now_time);
 	if (error_count) {
 		//test fail result
-		sprintf(file_path, "/data/tp_test_data_%02d%02d%02d-%02d%02d%02d-fail.csv",
+		sprintf(file_path, "/data/tp_%s_test_data_%02d%02d%02d-%02d%02d%02d-fail.csv", tcm_hcd->id_info.part_number,
             (rtc_now_time.tm_year + 1900) % 100, rtc_now_time.tm_mon + 1, rtc_now_time.tm_mday,
             rtc_now_time.tm_hour, rtc_now_time.tm_min, rtc_now_time.tm_sec);
 	} else {
