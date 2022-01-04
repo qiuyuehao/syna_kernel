@@ -1518,10 +1518,14 @@ static int testing_do_testing(void)
     struct rtc_time rtc_now_time;
 	struct ovt_tcm_hcd *tcm_hcd;
 	
+	tcm_hcd = testing_hcd->tcm_hcd;
+
 	if (!g_testing_output_buf) {
 		g_testing_output_buf = kmalloc(OUTPUT_TO_CSV_STRING_LEN, GFP_KERNEL);
 		if (!g_testing_output_buf) {
-			return snprintf(buf, PAGE_SIZE, "can not alloc buffer for g_testing_output_buf\n");
+			LOGE(tcm_hcd->pdev->dev.parent,
+				"can not alloc buffer for g_testing_output_buf\n");
+			return -1;
 		}
 	}
 	memset(g_testing_output_buf, 0, OUTPUT_TO_CSV_STRING_LEN);
@@ -1529,7 +1533,7 @@ static int testing_do_testing(void)
 	snprintf(g_testing_output_buf + strlen(g_testing_output_buf), sizeof(g_testing_output_buf) - strlen(g_testing_output_buf), 
 		"start to do test\n");
 
-	tcm_hcd = testing_hcd->tcm_hcd;
+	
 #if 0
     getnstimeofday(&now_time);
     rtc_time_to_tm(now_time.tv_sec, &rtc_now_time);
