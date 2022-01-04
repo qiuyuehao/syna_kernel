@@ -148,6 +148,7 @@ SHOW_PROTOTYPE(ovt_tcm, info)
 SHOW_PROTOTYPE(ovt_tcm, info_appfw)
 STORE_PROTOTYPE(ovt_tcm, irq_en)
 STORE_PROTOTYPE(ovt_tcm, reset)
+SHOW_STORE_PROTOTYPE(ovt_tcm, ts_suspend)
 #ifdef WATCHDOG_SW
 STORE_PROTOTYPE(ovt_tcm, watchdog)
 #endif
@@ -165,11 +166,13 @@ SHOW_STORE_PROTOTYPE(ovt_tcm, grip_suppression_enabled)
 SHOW_STORE_PROTOTYPE(ovt_tcm, enable_thick_glove)
 SHOW_STORE_PROTOTYPE(ovt_tcm, enable_glove)
 
+
 static struct device_attribute *attrs[] = {
 	ATTRIFY(info),
 	ATTRIFY(info_appfw),
 	ATTRIFY(irq_en),
 	ATTRIFY(reset),
+	ATTRIFY(ts_suspend),
 #ifdef WATCHDOG_SW
 	ATTRIFY(watchdog),
 #endif
@@ -195,6 +198,43 @@ static int ovt_tcm_get_app_info(struct ovt_tcm_hcd *tcm_hcd);
 static int ovt_tcm_sensor_detection(struct ovt_tcm_hcd *tcm_hcd);
 static void ovt_tcm_check_hdl(struct ovt_tcm_hcd *tcm_hcd,
 							unsigned char id);
+
+
+static int ovt_tcm_suspend(struct device *dev);
+static int ovt_tcm_resume(struct device *dev);
+
+static ssize_t ovt_tcm_sysfs_ts_suspend_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned int input;
+	struct ovt_tcm_hcd *tcm_hcd;
+
+	tcm_hcd = g_tcm_hcd;
+
+	if (kstrtouint(buf, 10, &input))
+		return -EINVAL;
+
+	if (input == 1)
+		ovt_tcm_suspend(&tcm_hcd->pdev->dev);
+	else if (input == 0)
+		ovt_tcm_resume(&tcm_hcd->pdev->dev);
+	else
+		return -EINVAL;
+
+	return count;
+}
+
+static ssize_t ovt_tcm_sysfs_ts_suspend_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ovt_tcm_hcd *tcm_hcd;
+
+	tcm_hcd = g_tcm_hcd;
+
+	return sprintf(buf, "%s\n",
+		tcm_hcd->in_suspend ? "true" : "false");
+}
+
 
 static ssize_t ovt_tcm_sysfs_info_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
