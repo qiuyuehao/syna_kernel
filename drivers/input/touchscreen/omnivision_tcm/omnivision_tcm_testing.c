@@ -283,9 +283,9 @@ static ssize_t testing_sysfs_do_testing_show(struct device *dev,
 {
 	int retval;
 	int test_result;
-	struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
+	//struct ovt_tcm_hcd *tcm_hcd = testing_hcd->tcm_hcd;
 
-	mutex_lock(&tcm_hcd->extif_mutex);
+	//mutex_lock(&tcm_hcd->extif_mutex);
 
 	test_result = testing_do_testing();
 	if (test_result < 0) {
@@ -296,7 +296,7 @@ static ssize_t testing_sysfs_do_testing_show(struct device *dev,
 			"testing_sysfs_do_testing_show: success\n");
 	}
 
-	mutex_unlock(&tcm_hcd->extif_mutex);
+	//mutex_unlock(&tcm_hcd->extif_mutex);
 
 	return retval;
 }
@@ -1366,7 +1366,7 @@ static int testing_do_test_item(enum test_code test_item, int limit_rows, int li
 	int retval;
 	int data, max_data, min_data, ave_data, sum_data;
 	unsigned char *buf;
-	unsigned int idx;
+	int idx;
 	unsigned int row;
 	unsigned int col;
 	unsigned int rows;
