@@ -11,5 +11,6 @@ obj-y += omnivision_tcm_zeroflash.o
 obj-y += omnivision_tcm_testing.o
 ##obj-$(CONFIG_TOUCHSCREEN_OMNIVISION_TCM_REFLASH) += omnivision_tcm_reflash.o
 obj-y += omnivision_tcm_device.o
+obj-y += omnivision_tcm_diagnostics.o
 #obj-$(CONFIG_TOUCHSCREEN_OMNIVISION_TCM_RECOVERY) += omnivision_tcm_recovery.o
 #obj-$(CONFIG_TOUCHSCREEN_OMNIVISION_TCM_DIAGNOSTICS) += omnivision_tcm_diagnostics.o

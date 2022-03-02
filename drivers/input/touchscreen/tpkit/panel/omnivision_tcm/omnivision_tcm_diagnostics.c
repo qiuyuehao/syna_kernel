@@ -31,6 +31,10 @@
 
 #include "omnivision_tcm_core.h"
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
+#include <linux/sched/signal.h>
+#endif
+
 #define SYSFS_DIR_NAME "diagnostics"
 
 enum pingpong_state {
@@ -43,14 +47,16 @@ struct diag_hcd {
 	unsigned char report_type;
 	enum pingpong_state state;
 	struct kobject *sysfs_dir;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0))
+	struct kernel_siginfo sigio;
+#else
 	struct siginfo sigio;
+#endif
 	struct task_struct *task;
 	struct ovt_tcm_buffer ping;
 	struct ovt_tcm_buffer pong;
 	struct ovt_tcm_hcd *tcm_hcd;
 };
-
-DECLARE_COMPLETION(diag_remove_complete);
 
 static struct diag_hcd *diag_hcd;
 
@@ -416,7 +422,7 @@ static void diag_report(void)
 	return;
 }
 
-static int diag_init(struct ovt_tcm_hcd *tcm_hcd)
+int ovt_diagnostics_init(struct ovt_tcm_hcd *tcm_hcd)
 {
 	int retval;
 	int idx;
@@ -439,7 +445,7 @@ static int diag_init(struct ovt_tcm_hcd *tcm_hcd)
 	diag_hcd->sigio.si_code = SI_USER;
 
 	diag_hcd->sysfs_dir = kobject_create_and_add(SYSFS_DIR_NAME,
-			tcm_hcd->sysfs_dir);
+			&tcm_hcd->pdev->dev.kobj);
 	if (!diag_hcd->sysfs_dir) {
 		OVT_LOG_ERR(
 				"Failed to create sysfs directory");
@@ -483,33 +489,7 @@ err_sysfs_create_dir:
 	return retval;
 }
 
-static int diag_remove(struct ovt_tcm_hcd *tcm_hcd)
-{
-	int idx;
-
-	if (!diag_hcd)
-		goto exit;
-
-	sysfs_remove_bin_file(diag_hcd->sysfs_dir, &bin_attr);
-
-	for (idx = 0; idx < ARRAY_SIZE(attrs); idx++)
-		sysfs_remove_file(diag_hcd->sysfs_dir, &(*attrs[idx]).attr);
-
-	kobject_put(diag_hcd->sysfs_dir);
-
-	RELEASE_BUFFER(diag_hcd->pong);
-	RELEASE_BUFFER(diag_hcd->ping);
-
-	kfree(diag_hcd);
-	diag_hcd = NULL;
-
-exit:
-	complete(&diag_remove_complete);
-
-	return 0;
-}
-
-static int diag_syncbox(struct ovt_tcm_hcd *tcm_hcd)
+int ovt_diag_syncbox(struct ovt_tcm_hcd *tcm_hcd)
 {
 	if (!diag_hcd)
 		return 0;
@@ -520,49 +500,3 @@ static int diag_syncbox(struct ovt_tcm_hcd *tcm_hcd)
 	return 0;
 }
 
-static int diag_reinit(struct ovt_tcm_hcd *tcm_hcd)
-{
-	int retval;
-
-	if (!diag_hcd) {
-		retval = diag_init(tcm_hcd);
-		return retval;
-	}
-
-	return 0;
-}
-
-static struct ovt_tcm_module_cb diag_module = {
-	.type = TCM_DIAGNOSTICS,
-	.init = diag_init,
-	.remove = diag_remove,
-	.syncbox = diag_syncbox,
-#ifdef REPORT_NOTIFIER
-	.asyncbox = NULL,
-#endif
-	.reinit = diag_reinit,
-	.suspend = NULL,
-	.resume = NULL,
-	.early_suspend = NULL,
-};
-
-static int __init diag_module_init(void)
-{
-	return ovt_tcm_add_module(&diag_module, true);
-}
-
-static void __exit diag_module_exit(void)
-{
-	ovt_tcm_add_module(&diag_module, false);
-
-	wait_for_completion(&diag_remove_complete);
-
-	return;
-}
-
-module_init(diag_module_init);
-module_exit(diag_module_exit);
-
-MODULE_AUTHOR("omnivision, Inc.");
-MODULE_DESCRIPTION("omnivision TCM Diagnostics Module");
-MODULE_LICENSE("GPL v2");

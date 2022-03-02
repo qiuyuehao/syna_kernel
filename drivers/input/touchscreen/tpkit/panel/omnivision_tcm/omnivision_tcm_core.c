@@ -220,6 +220,7 @@ static int ovt_tcm_init_chip(void)
 	//irq not register here now, called by ts init task, after detect ok, before ovt_tcm_fw_update_boot().
 	// uint8 r_byte = 0;
 	ovt_zeroflash_init(g_tcm_hcd);
+	ovt_diagnostics_init(g_tcm_hcd);
 	ovt_tcm_device_init(g_tcm_hcd);
 	ovt_testing_init(g_tcm_hcd);
 
@@ -525,7 +526,9 @@ static void ovt_tcm_dispatch_report(struct ovt_tcm_hcd *tcm_hcd)
 		memset(fw_log, 0, sizeof(fw_log));
         secure_memcpy(fw_log, FW_LOG_BUFFER_SIZE - 1, tcm_hcd->report.buffer.buf, tcm_hcd->report.buffer.buf_size, cpy_length);
         OVT_LOG_ERR("TouchFWLog: %s", fw_log);
-    }
+    } else {
+		ovt_diag_syncbox(tcm_hcd);
+	}
 
 	UNLOCK_BUFFER(tcm_hcd->report.buffer);
 	UNLOCK_BUFFER(tcm_hcd->in);
